@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowUpDown, Archive, ChevronRight, Sparkles, CheckCircle2,
@@ -9,17 +9,22 @@ import {
 import { PageShell } from "../../shared/components/PageShell";
 import { AI_RECOMMENDATIONS } from "../../mocks";
 import type { AIRecommendation } from "../../entities/recommendation/recommendation.types";
+import type { AiRecommendationDecision, AiRecommendationRun } from "../../entities/ai-analysis/ai-analysis.types";
+import { createRecommendation, getRecommendations, resumeRecommendation } from "../../features/ai-analysis/api/aiAnalysisApi";
+
+const AI_ACCESS_TOKEN_KEY = "bp20:ai-access-token";
+const AI_ANALYSIS_ID_KEY = "bp20:ai-analysis-id";
 
 const CATEGORIES = ["전체", "매출", "재고", "리뷰", "고객", "원가"];
 const SORT_OPTIONS = ["우선순위순", "예상 효과순", "마감 임박순", "최신순"];
 
 type ExecStatus = "실행 완료" | "실행 중" | "효과 확인" | "보류";
 
-const EXEC_SUMMARY: { key: ExecStatus; label: string; count: number; change: string; icon: typeof CheckCircle2; bg: string; iconColor: string; textColor: string; desc: string }[] = [
-  { key: "실행 완료", label: "실행 완료", count: 12, change: "+3 (30일)", icon: CheckCircle2, bg: "bg-[#0E9F6E]/8 border-[#0E9F6E]/20", iconColor: "text-[#0E9F6E]", textColor: "text-[#0E9F6E]", desc: "결과 확정됨" },
-  { key: "실행 중", label: "실행 중", count: 3, change: "진행 중", icon: Play, bg: "bg-[#246BFD]/8 border-[#246BFD]/20", iconColor: "text-[#246BFD]", textColor: "text-[#246BFD]", desc: "현재 진행" },
-  { key: "효과 확인", label: "효과 확인", count: 2, change: "데이터 수집 중", icon: Eye, bg: "bg-[#8B5CF6]/8 border-[#8B5CF6]/20", iconColor: "text-[#8B5CF6]", textColor: "text-[#8B5CF6]", desc: "성과 측정 중" },
-  { key: "보류", label: "보류", count: 4, change: "대기 중", icon: Pause, bg: "bg-muted border-border", iconColor: "text-muted-foreground", textColor: "text-muted-foreground", desc: "점주 보류" },
+const EXEC_SUMMARY: { key: ExecStatus; label: string; icon: typeof CheckCircle2; bg: string; iconColor: string; textColor: string; desc: string }[] = [
+  { key: "실행 완료", label: "실행 완료", icon: CheckCircle2, bg: "bg-[#0E9F6E]/8 border-[#0E9F6E]/20", iconColor: "text-[#0E9F6E]", textColor: "text-[#0E9F6E]", desc: "결과 확정됨" },
+  { key: "실행 중", label: "실행 중", icon: Play, bg: "bg-[#246BFD]/8 border-[#246BFD]/20", iconColor: "text-[#246BFD]", textColor: "text-[#246BFD]", desc: "현재 진행" },
+  { key: "효과 확인", label: "효과 확인", icon: Eye, bg: "bg-[#8B5CF6]/8 border-[#8B5CF6]/20", iconColor: "text-[#8B5CF6]", textColor: "text-[#8B5CF6]", desc: "성과 측정 중" },
+  { key: "보류", label: "보류", icon: Pause, bg: "bg-muted border-border", iconColor: "text-muted-foreground", textColor: "text-muted-foreground", desc: "점주 보류" },
 ];
 
 const NEW_RECS = [
@@ -324,10 +329,81 @@ export function AiStrategyPage() {
   const [sort, setSort] = useState("우선순위순");
   const [search, setSearch] = useState("");
   const [drawerRec, setDrawerRec] = useState<typeof NEW_RECS[0] | null>(null);
+  const [accessToken, setAccessToken] = useState(() => sessionStorage.getItem(AI_ACCESS_TOKEN_KEY) ?? "");
+  const [analysisId, setAnalysisId] = useState(() => sessionStorage.getItem(AI_ANALYSIS_ID_KEY) ?? "");
+  const [recommendationRun, setRecommendationRun] = useState<AiRecommendationRun | null>(null);
+  const [recommendationRuns, setRecommendationRuns] = useState<AiRecommendationRun[]>([]);
+  const [recommendationLoading, setRecommendationLoading] = useState(false);
+  const [recommendationError, setRecommendationError] = useState("");
 
-  const filteredExisting = AI_RECOMMENDATIONS.filter(r => {
-    if (category !== "전체" && r.category !== category) return false;
-    if (search && !r.title.includes(search)) return false;
+  useEffect(() => {
+    const token = sessionStorage.getItem(AI_ACCESS_TOKEN_KEY);
+    if (!token) return;
+    getRecommendations(token)
+      .then(setRecommendationRuns)
+      .catch((error) => setRecommendationError(
+        error instanceof Error ? error.message : "추천 이력을 불러오지 못했습니다.",
+      ));
+  }, []);
+
+  const requestRecommendation = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!accessToken.trim() || !analysisId.trim()) {
+      setRecommendationError("JWT와 매출 분석 ID를 입력해 주세요.");
+      return;
+    }
+    sessionStorage.setItem(AI_ACCESS_TOKEN_KEY, accessToken.trim());
+    sessionStorage.setItem(AI_ANALYSIS_ID_KEY, analysisId.trim());
+    setRecommendationLoading(true);
+    setRecommendationError("");
+    try {
+      const result = await createRecommendation(analysisId.trim(), accessToken.trim());
+      setRecommendationRun(result);
+      setRecommendationRuns((current) => [result, ...current.filter((item) => item.thread_id !== result.thread_id)]);
+    } catch (error) {
+      setRecommendationError(error instanceof Error ? error.message : "전략 추천 요청에 실패했습니다.");
+    } finally {
+      setRecommendationLoading(false);
+    }
+  };
+
+  const decideRecommendation = async (decision: AiRecommendationDecision) => {
+    if (!recommendationRun) return;
+    setRecommendationLoading(true);
+    setRecommendationError("");
+    try {
+      const result = await resumeRecommendation(
+        recommendationRun.thread_id,
+        decision,
+        accessToken.trim(),
+      );
+      setRecommendationRun(result);
+      setRecommendationRuns((current) => current.map((item) => (
+        item.thread_id === result.thread_id ? result : item
+      )));
+    } catch (error) {
+      setRecommendationError(error instanceof Error ? error.message : "추천 처리에 실패했습니다.");
+    } finally {
+      setRecommendationLoading(false);
+    }
+  };
+
+  const filteredRuns = recommendationRuns.filter((run) => {
+    if (category !== "전체" && category !== "매출") return false;
+    const title = run.selected_action?.방안 ?? "추천 가능한 전략 없음";
+    if (search && !title.includes(search)) return false;
+    if (filterStatus) {
+      const status: ExecStatus | null = run.final_report
+        ? "실행 완료"
+        : run.상태.includes("효과")
+          ? "효과 확인"
+          : run.상태.includes("반려") || run.상태.includes("종료")
+            ? "보류"
+            : run.대기중_승인
+              ? null
+              : "실행 중";
+      if (status !== filterStatus) return false;
+    }
     return true;
   });
 
@@ -339,7 +415,19 @@ export function AiStrategyPage() {
         return true;
       });
 
-  const resultCount = filteredNew.length + filteredExisting.length;
+  const resultCount = filteredRuns.length;
+  const isRejected = (run: AiRecommendationRun) => run.상태.includes("반려") || run.상태.includes("종료");
+  const isCompleted = (run: AiRecommendationRun) => Boolean(run.final_report);
+  const isMeasuring = (run: AiRecommendationRun) => run.상태.includes("효과");
+  const isRunning = (run: AiRecommendationRun) => Boolean(
+    !run.대기중_승인 && !isCompleted(run) && !isRejected(run) && !isMeasuring(run),
+  );
+  const executionCounts: Record<ExecStatus, number> = {
+    "실행 완료": recommendationRuns.filter(isCompleted).length,
+    "실행 중": recommendationRuns.filter(isRunning).length + (recommendationLoading ? 1 : 0),
+    "효과 확인": recommendationRuns.filter(isMeasuring).length,
+    "보류": recommendationRuns.filter(isRejected).length,
+  };
 
   return (
     <PageShell
@@ -352,6 +440,67 @@ export function AiStrategyPage() {
         </button>
       }
     >
+      <form onSubmit={requestRecommendation} className="bg-card border border-border rounded-2xl p-5 mb-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
+          <h3 className="font-bold">매출 분석 기반 전략 생성</h3>
+        </div>
+        <input
+          type="password"
+          value={accessToken}
+          onChange={(event) => setAccessToken(event.target.value)}
+          placeholder="임시 JWT accessToken"
+          className="w-full h-10 px-3 mb-3 text-sm bg-muted rounded-xl border border-border"
+        />
+        <div className="flex flex-col md:flex-row gap-3">
+          <input
+            value={analysisId}
+            onChange={(event) => setAnalysisId(event.target.value)}
+            placeholder="매출 분석 ID"
+            className="flex-1 h-10 px-3 text-sm bg-muted rounded-xl border border-border"
+          />
+          <button disabled={recommendationLoading} className="h-10 px-4 bg-[#246BFD] text-white text-sm font-bold rounded-xl disabled:opacity-60">
+            {recommendationLoading ? "AI 처리 중..." : "전략 추천 생성"}
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">매출 분석 화면에서 완료한 최신 분석 ID가 자동으로 입력됩니다.</p>
+        {recommendationError && <p className="mt-3 text-xs text-red-600">{recommendationError}</p>}
+      </form>
+
+      {recommendationRun && (
+        <div className="bg-card border border-[#246BFD]/30 rounded-2xl p-5 mb-5">
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div>
+              <div className="text-xs font-semibold text-[#246BFD] mb-1">실제 AI 추천 결과</div>
+              <h3 className="text-lg font-black">{recommendationRun.selected_action?.방안 ?? "추천 가능한 전략 없음"}</h3>
+            </div>
+            <span className="text-xs px-2 py-1 rounded-lg bg-[#246BFD]/10 text-[#246BFD]">{recommendationRun.상태}</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div className="bg-muted rounded-xl p-3"><div className="text-muted-foreground mb-1">진단 유형</div><div className="font-bold">{recommendationRun.문제유형 ?? "확인 불가"}</div></div>
+            <div className="bg-muted rounded-xl p-3"><div className="text-muted-foreground mb-1">후보 전략</div><div className="font-bold">{recommendationRun.candidate_actions?.map((item) => item.방안).join(", ") || "없음"}</div></div>
+            <div className="bg-muted rounded-xl p-3"><div className="text-muted-foreground mb-1">실행 ID</div><div className="font-mono break-all">{recommendationRun.thread_id}</div></div>
+          </div>
+          {recommendationRun.warnings && recommendationRun.warnings.length > 0 && (
+            <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3">{recommendationRun.warnings.join(" · ")}</div>
+          )}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mt-4">
+            <ResultData title="예상 효과" value={recommendationRun.scm_result} />
+            <ResultData title="추천 근거" value={recommendationRun.rag_evidence} />
+            <ResultData title="정책 사전 검증" value={recommendationRun.ope_result} />
+          </div>
+          {recommendationRun.대기중_승인 && (
+            <div className="flex gap-2 mt-4">
+              <button type="button" disabled={recommendationLoading} onClick={() => decideRecommendation("approve")} className="px-4 py-2 bg-[#0E9F6E] text-white text-xs font-bold rounded-xl disabled:opacity-60">추천 승인 및 리포트 생성</button>
+              <button type="button" disabled={recommendationLoading} onClick={() => decideRecommendation("reject")} className="px-4 py-2 border border-border text-xs font-bold rounded-xl disabled:opacity-60">추천 반려</button>
+            </div>
+          )}
+          {recommendationRun.final_report && (
+            <pre className="mt-4 max-h-72 overflow-auto whitespace-pre-wrap text-xs bg-muted rounded-xl p-4">{JSON.stringify(recommendationRun.final_report, null, 2)}</pre>
+          )}
+        </div>
+      )}
+
       {/* AI 추천 현황 summary */}
       <div className="bg-card border border-border rounded-2xl p-5 mb-5">
         <div className="flex items-center gap-2 mb-4">
@@ -372,32 +521,14 @@ export function AiStrategyPage() {
                   <Icon className={`w-4 h-4 ${s.iconColor}`} />
                   {isActive && <span className="text-[10px] font-bold text-[#246BFD] bg-[#246BFD]/10 px-1.5 py-0.5 rounded">필터 중</span>}
                 </div>
-                <div className={`text-2xl font-black tabular-nums ${s.textColor}`}>{s.count}</div>
+                <div className={`text-2xl font-black tabular-nums ${s.textColor}`}>{executionCounts[s.key]}</div>
                 <div className="text-xs font-bold mt-0.5">{s.label}</div>
                 <div className="text-[11px] text-muted-foreground">{s.desc}</div>
-                <div className="text-[11px] text-muted-foreground mt-1">{s.change}</div>
               </button>
             );
           })}
         </div>
       </div>
-
-      {/* 오늘 우선 검토할 전략 */}
-      {!filterStatus && filteredNew.length > 0 && (
-        <div className="mb-5">
-          <div className="flex items-center gap-2 mb-3">
-            <h3 className="font-bold">오늘 우선 검토할 전략</h3>
-            <span className="text-xs font-bold text-[#246BFD] bg-[#246BFD]/10 border border-[#246BFD]/20 px-2 py-0.5 rounded-full">
-              새 추천 {filteredNew.length}건
-            </span>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {filteredNew.map(rec => (
-              <NewRecCard key={rec.id} rec={rec} onOpen={() => setDrawerRec(rec)} />
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Controls */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
@@ -453,11 +584,11 @@ export function AiStrategyPage() {
         {search && <span className="text-xs text-muted-foreground">· "{search}" 검색 중</span>}
       </div>
 
-      {/* Existing recs */}
-      {filteredExisting.length === 0 ? (
+      {/* Persisted AI recommendations */}
+      {filteredRuns.length === 0 ? (
         <div className="bg-card border border-border rounded-2xl p-12 text-center">
           <Sparkles className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">해당 조건의 추천이 없습니다.</p>
+          <p className="text-sm text-muted-foreground">저장된 실제 AI 추천이 없습니다.</p>
           {(filterStatus || category !== "전체" || search) && (
             <button onClick={() => { setFilterStatus(null); setCategory("전체"); setSearch(""); }} className="mt-2 text-xs text-[#246BFD] font-semibold hover:underline">
               필터 초기화
@@ -466,12 +597,24 @@ export function AiStrategyPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {filteredExisting.map(rec => (
-            <ExistingRecCard
-              key={rec.id}
-              rec={rec}
-              onClick={() => navigate(`/store/actions/${rec.id}`)}
-            />
+          {filteredRuns.map((run) => (
+            <button
+              key={run.thread_id}
+              onClick={() => setRecommendationRun(run)}
+              className="bg-card border border-border rounded-2xl p-4 text-left hover:border-[#246BFD]/40 hover:shadow-sm transition-all"
+            >
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#246BFD]/10 text-[#246BFD]">실제 AI 추천</span>
+                  <span className="text-[10px] text-muted-foreground">매출</span>
+                </div>
+                <span className="text-[10px] font-semibold text-muted-foreground">{run.상태}</span>
+              </div>
+              <h4 className="font-bold text-sm mb-1">{run.selected_action?.방안 ?? "추천 가능한 전략 없음"}</h4>
+              <p className="text-xs text-muted-foreground mb-3">진단 유형: {run.문제유형 ?? "확인 불가"}</p>
+              <div className="text-xs text-muted-foreground">후보: {run.candidate_actions?.map((item) => item.방안).join(", ") || "없음"}</div>
+              <div className="text-[10px] text-muted-foreground mt-2 break-all">{run.created_at ?? run.thread_id}</div>
+            </button>
           ))}
         </div>
       )}
@@ -484,5 +627,20 @@ export function AiStrategyPage() {
         />
       )}
     </PageShell>
+  );
+}
+
+function ResultData({ title, value }: { title: string; value?: Record<string, unknown> | null }) {
+  return (
+    <div className="bg-muted rounded-xl p-3 min-w-0">
+      <div className="text-xs font-bold mb-2">{title}</div>
+      {value ? (
+        <pre className="max-h-52 overflow-auto whitespace-pre-wrap break-words text-[11px] text-muted-foreground">
+          {JSON.stringify(value, null, 2)}
+        </pre>
+      ) : (
+        <p className="text-xs text-muted-foreground">제공된 데이터가 없습니다.</p>
+      )}
+    </div>
   );
 }
