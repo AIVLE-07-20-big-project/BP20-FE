@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Star, TrendingUp, AlertCircle, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
 import { PageShell } from "../../../shared/components/PageShell";
-import { REVIEW_DATA } from "../../../mocks";
 import ReviewList from "./components/ReviewList";
+import { analyzeRequest, getStoreReviews } from "./api/review";
 
 const ASPECT_DATA = [
   { aspect: "맛", score: 4.7, prev: 4.6 },
@@ -34,11 +34,46 @@ const RADAR_DATA = ASPECT_DATA.map(a => ({ subject: a.aspect, A: a.score * 20, B
 
 export function ReviewsPage() {
   const [showEvidence, setShowEvidence] = useState(false);
-
   const [onlyUnanalyzed, setOnlyUnanalyzed] = useState<boolean>(false);
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+
+  const handleAnalyzeReview = async () => {
+    if (isAnalyzing) return;
+
+    setIsAnalyzing(true);
+    try {
+      await analyzeRequest(1);
+      alert('리뷰 분석이 완료되었습니다.');
+
+      getStoreReviews(1);
+    } catch (error) {
+      console.error(error);
+      alert('분석 요청 중 오류가 발생했습니다.');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   return (
-    <PageShell title="리뷰 분석" freshness="오늘 09:42 기준">
+    <PageShell 
+      title="리뷰 분석" 
+      freshness="오늘 09:42 기준"
+      actions={
+        <div className="flex flex-col items-end gap-1">
+          <button
+            type='button'
+            onClick={handleAnalyzeReview}
+            disabled={isAnalyzing}
+            className={`px-3.5 py-1.5 text-xs font-bold text-white ${isAnalyzing ? 'bg-indigo-300' : 'bg-indigo-600 hover:bg-indigo-700'} rounded-lg shadow-sm transition-all`}
+          >
+            {isAnalyzing ? '분석중..' : '지금 분석'}
+          </button>
+          <span className="text-[11px] text-slate-400 font-normal">
+            * 리뷰는 30개 단위로 자동 처리됩니다.
+          </span>
+        </div>
+      }
+    >
       {/* Summary metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
         {[
@@ -54,6 +89,7 @@ export function ReviewsPage() {
           </div>
         ))}
       </div>
+      
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         {/* Radar chart */}
@@ -167,6 +203,7 @@ export function ReviewsPage() {
         </div>
         <ReviewList
           showEvidence={showEvidence}
+          onlyUnanalyzed={onlyUnanalyzed}
         />
         {/* <div className="space-y-3">
           {(showEvidence ? REVIEW_DATA : REVIEW_DATA.slice(0, 3)).map((r) => (

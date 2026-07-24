@@ -5,6 +5,7 @@ import { formatReviewDate } from "../utils/date";
 
 interface ReviewListProps {
     showEvidence: boolean;
+    onlyUnanalyzed: boolean;
 }
 
 interface Review {
@@ -16,7 +17,7 @@ interface Review {
   isAnalyzed?: boolean;
 }
 
-export default function ReviewList({ showEvidence } : ReviewListProps ) {
+export default function ReviewList({ showEvidence, onlyUnanalyzed } : ReviewListProps ) {
     
     const [reviewList, setReviewList] = useState<Review[]>([]);
     const [loading, setLoading] = useState<boolean>(true);

@@ -10,14 +10,28 @@ export interface Review {
     isAnalyzed?: boolean;
 }
 
+const bearerToken = localStorage.getItem('accessToken');
+
 export const getStoreReviews = async (storeId: number = 1): Promise<Review[]> => {
     const response = await axios.get<Review[]>(
         `${BASE_URL}/api/v3/stores/${storeId}/reviews`,
         {
             headers: {
-                Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg0ODYxMTIwLCJleHAiOjE3ODQ4NjIwMjB9.jDIPHPzwzm253aOwBou4aPfU3UZ0N_wZHy_GchlTp3w',
+                Authorization: bearerToken,
             },
         }
     );
     return response.data;
 };
+
+export const analyzeRequest = async (storeId: number = 1) => {
+    await axios.post(
+        `${BASE_URL}/api/v3/stores/${storeId}/reviews/analysis`,
+        {},
+        {
+            headers: {
+                Authorization: bearerToken,
+            },
+        }
+    );
+}
