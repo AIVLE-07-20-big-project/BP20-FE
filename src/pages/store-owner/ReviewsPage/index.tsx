@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Star, TrendingUp, AlertCircle, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
-import { PageShell } from "../../shared/components/PageShell";
-import { REVIEW_DATA } from "../../mocks";
+import { PageShell } from "../../../shared/components/PageShell";
+import { REVIEW_DATA } from "../../../mocks";
+import ReviewList from "./components/ReviewList";
 
 const ASPECT_DATA = [
   { aspect: "맛", score: 4.7, prev: 4.6 },
@@ -33,6 +34,8 @@ const RADAR_DATA = ASPECT_DATA.map(a => ({ subject: a.aspect, A: a.score * 20, B
 
 export function ReviewsPage() {
   const [showEvidence, setShowEvidence] = useState(false);
+
+  const [onlyUnanalyzed, setOnlyUnanalyzed] = useState<boolean>(false);
 
   return (
     <PageShell title="리뷰 분석" freshness="오늘 09:42 기준">
@@ -140,16 +143,32 @@ export function ReviewsPage() {
       {/* Recent reviews */}
       <div className="bg-card border border-border rounded-2xl p-5 mb-4">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold">최근 리뷰</h3>
+          <div className="flex items-baseline gap-3">
+            <h3 className="font-bold">최근 리뷰</h3>
+            <button
+              type="button"
+              onClick={() => setOnlyUnanalyzed(!onlyUnanalyzed)}
+              className={`text-xs transition-colors cursor-pointer ${
+                onlyUnanalyzed
+                  ? "text-amber-600 font-semibold underline" 
+                  : "text-slate-400 hover:text-slate-600 hover:underline" 
+              }`}
+            >
+              미분석 리뷰만
+            </button>
+          </div>
           <button
             onClick={() => setShowEvidence(!showEvidence)}
             className="flex items-center gap-1 text-xs text-[#246BFD] font-semibold"
           >
             {showEvidence ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            모두 보기
+            {showEvidence ? "간단 보기" : "모두 보기"}
           </button>
         </div>
-        <div className="space-y-3">
+        <ReviewList
+          showEvidence={showEvidence}
+        />
+        {/* <div className="space-y-3">
           {(showEvidence ? REVIEW_DATA : REVIEW_DATA.slice(0, 3)).map((r) => (
             <div key={r.id} className="pb-3 border-b border-border last:border-0 last:pb-0">
               <div className="flex items-center gap-2 mb-1">
@@ -164,7 +183,7 @@ export function ReviewsPage() {
               <p className="text-xs text-foreground leading-relaxed">{r.content}</p>
             </div>
           ))}
-        </div>
+        </div> */}
       </div>
 
       {/* AI improvement recommendations */}
