@@ -53,7 +53,8 @@ function formatDate(value?: string | null) {
   return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium" }).format(new Date(value));
 }
 
-function formatMetricValue(metric: VerificationMetricResult, value: number) {
+function formatMetricValue(metric: VerificationMetricResult, value: number | null) {
+  if (value == null || !Number.isFinite(value)) return "—";
   if (MONEY_METRICS.has(metric.metric_name)) return `${Math.round(value).toLocaleString("ko-KR")}원`;
   if (RATE_METRICS.has(metric.metric_name)) return `${value.toLocaleString("ko-KR")}%`;
   if (metric.metric_name === "average_rating") return `${value.toLocaleString("ko-KR")}점`;
@@ -89,8 +90,11 @@ function VerificationResultCard({ result }: { result: EffectVerificationResult }
   const verdict = {
     EFFECTIVE: { label: "효과 있음", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
     PARTIALLY_EFFECTIVE: { label: "일부 효과", color: "text-amber-700", bg: "bg-amber-50 border-amber-200" },
+    INCONCLUSIVE: { label: "판단 보류", color: "text-amber-700", bg: "bg-amber-50 border-amber-200" },
+    INEFFECTIVE: { label: "효과 미확인", color: "text-red-700", bg: "bg-red-50 border-red-200" },
     NOT_EFFECTIVE: { label: "효과 미확인", color: "text-red-700", bg: "bg-red-50 border-red-200" },
   }[result.verdict];
+  const metrics = result.metric_results ?? [];
 
   return (
     <section className={`border rounded-2xl p-5 mb-4 ${verdict.bg}`}>
@@ -103,24 +107,39 @@ function VerificationResultCard({ result }: { result: EffectVerificationResult }
           <p className="text-xs text-muted-foreground">{formatDate(result.verified_date)} 기준</p>
         </div>
         <div className="text-right">
-          <div className={`text-3xl font-black tabular-nums ${verdict.color}`}>{result.effect_score}<span className="text-sm ml-0.5">점</span></div>
+          <div className={`text-3xl font-black tabular-nums ${verdict.color}`}>
+            {result.effect_score == null ? "—" : result.effect_score}
+            {result.effect_score != null && <span className="text-sm ml-0.5">점</span>}
+          </div>
           <div className={`text-xs font-bold ${verdict.color}`}>{verdict.label}</div>
         </div>
       </div>
 
-      <p className="text-sm leading-relaxed text-foreground bg-white/60 rounded-xl p-3 mb-4">{result.summary}</p>
+      <p className="text-sm leading-relaxed text-foreground bg-white/60 rounded-xl p-3 mb-4">
+        {result.summary || "아직 제공된 분석 설명이 없습니다."}
+      </p>
 
       <div className="overflow-hidden rounded-xl border border-black/5 bg-white/70">
         <div className="grid grid-cols-[1.4fr_1fr_1fr_0.8fr] gap-2 px-3 py-2 text-[11px] font-bold text-muted-foreground bg-black/[0.025]">
           <span>평가 지표</span><span className="text-right">실행 전</span><span className="text-right">실행 후</span><span className="text-right">변화</span>
         </div>
-        {result.metric_results.map((metric) => (
-          <div key={metric.metric_name} className="grid grid-cols-[1.4fr_1fr_1fr_0.8fr] gap-2 items-center px-3 py-2.5 text-xs border-t border-black/5">
+        {metrics.length === 0 ? (
+          <div className="border-t border-black/5 px-3 py-8 text-center text-xs text-muted-foreground">
+            표시할 세부 지표가 없습니다.
+          </div>
+        ) : metrics.map((metric, index) => (
+          <div key={`${metric.metric_name}-${index}`} className="grid grid-cols-[1.4fr_1fr_1fr_0.8fr] gap-2 items-center px-3 py-2.5 text-xs border-t border-black/5">
             <span className="font-semibold">{METRIC_LABELS[metric.metric_name] ?? metric.metric_name}</span>
             <span className="text-right text-muted-foreground tabular-nums">{formatMetricValue(metric, metric.before_value)}</span>
             <span className="text-right font-semibold tabular-nums">{formatMetricValue(metric, metric.after_value)}</span>
-            <span className={`flex items-center justify-end gap-0.5 font-bold tabular-nums ${metric.improved ? "text-emerald-600" : "text-red-600"}`}>
-              {metric.improved ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+            <span className={`flex items-center justify-end gap-0.5 font-bold tabular-nums ${
+              metric.improved == null ? "text-muted-foreground" : metric.improved ? "text-emerald-600" : "text-red-600"
+            }`}>
+              {metric.improved == null
+                ? null
+                : metric.improved
+                  ? <TrendingUp className="w-3 h-3" />
+                  : <TrendingDown className="w-3 h-3" />}
               {metric.change_rate == null ? "-" : `${metric.change_rate > 0 ? "+" : ""}${metric.change_rate}%`}
             </span>
           </div>

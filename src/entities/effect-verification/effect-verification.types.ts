@@ -17,20 +17,20 @@ export interface VerificationExecution {
 
 export interface VerificationMetricResult {
   metric_name: string;
-  before_value: number;
-  after_value: number;
-  change_value: number;
+  before_value: number | null;
+  after_value: number | null;
+  change_value: number | null;
   change_rate: number | null;
-  improved: boolean;
+  improved: boolean | null;
 }
 
 export interface EffectVerificationResult {
   store_id: number;
   recommendation_id: number;
   recommendation_type: RecommendationType;
-  effect_score: number;
-  verdict: "EFFECTIVE" | "PARTIALLY_EFFECTIVE" | "NOT_EFFECTIVE";
-  metric_results: VerificationMetricResult[];
-  summary: string;
+  effect_score: number | null;
+  verdict: "EFFECTIVE" | "PARTIALLY_EFFECTIVE" | "NOT_EFFECTIVE" | "INCONCLUSIVE" | "INEFFECTIVE";
+  metric_results: VerificationMetricResult[] | null;
+  summary: string | null;
   verified_date?: string;
 }
