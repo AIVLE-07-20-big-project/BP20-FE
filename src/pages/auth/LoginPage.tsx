@@ -4,6 +4,7 @@ import { Eye, EyeOff, Store, Shield, Zap, TrendingUp, Users } from "lucide-react
 import { useAuth } from "../../app/providers/AuthProvider";
 import type { UserRole } from "../../entities/user/user.types";
 import { DEMO_USERS } from "../../mocks";
+import axios from "axios";
 
 export function LoginPage() {
   const [role, setRole] = useState<UserRole>("STORE_OWNER");
@@ -15,6 +16,8 @@ export function LoginPage() {
   const [error, setError] = useState("");
   const { login, switchDemo } = useAuth();
   const navigate = useNavigate();
+
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,10 +33,24 @@ export function LoginPage() {
     }
   };
 
-  const demoLogin = (userId: string) => {
-    switchDemo(userId);
-    const u = DEMO_USERS.find(u => u.id === userId)!;
-    navigate(u.role === "STORE_OWNER" ? "/store" : "/admin");
+  const demoLogin = async (userId: string) => {
+    try {
+      const response = await axios.post(`${BASE_URL}/api/auth/login`, { 
+        email: 'super-admin@bp20.com',
+        password: 'bp20superadmin'
+      });
+
+      const { accessToken, tokenType } = response.data.data;
+       
+      localStorage.setItem('accessToken', `${tokenType} ${accessToken}`);
+       
+      switchDemo(userId);
+      const u = DEMO_USERS.find(u => u.id === userId)!;
+      navigate(u.role === "STORE_OWNER" ? "/store" : "/admin");
+    } catch (error) {
+      console.error('데모 로그인 에러:', error);
+      alert('백엔드 서버 작동 확인 및 아이디 & 비밀번호를 확인해주세요.');
+    }
   };
 
   return (
