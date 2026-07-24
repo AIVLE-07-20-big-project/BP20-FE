@@ -1,6 +1,7 @@
 import type {
   EffectVerificationResult,
   VerificationExecution,
+  VerificationStatus,
 } from "../../../entities/effect-verification/effect-verification.types";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080").replace(/\/$/, "");
@@ -51,6 +52,18 @@ export async function getVerificationExecution(
     }
     throw error;
   }
+}
+
+export function getVerificationHistory(
+  storeId: number,
+  status?: VerificationStatus,
+) {
+  const query = new URLSearchParams({ store_id: String(storeId) });
+  if (status) query.set("status", status);
+
+  return request<VerificationExecution[]>(
+    `/api/effect-verifications/executions?${query.toString()}`,
+  );
 }
 
 export function registerMockExecution(recommendationId: number) {

@@ -11,6 +11,7 @@ const DashboardPage = lazy(() => import("../../pages/store-owner/DashboardPage")
 const SalesPage = lazy(() => import("../../pages/store-owner/SalesPage").then(({ SalesPage }) => ({ default: SalesPage })));
 const AiStrategyPage = lazy(() => import("../../pages/store-owner/AiStrategyPage").then(({ AiStrategyPage }) => ({ default: AiStrategyPage })));
 const AiStrategyDetailPage = lazy(() => import("../../pages/store-owner/AiStrategyDetailPage").then(({ AiStrategyDetailPage }) => ({ default: AiStrategyDetailPage })));
+const EffectVerificationHistoryPage = lazy(() => import("../../pages/store-owner/EffectVerificationHistoryPage").then(({ EffectVerificationHistoryPage }) => ({ default: EffectVerificationHistoryPage })));
 const LedgerPage = lazy(() => import("../../pages/store-owner/LedgerPage").then(({ LedgerPage }) => ({ default: LedgerPage })));
 const CostPage = lazy(() => import("../../pages/store-owner/CostPage").then(({ CostPage }) => ({ default: CostPage })));
 const InventoryPage = lazy(() => import("../../pages/store-owner/InventoryPage").then(({ InventoryPage }) => ({ default: InventoryPage })));
@@ -71,6 +72,7 @@ export function AppRouter() {
           <Route index element={<DashboardPage />} />
           <Route path="sales" element={<SalesPage />} />
           <Route path="actions" element={<AiStrategyPage />} />
+          <Route path="actions/history" element={<EffectVerificationHistoryPage />} />
           <Route path="actions/:id" element={<AiStrategyDetailPage />} />
           <Route path="ledger" element={<LedgerPage />} />
           <Route path="cost" element={<CostPage />} />
