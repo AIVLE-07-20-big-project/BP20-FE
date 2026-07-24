@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clock3,
   Filter,
+  ChevronRight,
   RefreshCw,
   Store,
   XCircle,
@@ -59,13 +60,31 @@ function getRemainingDays(dueAt: string) {
   return difference <= 0 ? 0 : Math.ceil(difference / 86_400_000);
 }
 
-function HistoryCard({ execution }: { execution: VerificationExecution }) {
+function HistoryCard({
+  execution,
+  onOpen,
+}: {
+  execution: VerificationExecution;
+  onOpen: () => void;
+}) {
   const status = STATUS_VIEW[execution.status];
   const StatusIcon = status.icon;
   const remainingDays = getRemainingDays(execution.verification_due_at);
 
   return (
-    <article className="rounded-2xl border border-border bg-card p-4">
+    <article
+      tabIndex={0}
+      role="link"
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+      className="group cursor-pointer rounded-2xl border border-border bg-card p-4 transition-all hover:border-[#246BFD]/40 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#246BFD]/30"
+      aria-label={`추천 ID ${execution.recommendation_id} 효과 검증 상세보기`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
@@ -110,6 +129,11 @@ function HistoryCard({ execution }: { execution: VerificationExecution }) {
           <span>{execution.failure_reason}</span>
         </div>
       )}
+
+      <div className="mt-4 flex items-center justify-end gap-1 text-xs font-bold text-[#246BFD]">
+        효과 상세보기
+        <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+      </div>
     </article>
   );
 }
@@ -248,7 +272,11 @@ export function EffectVerificationHistoryPage() {
       ) : (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {history.map((execution) => (
-            <HistoryCard key={execution.recommendation_id} execution={execution} />
+            <HistoryCard
+              key={execution.recommendation_id}
+              execution={execution}
+              onOpen={() => navigate(`/store/actions/verifications/${execution.recommendation_id}`)}
+            />
           ))}
         </div>
       )}
