@@ -9,8 +9,8 @@ import { apiRequest } from "../../../shared/api/http";
 export function createAnalysis(input: CreateAnalysisInput, accessToken: string) {
   const form = new FormData();
   form.append("file", input.file);
-  form.append("trdar_cd", input.trdarCd);
-  form.append("svc_induty_cd", input.svcIndutyCd);
+  if (input.trdarCd) form.append("trdar_cd", input.trdarCd);
+  if (input.svcIndutyCd) form.append("svc_induty_cd", input.svcIndutyCd);
   if (input.yyquCd !== undefined) form.append("yyqu_cd", String(input.yyquCd));
   if (input.storeId) form.append("store_id", input.storeId);
 
@@ -28,9 +28,10 @@ export function createRecommendation(analysisId: string, accessToken: string) {
   );
 }
 
-export function getRecommendations(accessToken: string) {
+export function getRecommendations(accessToken: string, storeId?: string) {
+  const query = storeId ? `?store_id=${encodeURIComponent(storeId)}` : "";
   return apiRequest<AiRecommendationRun[]>(
-    "/api/ai/recommendations",
+    `/api/ai/recommendations${query}`,
     { method: "GET" },
     accessToken,
   );
