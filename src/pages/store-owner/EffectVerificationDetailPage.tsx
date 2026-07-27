@@ -164,9 +164,14 @@ export function EffectVerificationDetailPage() {
 
     setLoading(true);
     setError(null);
+    const executionRequest = getVerificationExecution(recommendationId);
     Promise.all([
-      getVerificationExecution(recommendationId),
-      getVerificationResult(recommendationId),
+      executionRequest,
+      executionRequest.then((nextExecution) =>
+        nextExecution?.status === "VERIFIED"
+          ? getVerificationResult(recommendationId)
+          : null,
+      ),
     ])
       .then(([nextExecution, nextResult]) => {
         if (!active) return;
