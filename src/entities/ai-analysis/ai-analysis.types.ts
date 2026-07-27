@@ -1,7 +1,39 @@
+export interface DetailedDailySales {
+  date: string;
+  revenue: number;
+  transactionCount: number;
+  quantity: number;
+  averageOrderValue: number;
+}
+
+export interface DetailedDriver {
+  factor?: string;
+  label?: string;
+  contributionAmount?: number;
+  contributionPct?: number;
+}
+
+export interface DetailedRootCauseAnalysis {
+  change?: { direction?: string; amount?: number; ratePct?: number };
+  headline?: string;
+  narrative?: string;
+  internalDrivers?: DetailedDriver[];
+  internalDetailedDrivers?: DetailedDriver[];
+  externalDrivers?: Array<Record<string, unknown>>;
+  limitations?: string[];
+}
+
+export interface DetailedSalesAnalysis {
+  dailySales?: DetailedDailySales[];
+  rootCauseAnalysis?: DetailedRootCauseAnalysis;
+  dataQuality?: { externalDataRegion?: string; warnings?: string[] };
+}
+
 export interface AiAnalysisResult {
   analysis_id: string;
   report: AiSalesReport;
   diagnosis?: Record<string, unknown>;
+  detailed_analysis?: DetailedSalesAnalysis;
   warnings?: unknown[];
   [key: string]: unknown;
 }
@@ -27,14 +59,20 @@ export interface AiSalesReport {
     요일별?: Record<string, RatioPayload | null>;
     시간대별?: Record<string, RatioPayload | null>;
   };
+  유동인구_구성?: {
+    성별?: RatioPayload | null;
+    연령대별?: RatioPayload | null;
+    시간대별?: RatioPayload | null;
+  };
   "분석결과 해설"?: string | null;
   [key: string]: unknown;
 }
 
 export interface CreateAnalysisInput {
   file: File;
-  trdarCd: string;
-  svcIndutyCd: string;
+  // 최초 업로드 시에만 필요 — 이후로는 서버가 저장해 둔 값을 자동으로 채운다
+  trdarCd?: string;
+  svcIndutyCd?: string;
   yyquCd?: number;
   storeId?: string;
 }
@@ -58,6 +96,7 @@ export interface AiRecommendationRun {
   warnings?: string[];
   final_report?: Record<string, unknown> | null;
   analysis_id?: string;
+  store_id?: string | null;
   created_at?: string;
   updated_at?: string;
   [key: string]: unknown;
