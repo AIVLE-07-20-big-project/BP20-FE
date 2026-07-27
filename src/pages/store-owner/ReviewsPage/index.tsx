@@ -1,16 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Star, TrendingUp, AlertCircle, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
 import { PageShell } from "../../../shared/components/PageShell";
 import ReviewList from "./components/ReviewList";
-import { analyzeRequest, getStoreReviews } from "./api/review";
+import { analyzeRequest, AspectStat, getAspectStat, getStoreReviews } from "./api/review";
+import AspectBarChart from "./components/AspectBarChart";
 
 const ASPECT_DATA = [
   { aspect: "맛", score: 4.7, prev: 4.6 },
-  { aspect: "친절도", score: 4.5, prev: 4.4 },
-  { aspect: "청결", score: 4.4, prev: 4.3 },
+  { aspect: "서비스", score: 4.5, prev: 4.4 },
+  { aspect: "편의성", score: 4.4, prev: 4.3 },
   { aspect: "가격", score: 3.9, prev: 4.0 },
-  { aspect: "대기시간", score: 2.8, prev: 3.8 },
   { aspect: "분위기", score: 4.2, prev: 4.1 },
 ];
 
@@ -32,20 +32,67 @@ const TOPIC_CLUSTERS = [
 
 const RADAR_DATA = ASPECT_DATA.map(a => ({ subject: a.aspect, A: a.score * 20, B: a.prev * 20, fullMark: 100 }));
 
+interface Review {
+  id: number;
+  rating: number;
+  content: string;
+  reviewedDate?: string;
+  source?: string;
+  isAnalyzed?: boolean;
+}
+
 export function ReviewsPage() {
   const [showEvidence, setShowEvidence] = useState(false);
   const [onlyUnanalyzed, setOnlyUnanalyzed] = useState<boolean>(false);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+
+  const [reviewList, setReviewList] = useState<Review[]>([]);
+  const [reviewLoading, setReviewLoading] = useState<boolean>(true);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+
+  const [aspectStats, setAspectStats] = useState<AspectStat[]>([]);
+  const [statLoading, setStatLoading] = useState<boolean>(true);
+  const [statError, setStatError] = useState<string | null>(null);
+
+  const storeId = 1;
+
+  useEffect(() => {
+    getAspectStat(storeId)
+      .then((data) => {
+        setAspectStats(data);
+      })
+      .catch((err) => {
+        console.error("리뷰 속성 통계를 불러오는데 실패했습니다:", err);
+        setStatError("리뷰 속성 통계를 불러오지 못했습니다.");
+      })
+      .finally(() => {
+        setStatLoading(false);
+      });
+  }, [storeId]);
+
+  useEffect(() => {
+    getStoreReviews(storeId)
+      .then((data) => {
+        setReviewList(data);
+      })
+      .catch((err) => {
+        console.error("리뷰 데이터를 불러오는데 실패했습니다:", err);
+        setReviewError("리뷰를 불러오지 못했습니다.");
+      })
+      .finally(() => {
+        setReviewLoading(false);
+      });
+  }, []);
 
   const handleAnalyzeReview = async () => {
     if (isAnalyzing) return;
 
     setIsAnalyzing(true);
     try {
-      await analyzeRequest(1);
+      await analyzeRequest(storeId);
       alert('리뷰 분석이 완료되었습니다.');
 
-      getStoreReviews(1);
+      getStoreReviews(storeId);
     } catch (error) {
       console.error(error);
       alert('분석 요청 중 오류가 발생했습니다.');
@@ -53,6 +100,21 @@ export function ReviewsPage() {
       setIsAnalyzing(false);
     }
   };
+
+  const { totalPositive, totalNegative, totalSum } = aspectStats.reduce(
+    (acc, stats) => {
+      const itemSum = stats.positive + stats.neutral + stats.negative;
+      return {
+        totalPositive: acc.totalPositive + stats.positive,
+        totalNegative: acc.totalNegative + stats.negative,
+        totalSum: acc.totalSum + itemSum,
+      };
+    },
+    { totalPositive: 0, totalNegative: 0, totalSum: 0 }
+  );
+
+  const positiveRate = totalSum > 0 ? ((totalPositive / totalSum) * 100).toFixed(1) : "0.0";
+  const negativeRate = totalSum > 0 ? ((totalNegative / totalSum) * 100).toFixed(1) : "0.0";
 
   return (
     <PageShell 
@@ -78,9 +140,9 @@ export function ReviewsPage() {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
         {[
           { label: "평균 평점", value: "4.2", sub: "/ 5.0" },
-          { label: "리뷰 수", value: "847개", sub: "최근 3개월" },
-          { label: "긍정 비율", value: "71%", sub: "▲ 5%p" },
-          { label: "부정 비율", value: "18%", sub: "▲ 8%p" },
+          { label: "리뷰 수", value: `${reviewList.length}개`, sub: "최근 3개월" },
+          { label: "긍정 비율", value: `${positiveRate}`, sub: "▲ 5%p" },
+          { label: "부정 비율", value: `${negativeRate}`, sub: "▲ 8%p" },
           { label: "답변 비율", value: "62%", sub: "" },
         ].map((m) => (
           <div key={m.label} className="bg-card border border-border rounded-2xl p-4">
@@ -135,6 +197,17 @@ export function ReviewsPage() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
+        </div>
+        <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-100">
+          <h3 className="text-lg font-bold text-gray-800 mb-2">리뷰 속성 통계</h3>
+          <p className="text-xs text-muted-foreground mb-4">
+            손님들의 리뷰에서 언급된 5가지 속성 분포입니다.
+          </p>
+          <AspectBarChart 
+            data={aspectStats}  
+            isLoading={statLoading}
+            error={statError}
+          />
         </div>
       </div>
 
@@ -204,6 +277,9 @@ export function ReviewsPage() {
         <ReviewList
           showEvidence={showEvidence}
           onlyUnanalyzed={onlyUnanalyzed}
+          reviewList={reviewList}
+          isLoading={reviewLoading}
+          error={reviewError}
         />
         {/* <div className="space-y-3">
           {(showEvidence ? REVIEW_DATA : REVIEW_DATA.slice(0, 3)).map((r) => (
