@@ -1,4 +1,4 @@
-import { Star } from "lucide-react";
+import { ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getStoreReviews } from "../api/review";
 import { formatReviewDate } from "../utils/date";
@@ -6,6 +6,9 @@ import { formatReviewDate } from "../utils/date";
 interface ReviewListProps {
     showEvidence: boolean;
     onlyUnanalyzed: boolean;
+    reviewList: Review[];
+    isLoading: boolean;
+    error: string | null;
 }
 
 interface Review {
@@ -17,34 +20,43 @@ interface Review {
   isAnalyzed?: boolean;
 }
 
-export default function ReviewList({ showEvidence, onlyUnanalyzed } : ReviewListProps ) {
+export default function ReviewList({ showEvidence, onlyUnanalyzed, reviewList, isLoading, error } : ReviewListProps ) {
     
-    const [reviewList, setReviewList] = useState<Review[]>([]);
-    const [loading, setLoading] = useState<boolean>(true);
-    const [error, setError] = useState<string | null>(null);
+    const [currentPage, setCurrentPage] = useState<number>(1);
+
+    const ITEMS_PER_PAGE = 6;
+
 
     useEffect(() => {
-      getStoreReviews(1)
-        .then((data) => {
-          setReviewList(data);
-        })
-        .catch((err) => {
-          console.error("리뷰 데이터를 불러오는데 실패했습니다:", err);
-          setError("리뷰를 불러오지 못했습니다.");
-        })
-        .finally(() => {
-          setLoading(false);
-        });
-    }, []);
+      setCurrentPage(1);
+    }, [showEvidence, onlyUnanalyzed]);
 
-    if (loading)
+    if (isLoading)
       return <div className="p-5 text-xs text-muted-foreground">리뷰 불러오는 중</div>;
     if (error)
       return <div className="p-5 text-xs text-red-500">{error}</div>
+
+    const filteredList = onlyUnanalyzed
+      ? reviewList.filter((r) => !r.isAnalyzed)
+      : reviewList;
+
+    const totalPages = Math.ceil(filteredList.length / ITEMS_PER_PAGE);
+
+    const displayedList = showEvidence
+      ? filteredList.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+      : filteredList.slice(0, 3);
+
+    if (displayedList.length === 0) {
+      return (
+        <div className="p-5 text-xs text-center text-muted-foreground">
+          {onlyUnanalyzed ? "모든 리뷰가 분석되었습니다." : "등록된 리뷰가 없습니다."}
+        </div>
+      )
+    }
     
     return(
         <div className="space-y-3">
-          {(showEvidence ? reviewList : reviewList.slice(0, 3)).map((r) => (
+          {displayedList.map((r) => (
             <div key={r.id} className="pb-3 border-b border-border last:border-0 last:pb-0">
               <div className="flex items-center gap-2 mb-1">
                 <div className="flex gap-0.5">
@@ -60,6 +72,31 @@ export default function ReviewList({ showEvidence, onlyUnanalyzed } : ReviewList
               <p className="text-xs text-foreground leading-relaxed">{r.content}</p>
             </div>
           ))}
+          {showEvidence && totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-2 text-xs text-muted-foreground select-none">
+              <button
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="p-1 rounded transition-colors hover:bg-[#246BFD]/80 disabled:opacity-30 disabled:hover:bg-transparent"
+                aria-label="이전 페이지"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              
+              <span className="font-medium">
+                <span className="text-foreground">{currentPage}</span> / {totalPages}
+              </span>
+
+              <button
+                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="p-1 rounded transition-colors hover:bg-[#246BFD]/80 disabled:opacity-30 disabled:hover:bg-transparent"
+                aria-label="다음 페이지"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
     );
 }
