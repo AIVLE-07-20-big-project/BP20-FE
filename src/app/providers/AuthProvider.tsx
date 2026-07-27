@@ -2,6 +2,8 @@ import { createContext, useContext, useState } from "react";
 import type { User, UserRole } from "../../entities/user/user.types";
 import { getSessionUser, saveSessionUser } from "../../features/auth/model/authSession";
 import { DEMO_USERS } from "../../mocks";
+import { loginWithPassword } from "../../features/auth/api/authApi";
+import { saveAccessToken } from "../../shared/api/apiClient";
 
 interface AuthContextType {
   user: User | null;
@@ -20,27 +22,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     saveSessionUser(nextUser);
   };
 
-  const login = async (email: string, _password: string, role: UserRole): Promise<{ ok: boolean; error?: string }> => {
-    await new Promise((r) => setTimeout(r, 1000));
-
-    const matched = DEMO_USERS.find((u) => u.email === email);
-    if (!matched) {
-      return { ok: false, error: "계정 정보가 올바르지 않습니다. 초대받은 이메일 주소와 비밀번호를 확인해 주세요." };
+  const login = async (email: string, password: string, role: UserRole): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const result = await loginWithPassword(email, password);
+      if (result.user.role !== role && !(result.user.role === "SUPER_ADMIN" && role === "ADMIN")) {
+        return { ok: false, error: `이 계정은 ${result.user.role === "STORE_OWNER" ? "점주" : "관리자"} 전용입니다. 올바른 포털을 선택해 주세요.` };
+      }
+      saveAccessToken(result.accessToken);
+      updateUser(result.user);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "로그인에 실패했습니다." };
     }
-
-    if (matched.role !== role && !(matched.role === "SUPER_ADMIN" && role === "ADMIN")) {
-      return { ok: false, error: `이 계정은 ${matched.role === "STORE_OWNER" ? "점주" : "관리자"} 전용입니다. 올바른 포털을 선택해 주세요.` };
-    }
-
-    updateUser(matched);
-    return { ok: true };
   };
 
-  const logout = () => updateUser(null);
+  const logout = () => {
+    saveAccessToken(null);
+    updateUser(null);
+  };
 
   const switchDemo = (userId: string) => {
     const u = DEMO_USERS.find((u) => u.id === userId);
-    if (u) updateUser(u);
+    if (u) {
+      saveAccessToken(null);
+      updateUser(u);
+    }
   };
 
   return (
