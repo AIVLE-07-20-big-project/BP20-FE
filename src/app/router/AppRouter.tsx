@@ -4,7 +4,9 @@ import { AdminLayout } from "../layouts/AdminLayout";
 import { StoreOwnerLayout } from "../layouts/StoreOwnerLayout";
 import { useAuth } from "../providers/AuthProvider";
 import { LoginPage } from "../../pages/auth/LoginPage";
+import { SignupPage } from "../../pages/auth/SignupPage";
 import { NotFoundPage } from "../../pages/error/NotFoundPage";
+import { GuestRoute } from "./GuestRoute";
 import { ProtectedRoute } from "./ProtectedRoute";
 
 const DashboardPage = lazy(() => import("../../pages/store-owner/DashboardPage").then(({ DashboardPage }) => ({ default: DashboardPage })));
@@ -43,16 +45,19 @@ function RouteLoading() {
 }
 
 export function AppRouter() {
-  const { user } = useAuth();
+  const { user, isInitializing } = useAuth();
 
   return (
     <Suspense fallback={<RouteLoading />}>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
+        <Route path="/signup" element={<GuestRoute><SignupPage /></GuestRoute>} />
         <Route
           path="/"
           element={
-            user ? (
+            isInitializing ? (
+              <RouteLoading />
+            ) : user ? (
               <Navigate to={user.role === "STORE_OWNER" ? "/store" : "/admin"} replace />
             ) : (
               <Navigate to="/login" replace />

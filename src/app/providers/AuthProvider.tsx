@@ -1,50 +1,164 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import type { User, UserRole } from "../../entities/user/user.types";
-import { getSessionUser, saveSessionUser } from "../../features/auth/model/authSession";
+import {
+  clearAccessToken,
+  getAccessToken,
+  getSessionUser,
+  saveAccessToken,
+  saveSessionUser,
+} from "../../features/auth/model/authSession";
+import * as authApi from "../../features/auth/api/authApi";
+import type { SignupPayload } from "../../features/auth/api/authApi";
+import {
+  ApiError,
+  AUTH_EXPIRED_EVENT,
+} from "../../shared/api/apiClient";
 import { DEMO_USERS } from "../../mocks";
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string, role: UserRole) => Promise<{ ok: boolean; error?: string }>;
-  logout: () => void;
+  isInitializing: boolean;
+  isDemo: boolean;
+  login: (
+    email: string,
+    password: string,
+    role: UserRole,
+    remember: boolean,
+  ) => Promise<{ ok: boolean; error?: string }>;
+  signup: (
+    payload: SignupPayload,
+  ) => Promise<{ ok: boolean; user?: User; error?: string }>;
+  logout: () => Promise<void>;
   switchDemo: (userId: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(getSessionUser);
+  const demoUser = getSessionUser();
+  const [user, setUser] = useState<User | null>(demoUser);
+  const [isInitializing, setIsInitializing] = useState(
+    !demoUser,
+  );
+  const [isDemo, setIsDemo] = useState(Boolean(demoUser));
 
-  const updateUser = (nextUser: User | null) => {
+  useEffect(() => {
+    if (demoUser) {
+      setIsInitializing(false);
+      return;
+    }
+
+    if (!getAccessToken()) {
+      setIsInitializing(false);
+      return;
+    }
+
+    authApi.getMe()
+      .then((currentUser) => {
+        setUser(currentUser);
+        setIsDemo(false);
+      })
+      .catch(() => {
+        clearAccessToken();
+        setUser(null);
+      })
+      .finally(() => setIsInitializing(false));
+  }, []);
+
+  useEffect(() => {
+    const handleExpiredSession = () => {
+      saveSessionUser(null);
+      setUser(null);
+      setIsDemo(false);
+    };
+
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleExpiredSession);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpiredSession);
+  }, []);
+
+  const updateDemoUser = (nextUser: User | null) => {
     setUser(nextUser);
     saveSessionUser(nextUser);
+    setIsDemo(Boolean(nextUser));
   };
 
-  const login = async (email: string, _password: string, role: UserRole): Promise<{ ok: boolean; error?: string }> => {
-    await new Promise((r) => setTimeout(r, 1000));
+  const login = async (
+    email: string,
+    password: string,
+    role: UserRole,
+    remember: boolean,
+  ): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const result = await authApi.login(email.trim(), password);
+      const roleMatches = result.user.role === role
+        || (result.user.role === "SUPER_ADMIN" && role === "ADMIN");
 
-    const matched = DEMO_USERS.find((u) => u.email === email);
-    if (!matched) {
-      return { ok: false, error: "계정 정보가 올바르지 않습니다. 초대받은 이메일 주소와 비밀번호를 확인해 주세요." };
+      if (!roleMatches) {
+        clearAccessToken();
+        return {
+          ok: false,
+          error: `이 계정은 ${result.user.role === "STORE_OWNER" ? "점주" : "관리자"} 전용입니다. 올바른 포털을 선택해 주세요.`,
+        };
+      }
+
+      saveSessionUser(null);
+      saveAccessToken(result.token, remember);
+      setUser(result.user);
+      setIsDemo(false);
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof ApiError
+          ? error.message
+          : "로그인에 실패했습니다.",
+      };
     }
-
-    if (matched.role !== role && !(matched.role === "SUPER_ADMIN" && role === "ADMIN")) {
-      return { ok: false, error: `이 계정은 ${matched.role === "STORE_OWNER" ? "점주" : "관리자"} 전용입니다. 올바른 포털을 선택해 주세요.` };
-    }
-
-    updateUser(matched);
-    return { ok: true };
   };
 
-  const logout = () => updateUser(null);
+  const logout = async () => {
+    clearAccessToken();
+    updateDemoUser(null);
+  };
+
+  const signup = async (
+    payload: SignupPayload,
+  ): Promise<{ ok: boolean; user?: User; error?: string }> => {
+    try {
+      const result = await authApi.signup(payload);
+      saveSessionUser(null);
+      saveAccessToken(result.token, false);
+      setUser(result.user);
+      setIsDemo(false);
+      return { ok: true, user: result.user };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof ApiError
+          ? error.message
+          : "회원가입에 실패했습니다.",
+      };
+    }
+  };
 
   const switchDemo = (userId: string) => {
     const u = DEMO_USERS.find((u) => u.id === userId);
-    if (u) updateUser(u);
+    if (u) {
+      clearAccessToken();
+      updateDemoUser(u);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, switchDemo }}>
+    <AuthContext.Provider value={{
+      user,
+      isInitializing,
+      isDemo,
+      login,
+      signup,
+      logout,
+      switchDemo,
+    }}>
       {children}
     </AuthContext.Provider>
   );

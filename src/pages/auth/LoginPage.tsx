@@ -1,204 +1,173 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Store, Shield, Zap, TrendingUp, Users } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Shield, Store } from "lucide-react";
 import { useAuth } from "../../app/providers/AuthProvider";
 import type { UserRole } from "../../entities/user/user.types";
 import { DEMO_USERS } from "../../mocks";
+import { AuthLayout } from "./components/AuthLayout";
+import { PasswordField } from "./components/PasswordField";
 
 export function LoginPage() {
   const [role, setRole] = useState<UserRole>("STORE_OWNER");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPw, setShowPw] = useState(false);
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const { login, switchDemo } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) { setError("이메일과 비밀번호를 입력해 주세요."); return; }
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!email.trim() || !password) {
+      setError("이메일과 비밀번호를 입력해 주세요.");
+      return;
+    }
+
     setLoading(true);
     setError("");
-    const result = await login(email, password, role);
+    const result = await login(email, password, role, remember);
     setLoading(false);
+
     if (result.ok) {
-      navigate(role === "STORE_OWNER" ? "/store" : "/admin");
-    } else {
-      setError(result.error || "로그인에 실패했습니다.");
+      navigate(role === "STORE_OWNER" ? "/store" : "/admin", { replace: true });
+      return;
     }
+    setError(result.error ?? "로그인에 실패했습니다.");
   };
 
   const demoLogin = (userId: string) => {
     switchDemo(userId);
-    const u = DEMO_USERS.find(u => u.id === userId)!;
-    navigate(u.role === "STORE_OWNER" ? "/store" : "/admin");
+    const demoUser = DEMO_USERS.find((user) => user.id === userId);
+    if (demoUser) {
+      navigate(demoUser.role === "STORE_OWNER" ? "/store" : "/admin");
+    }
   };
 
   return (
-    <div className="min-h-screen flex bg-[#F4F7FB]">
-      {/* Left brand panel */}
-      <div className="hidden lg:flex lg:w-[52%] bg-[#0B1220] relative overflow-hidden flex-col justify-between p-12">
-        {/* Background pulse decoration */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full border border-[#246BFD]/8" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[450px] h-[450px] rounded-full border border-[#246BFD]/12" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] rounded-full border border-[#246BFD]/20" />
-          <div className="absolute top-1/4 right-1/4 w-48 h-px bg-gradient-to-r from-transparent via-[#246BFD]/30 to-transparent" />
-          <div className="absolute bottom-1/3 left-1/4 w-32 h-px bg-gradient-to-r from-transparent via-[#5B6CFF]/30 to-transparent" />
-        </div>
+    <AuthLayout>
+      <h1 className="mb-1 text-2xl font-bold">로그인</h1>
+      <p className="mb-6 text-sm text-muted-foreground">
+        초대받아 가입을 완료한 관리자와 점주만 로그인할 수 있습니다.
+      </p>
 
-        {/* Logo */}
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#246BFD] to-[#5B6CFF] flex items-center justify-center">
-              <Zap className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-black text-white tracking-wide">BP20</span>
-          </div>
-        </div>
-
-        {/* Hero content */}
-        <div className="relative z-10 flex-1 flex flex-col justify-center">
-          <h2 className="text-4xl font-black text-white leading-tight mb-6">
-            매장의 신호를 읽고,<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#246BFD] to-[#5B6CFF]">다음 행동을 제안합니다.</span>
-          </h2>
-          <p className="text-white/50 text-base leading-relaxed max-w-sm mb-10">
-            POS·결제 데이터를 기반으로 운영 문제를 발견하고, 실행 가능한 조치를 제안하며, 그 효과까지 검증하는 AI 운영 플랫폼.
-          </p>
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { icon: TrendingUp, label: "매출 분석", sub: "시간·요일·날씨 보정" },
-              { icon: Zap, label: "AI 전략 추천", sub: "근거와 예상 효과 제공" },
-              { icon: Users, label: "고객 관리", sub: "세그먼트 기반 전략" },
-            ].map(({ icon: Icon, label, sub }) => (
-              <div key={label} className="bg-white/5 border border-white/8 rounded-2xl p-4">
-                <Icon className="w-5 h-5 text-[#8B5CF6] mb-2" />
-                <div className="text-sm font-semibold text-white">{label}</div>
-                <div className="text-xs text-white/40 mt-0.5">{sub}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <p className="relative z-10 text-white/20 text-xs">© 2026 BP20. All rights reserved.</p>
+      <div className="mb-6 grid grid-cols-2 gap-2 rounded-2xl bg-muted p-1">
+        {([
+          { value: "STORE_OWNER" as UserRole, label: "점주", icon: Store },
+          { value: "ADMIN" as UserRole, label: "관리자", icon: Shield },
+        ]).map(({ value, label, icon: Icon }) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setRole(value)}
+            className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-all ${
+              role === value
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Icon className="h-4 w-4" />
+            {label}
+          </button>
+        ))}
       </div>
 
-      {/* Right form panel */}
-      <div className="flex-1 flex flex-col items-center justify-center p-8 lg:p-12">
-        <div className="w-full max-w-sm">
-          {/* Mobile logo */}
-          <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#246BFD] to-[#5B6CFF] flex items-center justify-center">
-              <Zap className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-lg font-black tracking-wide">BP20</span>
+      <form onSubmit={handleLogin} className="space-y-4">
+        <div>
+          <label htmlFor="login-email" className="mb-1.5 block text-xs font-semibold text-foreground">
+            이메일
+          </label>
+          <input
+            id="login-email"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder={role === "STORE_OWNER" ? "store@example.com" : "admin@company.com"}
+            autoComplete="email"
+            disabled={loading}
+            className="h-10 w-full rounded-xl border border-border bg-muted px-3 text-sm focus:border-[#246BFD] focus:outline-none focus:ring-2 focus:ring-[#246BFD]/40 disabled:opacity-60"
+          />
+        </div>
+
+        <PasswordField
+          label="비밀번호"
+          value={password}
+          onChange={setPassword}
+          disabled={loading}
+        />
+
+        <div className="flex items-center justify-between">
+          <label className="flex cursor-pointer items-center gap-2">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(event) => setRemember(event.target.checked)}
+              className="h-4 w-4 rounded accent-[#246BFD]"
+            />
+            <span className="text-xs text-muted-foreground">로그인 상태 유지</span>
+          </label>
+          <span className="text-xs text-muted-foreground">
+            비밀번호 분실 시 관리자에게 문의해 주세요.
+          </span>
+        </div>
+
+        {error && (
+          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">
+            {error}
           </div>
+        )}
 
-          <h3 className="text-2xl font-bold mb-1">로그인</h3>
-          <p className="text-sm text-muted-foreground mb-6">초대받은 계정만 가입할 수 있습니다.</p>
+        <button
+          type="submit"
+          disabled={loading}
+          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#246BFD] text-sm font-bold text-white transition-colors hover:bg-[#1D4ED8] disabled:opacity-60"
+        >
+          {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
+          {loading ? "로그인 중..." : "로그인"}
+        </button>
+      </form>
 
-          {/* Role tabs */}
-          <div className="grid grid-cols-2 gap-2 mb-6 p-1 bg-muted rounded-2xl">
-            {([
-              { value: "STORE_OWNER" as UserRole, label: "점주", icon: Store },
-              { value: "ADMIN" as UserRole, label: "관리자", icon: Shield },
-            ]).map(({ value, label, icon: Icon }) => (
-              <button
-                key={value}
-                onClick={() => setRole(value)}
-                className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                  role === value
-                    ? "bg-card text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                {label}
-              </button>
-            ))}
-          </div>
+      <p className="mt-5 text-center text-xs text-muted-foreground">
+        관리자에게 임시 비밀번호를 받으셨나요?{" "}
+        <Link to="/signup" className="font-semibold text-[#246BFD] hover:underline">
+          회원가입
+        </Link>
+      </p>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold mb-1.5 text-foreground">이메일</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={role === "STORE_OWNER" ? "store@example.com" : "admin@company.com"}
-                className="w-full h-10 px-3 text-sm bg-muted rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-[#246BFD]/40 focus:border-[#246BFD]"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1.5 text-foreground">비밀번호</label>
-              <div className="relative">
-                <input
-                  type={showPw ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="비밀번호"
-                  className="w-full h-10 px-3 pr-10 text-sm bg-muted rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-[#246BFD]/40 focus:border-[#246BFD]"
-                />
-                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="w-4 h-4 rounded accent-[#246BFD]" />
-                <span className="text-xs text-muted-foreground">로그인 상태 유지</span>
-              </label>
-              <button type="button" className="text-xs text-[#246BFD] hover:underline font-semibold">비밀번호를 잊으셨나요?</button>
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2.5 rounded-xl">
-                {error}
-              </div>
-            )}
-
+      <div className="mt-8 border-t border-border pt-6">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground/60">
+            프로토타입 계정 전환
+          </span>
+          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+            데모 전용
+          </span>
+        </div>
+        <div className="space-y-2">
+          {DEMO_USERS.map((demoUser) => (
             <button
-              type="submit"
-              disabled={loading}
-              className="w-full h-11 bg-[#246BFD] text-white text-sm font-bold rounded-xl hover:bg-[#1D4ED8] transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+              key={demoUser.id}
+              type="button"
+              onClick={() => demoLogin(demoUser.id)}
+              className="flex w-full items-center gap-3 rounded-xl bg-muted px-3 py-2.5 text-left transition-colors hover:bg-muted-foreground/10"
             >
-              {loading ? (
-                <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />로그인 중...</>
-              ) : "로그인"}
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-[#246BFD]/30 to-[#5B6CFF]/30 text-xs font-bold text-foreground">
+                {demoUser.name[0]}
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-semibold text-foreground">{demoUser.name}</div>
+                <div className="text-[11px] text-muted-foreground">
+                  {demoUser.role === "STORE_OWNER"
+                    ? "점주"
+                    : demoUser.role === "SUPER_ADMIN"
+                      ? "최고 관리자"
+                      : "관리자"}
+                </div>
+              </div>
             </button>
-          </form>
-
-          {/* Demo selector */}
-          <div className="mt-8 pt-6 border-t border-border">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-wider">프로토타입 계정 전환</span>
-              <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-semibold">데모 전용</span>
-            </div>
-            <div className="space-y-2">
-              {DEMO_USERS.map((u) => (
-                <button
-                  key={u.id}
-                  onClick={() => demoLogin(u.id)}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 bg-muted hover:bg-muted-foreground/10 rounded-xl transition-colors text-left"
-                >
-                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#246BFD]/30 to-[#5B6CFF]/30 flex items-center justify-center text-xs font-bold text-foreground">
-                    {u.name[0]}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold text-foreground">{u.name}</div>
-                    <div className="text-[11px] text-muted-foreground">{u.role === "STORE_OWNER" ? "점주" : u.role === "SUPER_ADMIN" ? "최고 관리자" : "관리자"}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
       </div>
-    </div>
+    </AuthLayout>
   );
 }
