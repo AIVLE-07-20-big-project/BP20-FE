@@ -3,14 +3,17 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Building2, AlertTriangle, BarChart3, TrendingUp,
   Target, CreditCard, Megaphone, Activity,
-  Users, Mail, ClipboardList, Bell, Search, ChevronLeft, ChevronRight,
+  Users, UserRoundCheck, Mail, ClipboardList, Bell, Search, ChevronLeft, ChevronRight,
   LogOut, Shield
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useAuth } from "../providers/AuthProvider";
 
-const MAIN_NAV = [
+const DASHBOARD_NAV = [
   { to: "/admin", icon: LayoutDashboard, label: "통합 대시보드" },
+];
+
+const OPERATIONS_NAV = [
   { to: "/admin/merchants", icon: Building2, label: "가맹점 관리" },
   { to: "/admin/risks", icon: AlertTriangle, label: "위험 가맹점" },
   { to: "/admin/market-intelligence", icon: BarChart3, label: "소비·상권 분석" },
@@ -21,20 +24,24 @@ const MAIN_NAV = [
   { to: "/admin/service-status", icon: Activity, label: "서비스 상태" },
 ];
 
-const IAM_NAV = [
-  { to: "/admin/iam/admins", icon: Users, label: "관리자 계정" },
-  { to: "/admin/iam/invitations", icon: Mail, label: "초대 관리" },
-  { to: "/admin/iam/logs", icon: ClipboardList, label: "IAM 로그" },
-];
-
 export function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
+  const accountNav = [
+    ...(isSuperAdmin
+      ? [{ to: "/admin/accounts/admins", icon: Users, label: "관리자 계정" }]
+      : []),
+    { to: "/admin/accounts/store-owners", icon: UserRoundCheck, label: "점주 계정" },
+    { to: "/admin/accounts/invitations", icon: Mail, label: "초대 관리" },
+    ...(isSuperAdmin
+      ? [{ to: "/admin/accounts/iam-logs", icon: ClipboardList, label: "IAM 로그" }]
+      : []),
+  ];
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate("/login");
   };
 
@@ -61,7 +68,7 @@ export function AdminLayout() {
         </div>
 
         <nav className="flex-1 overflow-y-auto py-3 px-2">
-          {MAIN_NAV.map(({ to, icon: Icon, label }) => (
+          {DASHBOARD_NAV.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}
@@ -78,30 +85,51 @@ export function AdminLayout() {
             </NavLink>
           ))}
 
-          {isSuperAdmin && (
-            <>
-              {!collapsed && (
-                <div className="px-3 pt-4 pb-1">
-                  <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest">Super Admin</span>
-                </div>
-              )}
-              {IAM_NAV.map(({ to, icon: Icon, label }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  className={({ isActive }) => clsx(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-xl mb-0.5 text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-[#5B6CFF]/15 text-[#5B6CFF]"
-                      : "text-white/40 hover:bg-white/5 hover:text-white/70"
-                  )}
-                >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
-                  {!collapsed && <span className="truncate">{label}</span>}
-                </NavLink>
-              ))}
-            </>
+          {!collapsed && (
+            <div className="px-3 pb-1 pt-4">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">
+                Account
+              </span>
+            </div>
           )}
+          {accountNav.map(({ to, icon: Icon, label }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) => clsx(
+                "mb-0.5 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-[#246BFD]/20 text-[#93BBFD]"
+                  : "text-white/50 hover:bg-white/5 hover:text-white"
+              )}
+            >
+              <Icon className="h-4 w-4 flex-shrink-0" />
+              {!collapsed && <span className="truncate">{label}</span>}
+            </NavLink>
+          ))}
+
+          {!collapsed && (
+            <div className="px-3 pb-1 pt-4">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">
+                Store
+              </span>
+            </div>
+          )}
+          {OPERATIONS_NAV.map(({ to, icon: Icon, label }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) => clsx(
+                "mb-0.5 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-[#246BFD]/20 text-[#93BBFD]"
+                  : "text-white/50 hover:bg-white/5 hover:text-white"
+              )}
+            >
+              <Icon className="h-4 w-4 flex-shrink-0" />
+              {!collapsed && <span className="truncate">{label}</span>}
+            </NavLink>
+          ))}
         </nav>
 
         <div className="border-t border-white/8 p-2">

@@ -30,6 +30,7 @@ const NoticesPage = lazy(() => import("../../pages/admin/NoticesPage").then(({ N
 const ServiceStatusPage = lazy(() => import("../../pages/admin/ServiceStatusPage").then(({ ServiceStatusPage }) => ({ default: ServiceStatusPage })));
 
 const AdminAccountsPage = lazy(() => import("../../pages/iam/AdminAccountsPage").then(({ AdminAccountsPage }) => ({ default: AdminAccountsPage })));
+const StoreOwnerAccountsPage = lazy(() => import("../../pages/iam/StoreOwnerAccountsPage").then(({ StoreOwnerAccountsPage }) => ({ default: StoreOwnerAccountsPage })));
 const InvitationsPage = lazy(() => import("../../pages/iam/InvitationsPage").then(({ InvitationsPage }) => ({ default: InvitationsPage })));
 const IAMLogsPage = lazy(() => import("../../pages/iam/IAMLogsPage").then(({ IAMLogsPage }) => ({ default: IAMLogsPage })));
 
@@ -102,6 +103,7 @@ export function AppRouter() {
           <Route index element={<PortfolioDashboard />} />
           <Route path="merchants" element={<MerchantsPage />} />
           <Route path="merchants/:id" element={<MerchantDetailPage />} />
+          <Route path="store-owner-invitations" element={<Navigate to="/admin/accounts/store-owners" replace />} />
           <Route path="risks" element={<RisksPage />} />
           <Route path="market-intelligence" element={<PlaceholderPage title="소비·상권 분석" />} />
           <Route path="roi" element={<ROIPage />} />
@@ -109,9 +111,27 @@ export function AppRouter() {
           <Route path="subscriptions" element={<PlaceholderPage title="구독·계약 현황" />} />
           <Route path="notices" element={<NoticesPage />} />
           <Route path="service-status" element={<ServiceStatusPage />} />
-          <Route path="iam/admins" element={<AdminAccountsPage />} />
-          <Route path="iam/invitations" element={<InvitationsPage />} />
-          <Route path="iam/logs" element={<IAMLogsPage />} />
+          <Route
+            path="accounts/admins"
+            element={(
+              <ProtectedRoute requiredRole="SUPER_ADMIN">
+                <AdminAccountsPage />
+              </ProtectedRoute>
+            )}
+          />
+          <Route path="accounts/store-owners" element={<StoreOwnerAccountsPage />} />
+          <Route path="accounts/invitations" element={<InvitationsPage />} />
+          <Route
+            path="accounts/iam-logs"
+            element={(
+              <ProtectedRoute requiredRole="SUPER_ADMIN">
+                <IAMLogsPage />
+              </ProtectedRoute>
+            )}
+          />
+          <Route path="iam/admins" element={<Navigate to="/admin/accounts/admins" replace />} />
+          <Route path="iam/invitations" element={<Navigate to="/admin/accounts/invitations" replace />} />
+          <Route path="iam/logs" element={<Navigate to="/admin/accounts/iam-logs" replace />} />
           <Route path="adoption" element={<NotFoundPage returnTo="/admin" returnLabel="관리자 대시보드로 돌아가기" />} />
           <Route path="*" element={<NotFoundPage returnTo="/admin" returnLabel="관리자 대시보드로 돌아가기" />} />
         </Route>
