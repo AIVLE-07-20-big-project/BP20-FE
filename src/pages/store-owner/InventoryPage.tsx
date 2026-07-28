@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
-import { ArrowDown, ArrowUp, AlertTriangle, Check, CloudRain, FileSpreadsheet, MapPin, RefreshCw, Upload, X } from "lucide-react";
+import { ArrowDown, ArrowUp, AlertTriangle, Check, ChevronDown, ChevronUp, CloudRain, FileSpreadsheet, MapPin, RefreshCw, ShoppingCart, Upload, X } from "lucide-react";
 import { PageShell } from "../../shared/components/PageShell";
 import { MetricCard } from "../../shared/components/MetricCard";
 import { DataTable } from "../../shared/components/DataTable";
@@ -66,6 +66,9 @@ export function InventoryPage() {
   const [locationError, setLocationError] = useState("");
   const [recommendationSortDirection, setRecommendationSortDirection] = useState<"ASC" | "DESC">("ASC");
   const [orderRequiredOnly, setOrderRequiredOnly] = useState(false);
+  const [bulkOrderOpen, setBulkOrderOpen] = useState(false);
+  const [bulkOrderConfirmed, setBulkOrderConfirmed] = useState(false);
+  const [recommendationsExpanded, setRecommendationsExpanded] = useState(true);
 
   const filters = ["전체", "부족", "품절", "임박", "과잉"];
 
@@ -100,6 +103,10 @@ export function InventoryPage() {
     });
   }, [automaticResult, orderRequiredOnly, recommendationSortDirection]);
 
+  const requiredRecommendations = automaticResult?.recommendations.filter(
+    (recommendation) => recommendation.orderRequired,
+  ) ?? [];
+
   const openDrawer = (item: InventoryItem) => {
     setDrawerItem(item);
     setOrderQty(item.reorderQty || 0);
@@ -123,7 +130,11 @@ export function InventoryPage() {
     setRecommendationLoading(true);
     setRecommendationError("");
     generateAutomaticOrderRecommendation(selectedLocation.latitude, selectedLocation.longitude)
-      .then(setAutomaticResult)
+      .then((result) => {
+        setAutomaticResult(result);
+        setBulkOrderConfirmed(false);
+        setRecommendationsExpanded(true);
+      })
       .catch((error) => setRecommendationError(error instanceof Error ? error.message : "발주 추천을 불러오지 못했습니다."))
       .finally(() => setRecommendationLoading(false));
   };
@@ -299,23 +310,45 @@ export function InventoryPage() {
 
         {automaticResult && (
           <div className="mt-4 space-y-4">
-            <div className="grid sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-7 gap-2 overflow-x-auto">
               {automaticResult.weatherForecasts.map((weather, index) => (
-                <div key={`${weather.forecastDateTime}-${index}`} className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                <div key={weather.date} className="bg-blue-50 border border-blue-100 rounded-xl p-3">
                   <div className="flex items-center gap-2 text-xs font-bold text-blue-800">
                     <CloudRain className="w-4 h-4" />
-                    {index === 0 ? "오늘" : "내일"} 날씨
+                    {index === 0 ? "오늘" : new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric", weekday: "short" }).format(new Date(`${weather.date}T00:00:00`))}
                   </div>
-                  <div className="mt-2 text-sm font-semibold">{weather.sky ?? "정보 없음"} · {weather.temperature ?? "-"}℃</div>
-                  <div className="mt-1 text-xs text-blue-700/70">강수 {weather.precipitationType ?? "정보 없음"} · 확률 {weather.rainProbability ?? "-"}% · 습도 {weather.humidity ?? "-"}%</div>
+                  <div className="mt-2 text-sm font-semibold">{weather.weatherCondition ?? "정보 없음"}</div>
+                  <div className="mt-1 text-xs text-blue-700/80">
+                    최고 {weather.maximumTemperature == null ? "-" : weather.maximumTemperature.toFixed(1)}℃ · 최저 {weather.minimumTemperature == null ? "-" : weather.minimumTemperature.toFixed(1)}℃
+                  </div>
+                  <div className="mt-1 text-xs text-blue-700/70">강수확률 {weather.rainProbability ?? "-"}% · 습도 {weather.humidity ?? "-"}%</div>
                 </div>
               ))}
             </div>
 
             <div>
               <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                <div className="text-sm font-bold">실시간 추천 결과 {displayedRecommendations.length}건</div>
-                <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRecommendationsExpanded((current) => !current)}
+                  aria-expanded={recommendationsExpanded}
+                  className="inline-flex items-center gap-1.5 text-base font-bold hover:text-[#246BFD] transition-colors"
+                >
+                  실시간 추천 결과 {displayedRecommendations.length}건
+                  {recommendationsExpanded
+                    ? <ChevronUp className="h-4 w-4" />
+                    : <ChevronDown className="h-4 w-4" />}
+                </button>
+                {recommendationsExpanded && <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBulkOrderOpen(true)}
+                    disabled={requiredRecommendations.length === 0 || bulkOrderConfirmed}
+                    className="h-8 px-3 inline-flex items-center gap-1.5 rounded-lg bg-[#246BFD] text-white text-xs font-semibold disabled:opacity-50"
+                  >
+                    {bulkOrderConfirmed ? <Check className="w-3.5 h-3.5" /> : <ShoppingCart className="w-3.5 h-3.5" />}
+                    {bulkOrderConfirmed ? "일괄 발주 확정" : "AI 추천 일괄 발주"}
+                  </button>
                   <button
                     type="button"
                     onClick={() => setOrderRequiredOnly((current) => !current)}
@@ -338,32 +371,31 @@ export function InventoryPage() {
                     {recommendationSortDirection === "ASC" ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
                     발주량
                   </button>
-                </div>
+                </div>}
               </div>
-              <div className="space-y-2">
+              {recommendationsExpanded && <div className="grid gap-3 lg:grid-cols-2">
                 {displayedRecommendations.map((recommendation) => (
-                  <div key={recommendation.ingredientName} className="border border-border rounded-xl p-3">
+                  <div key={recommendation.ingredientName} className="border border-border rounded-xl p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="font-semibold text-sm">{recommendation.ingredientName}</div>
+                      <div className="text-base font-bold">{recommendation.ingredientName}</div>
                       <Badge variant={recommendation.orderRequired ? "warning" : "positive"}>
                         {recommendation.orderRequired ? `${recommendation.recommendedOrderQuantity}개 발주 권장` : "발주 불필요"}
                       </Badge>
                     </div>
-                    <div className="grid grid-cols-3 gap-2 mt-2 text-xs text-muted-foreground">
-                      <span>현재 {recommendation.currentStock}</span>
-                      <span>예상 사용 {recommendation.expectedUsage}</span>
-                      <span>안전재고 {recommendation.safetyStock}</span>
+                    <div className="grid grid-cols-3 gap-2 mt-3 text-sm text-muted-foreground">
+                      <span>현재 <strong className="text-foreground">{recommendation.currentStock}</strong></span>
+                      <span>예상 사용 <strong className="text-foreground">{recommendation.expectedUsage}</strong></span>
+                      <span>안전재고 <strong className="text-foreground">{recommendation.safetyStock}</strong></span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{recommendation.recommendationReason}</p>
-                    <div className="text-[11px] text-muted-foreground/70 mt-1">모델 {recommendation.modelName} · 신뢰도 {(recommendation.confidenceScore * 100).toFixed(0)}%</div>
+                    <p className="text-sm text-muted-foreground mt-3 leading-relaxed">{recommendation.recommendationReason}</p>
                   </div>
                 ))}
                 {displayedRecommendations.length === 0 && (
-                  <div className="border border-dashed border-border rounded-xl p-4 text-center text-xs text-muted-foreground">
+                  <div className="border border-dashed border-border rounded-xl p-5 text-center text-sm text-muted-foreground lg:col-span-2">
                     발주가 필요한 품목이 없습니다.
                   </div>
                 )}
-              </div>
+              </div>}
             </div>
           </div>
         )}
@@ -421,19 +453,6 @@ export function InventoryPage() {
         <MetricCard label="부족·품절" value={`${lowStock}개`} mini />
         <MetricCard label="유통기한 임박" value={`${expiry}개`} mini />
         <MetricCard label="예상 폐기 비용" value="₩84,000" change={12} changePeriod="전주 대비" mini />
-      </div>
-
-      {/* AI prep recommendation */}
-      <div className="bg-[#111A2E] rounded-2xl p-4 mb-5 text-white">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-xs font-bold text-[#246BFD]">AI 오늘의 밑작업 추천</span>
-          <span className="text-xs text-white/40">신뢰도 88%</span>
-        </div>
-        <p className="text-sm text-white/80 leading-relaxed">
-          비 예보를 반영해 <strong className="text-white">배달 품목은 +10%</strong>, 홀 전용 품목은 -15% 보정했습니다.
-          샌드위치 밑작업 18개, 크루아상 반죽 30개를 권장합니다.
-        </p>
-        <p className="text-[11px] text-white/30 mt-2">※ AI 추정치이며 실제 수요는 다를 수 있습니다.</p>
       </div>
 
       {/* Filters */}
@@ -516,6 +535,61 @@ export function InventoryPage() {
         onRowClick={(row) => openDrawer(row)}
       />
 
+      {bulkOrderOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-xl">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <div>
+                <h3 className="font-bold">AI 추천 일괄 발주</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  발주가 필요한 {requiredRecommendations.length}개 품목을 추천 수량대로 확정합니다.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBulkOrderOpen(false)}
+                className="rounded-lg p-1 text-muted-foreground hover:bg-muted"
+                aria-label="일괄 발주 창 닫기"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="max-h-80 space-y-2 overflow-y-auto p-5">
+              {requiredRecommendations.map((recommendation) => (
+                <div
+                  key={recommendation.ingredientName}
+                  className="flex items-center justify-between rounded-xl bg-muted px-3 py-2.5"
+                >
+                  <span className="text-sm font-semibold">{recommendation.ingredientName}</span>
+                  <span className="text-sm font-bold text-[#246BFD]">
+                    {recommendation.recommendedOrderQuantity}개
+                  </span>
+                  </div>
+                ))}
+              </div>
+            <div className="flex gap-2 border-t border-border px-5 py-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setBulkOrderConfirmed(true);
+                  setBulkOrderOpen(false);
+                }}
+                className="h-11 flex-1 rounded-xl bg-[#246BFD] text-sm font-bold text-white hover:bg-[#1D4ED8]"
+              >
+                {requiredRecommendations.length}개 품목 일괄 발주 확정
+              </button>
+              <button
+                type="button"
+                onClick={() => setBulkOrderOpen(false)}
+                className="h-11 rounded-xl bg-muted px-4 text-sm font-semibold"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Order drawer */}
       {drawerItem && (
         <div className="fixed inset-0 z-50 flex">
@@ -564,7 +638,7 @@ export function InventoryPage() {
                 </div>
               </div>
 
-              {drawerItem.supplierPrice && (
+              {drawerItem.supplierPrice != null && drawerItem.supplierPrice > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">예상 발주 금액</span>
                   <span className="font-bold tabular-nums">₩{(drawerItem.supplierPrice * orderQty).toLocaleString()}</span>
