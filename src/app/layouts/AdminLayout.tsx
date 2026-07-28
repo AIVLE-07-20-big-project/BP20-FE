@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Building2, AlertTriangle, BarChart3, TrendingUp,
   Target, CreditCard, Megaphone, Activity,
   Users, UserRoundCheck, Mail, ClipboardList, Bell, Search, ChevronLeft, ChevronRight,
-  LogOut, Shield
+  LogOut, Shield, UserRound
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useAuth } from "../providers/AuthProvider";
@@ -139,6 +139,13 @@ export function AdminLayout() {
               <div className="text-[11px] text-white/30">{user?.role === "SUPER_ADMIN" ? "최고 관리자" : "관리자"}</div>
             </div>
           )}
+          <NavLink
+            to="/admin/profile"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors"
+          >
+            <UserRound className="w-4 h-4 flex-shrink-0" />
+            {!collapsed && <span>내 정보</span>}
+          </NavLink>
           <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors">
             <LogOut className="w-4 h-4 flex-shrink-0" />
             {!collapsed && <span>로그아웃</span>}
