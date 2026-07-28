@@ -15,6 +15,7 @@ interface ApiEnvelope<T> {
 }
 
 interface ApiErrorPayload {
+  code?: string;
   message?: string;
   detail?: string;
   error?: {
@@ -22,10 +23,18 @@ interface ApiErrorPayload {
   };
 }
 
+const SESSION_AUTH_ERROR_CODES = new Set([
+  "UNAUTHORIZED_ACCESS",
+  "UNAUTHORIZED_EXPIRED_TOKEN",
+  "UNAUTHORIZED_TOKEN_EMPTY",
+  "UNAUTHORIZED_INVALID_TOKEN",
+]);
+
 export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    public readonly code?: string,
   ) {
     super(message);
     this.name = "ApiError";
@@ -75,18 +84,26 @@ export async function apiRequest<T>(
     | null;
 
   if (!response.ok) {
-    if (response.status === 401 && token) {
+    const errorBody = body as ApiErrorPayload | null;
+    const errorCode = errorBody?.code;
+
+    if (
+      response.status === 401
+      && token
+      && errorCode
+      && SESSION_AUTH_ERROR_CODES.has(errorCode)
+    ) {
       clearAccessToken();
       window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
     }
 
-    const errorBody = body as ApiErrorPayload | null;
     throw new ApiError(
       errorBody?.message
         ?? errorBody?.detail
         ?? errorBody?.error?.message
         ?? "요청 처리 중 오류가 발생했습니다.",
       response.status,
+      errorCode,
     );
   }
 
