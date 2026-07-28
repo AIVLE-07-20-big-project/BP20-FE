@@ -1,5 +1,5 @@
-import { useEffect, useState, type ChangeEvent } from "react";
-import { AlertTriangle, Check, CloudRain, FileSpreadsheet, MapPin, RefreshCw, Upload, X } from "lucide-react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { ArrowDown, ArrowUp, AlertTriangle, Check, CloudRain, FileSpreadsheet, MapPin, RefreshCw, Upload, X } from "lucide-react";
 import { PageShell } from "../../shared/components/PageShell";
 import { MetricCard } from "../../shared/components/MetricCard";
 import { DataTable } from "../../shared/components/DataTable";
@@ -26,8 +26,20 @@ const STATUS_BADGE: Record<string, { variant: any; label: string }> = {
   "임박": { variant: "warning", label: "유통 임박" },
 };
 
+const STATUS_SORT_ORDER: Record<InventoryItem["status"], number> = {
+  "정상": 0,
+  "부족": 1,
+  "품절": 2,
+  "임박": 3,
+  "과잉": 4,
+};
+
+type InventorySortKey = "name" | "status";
+
 export function InventoryPage() {
   const [filterStatus, setFilterStatus] = useState<string>("전체");
+  const [inventorySortKey, setInventorySortKey] = useState<InventorySortKey>("name");
+  const [inventorySortDirection, setInventorySortDirection] = useState<"ASC" | "DESC">("ASC");
   const [drawerItem, setDrawerItem] = useState<InventoryItem | null>(null);
   const [orderQty, setOrderQty] = useState<number>(0);
   const [orderConfirmed, setOrderConfirmed] = useState(false);
@@ -47,20 +59,55 @@ export function InventoryPage() {
   const [selectedLocation, setSelectedLocation] = useState<LocationCandidate | null>(null);
   const [locationSearching, setLocationSearching] = useState(false);
   const [locationError, setLocationError] = useState("");
+  const [recommendationSortDirection, setRecommendationSortDirection] = useState<"ASC" | "DESC">("ASC");
+  const [orderRequiredOnly, setOrderRequiredOnly] = useState(false);
 
   const filters = ["전체", "부족", "품절", "임박", "과잉"];
 
-  const filtered = filterStatus === "전체"
-    ? inventoryItems
-    : inventoryItems.filter((i) => i.status === filterStatus);
+  const filtered = useMemo(() => {
+    const statusFiltered = filterStatus === "전체"
+      ? inventoryItems
+      : inventoryItems.filter((item) => item.status === filterStatus);
+
+    return [...statusFiltered].sort((left, right) => {
+      const result = inventorySortKey === "name"
+        ? left.name.localeCompare(right.name, "ko")
+        : STATUS_SORT_ORDER[left.status] - STATUS_SORT_ORDER[right.status]
+          || left.name.localeCompare(right.name, "ko");
+      return inventorySortDirection === "ASC" ? result : -result;
+    });
+  }, [filterStatus, inventoryItems, inventorySortDirection, inventorySortKey]);
 
   const lowStock = inventoryItems.filter((i) => i.status === "부족" || i.status === "품절").length;
   const expiry = inventoryItems.filter((i) => i.status === "임박").length;
+
+  const displayedRecommendations = useMemo(() => {
+    if (!automaticResult) return [];
+
+    const recommendations = orderRequiredOnly
+      ? automaticResult.recommendations.filter((recommendation) => recommendation.orderRequired)
+      : automaticResult.recommendations;
+
+    return [...recommendations].sort((left, right) => {
+      const quantityDifference = left.recommendedOrderQuantity - right.recommendedOrderQuantity;
+      const result = quantityDifference || left.ingredientName.localeCompare(right.ingredientName, "ko");
+      return recommendationSortDirection === "ASC" ? result : -result;
+    });
+  }, [automaticResult, orderRequiredOnly, recommendationSortDirection]);
 
   const openDrawer = (item: InventoryItem) => {
     setDrawerItem(item);
     setOrderQty(item.reorderQty || 0);
     setOrderConfirmed(false);
+  };
+
+  const toggleInventorySort = (key: InventorySortKey) => {
+    if (inventorySortKey === key) {
+      setInventorySortDirection((current) => current === "ASC" ? "DESC" : "ASC");
+      return;
+    }
+    setInventorySortKey(key);
+    setInventorySortDirection("ASC");
   };
 
   const loadAutomaticRecommendation = () => {
@@ -241,9 +288,35 @@ export function InventoryPage() {
             </div>
 
             <div>
-              <div className="text-sm font-bold mb-2">실시간 추천 결과 {automaticResult.recommendations.length}건</div>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <div className="text-sm font-bold">실시간 추천 결과 {displayedRecommendations.length}건</div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOrderRequiredOnly((current) => !current)}
+                    aria-pressed={orderRequiredOnly}
+                    className={`h-8 px-3 rounded-lg border text-xs font-semibold transition-colors ${
+                      orderRequiredOnly
+                        ? "bg-[#246BFD] border-[#246BFD] text-white"
+                        : "bg-card border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {orderRequiredOnly ? "발주 필요 품목만" : "전체 품목"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRecommendationSortDirection((current) => current === "ASC" ? "DESC" : "ASC")}
+                    aria-label={`발주 수량 ${recommendationSortDirection === "ASC" ? "오름차순" : "내림차순"}`}
+                    title={`발주 수량 ${recommendationSortDirection === "ASC" ? "오름차순" : "내림차순"}`}
+                    className="h-8 px-2.5 flex items-center gap-1 rounded-lg border border-border bg-card text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {recommendationSortDirection === "ASC" ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
+                    발주량
+                  </button>
+                </div>
+              </div>
               <div className="space-y-2">
-                {automaticResult.recommendations.map((recommendation) => (
+                {displayedRecommendations.map((recommendation) => (
                   <div key={recommendation.ingredientName} className="border border-border rounded-xl p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="font-semibold text-sm">{recommendation.ingredientName}</div>
@@ -260,6 +333,11 @@ export function InventoryPage() {
                     <div className="text-[11px] text-muted-foreground/70 mt-1">모델 {recommendation.modelName} · 신뢰도 {(recommendation.confidenceScore * 100).toFixed(0)}%</div>
                   </div>
                 ))}
+                {displayedRecommendations.length === 0 && (
+                  <div className="border border-dashed border-border rounded-xl p-4 text-center text-xs text-muted-foreground">
+                    발주가 필요한 품목이 없습니다.
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -359,7 +437,19 @@ export function InventoryPage() {
       {/* Table */}
       <DataTable
         columns={[
-          { key: "name", label: "품목명", render: (row) => <div className="font-semibold text-foreground">{row.name}</div> },
+          { key: "name", label: (
+            <button
+              type="button"
+              onClick={() => toggleInventorySort("name")}
+              aria-label={`품목명 ${inventorySortKey === "name" && inventorySortDirection === "DESC" ? "내림차순" : "오름차순"}`}
+              className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+            >
+              품목명
+              {inventorySortKey === "name" && inventorySortDirection === "DESC"
+                ? <ArrowDown className="w-3.5 h-3.5" />
+                : <ArrowUp className={`w-3.5 h-3.5 ${inventorySortKey === "name" ? "text-foreground" : "opacity-40"}`} />}
+            </button>
+          ), render: (row) => <div className="font-semibold text-foreground">{row.name}</div> },
           { key: "lot", label: "로트", render: (row) => <span className="text-xs text-muted-foreground font-mono">{row.lot}</span> },
           { key: "stock", label: "재고량", align: "right", render: (row) => <span className="tabular-nums font-semibold">{row.stock} {row.unit}</span> },
           { key: "expectedDepletion", label: "소진 예상", render: (row) => (
@@ -371,7 +461,19 @@ export function InventoryPage() {
             <span className={row.status === "임박" ? "text-amber-600 font-semibold" : "text-muted-foreground"}>{row.expiry}</span>
           )},
           { key: "supplier", label: "공급사", render: (row) => <span className="text-muted-foreground">{row.supplier}</span> },
-          { key: "status", label: "상태", render: (row) => {
+          { key: "status", label: (
+            <button
+              type="button"
+              onClick={() => toggleInventorySort("status")}
+              aria-label={`상태 ${inventorySortKey === "status" && inventorySortDirection === "DESC" ? "내림차순" : "오름차순"}`}
+              className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+            >
+              상태
+              {inventorySortKey === "status" && inventorySortDirection === "DESC"
+                ? <ArrowDown className="w-3.5 h-3.5" />
+                : <ArrowUp className={`w-3.5 h-3.5 ${inventorySortKey === "status" ? "text-foreground" : "opacity-40"}`} />}
+            </button>
+          ), render: (row) => {
             const s = STATUS_BADGE[row.status];
             return <Badge variant={s.variant}>{s.label}</Badge>;
           }},

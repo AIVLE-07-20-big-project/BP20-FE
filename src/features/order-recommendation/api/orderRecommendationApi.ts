@@ -35,7 +35,19 @@ export interface AutomaticOrderRecommendation {
   recommendations: OrderRecommendation[];
 }
 
-export function generateAutomaticOrderRecommendation(latitude: number, longitude: number) {
-  const params = new URLSearchParams({ latitude: String(latitude), longitude: String(longitude) });
+export type SortDirection = "ASC" | "DESC";
+
+export function generateAutomaticOrderRecommendation(
+  latitude: number,
+  longitude: number,
+  sortDirection: SortDirection = "ASC",
+  orderRequiredOnly = false,
+) {
+  const params = new URLSearchParams({
+    latitude: String(latitude),
+    longitude: String(longitude),
+    sortDirection,
+    orderRequiredOnly: String(orderRequiredOnly),
+  });
   return apiRequest<AutomaticOrderRecommendation>(`/api/order-recommendations/automatic?${params}`, { method: "POST" });
 }
