@@ -3,13 +3,23 @@ import {
   getAccessToken,
 } from "../../features/auth/model/authSession";
 
+export { getAccessToken };
+
 export const AUTH_EXPIRED_EVENT = "bp20:auth-expired";
 
 interface ApiEnvelope<T> {
-  status: number;
+  status?: number;
   success: boolean;
-  message: string;
+  message?: string;
   data: T;
+}
+
+interface ApiErrorPayload {
+  message?: string;
+  detail?: string;
+  error?: {
+    message?: string;
+  };
 }
 
 export class ApiError extends Error {
@@ -30,7 +40,14 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const headers = new Headers(init.headers);
 
-  if (init.body && !headers.has("Content-Type")) {
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json");
+  }
+  if (
+    init.body
+    && !(init.body instanceof FormData)
+    && !headers.has("Content-Type")
+  ) {
     headers.set("Content-Type", "application/json");
   }
   const token = getAccessToken();
@@ -51,17 +68,43 @@ export async function apiRequest<T>(
     );
   }
 
-  const body = await response.json().catch(() => null) as ApiEnvelope<T> | null;
-  if (!response.ok || !body?.success) {
+  const body = await response.json().catch(() => null) as
+    | ApiEnvelope<T>
+    | ApiErrorPayload
+    | T
+    | null;
+
+  if (!response.ok) {
     if (response.status === 401 && token) {
       clearAccessToken();
       window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
     }
+
+    const errorBody = body as ApiErrorPayload | null;
     throw new ApiError(
-      body?.message ?? "요청 처리 중 오류가 발생했습니다.",
+      errorBody?.message
+        ?? errorBody?.detail
+        ?? errorBody?.error?.message
+        ?? "요청 처리 중 오류가 발생했습니다.",
       response.status,
     );
   }
 
-  return body.data;
+  if (
+    body
+    && typeof body === "object"
+    && "success" in body
+    && "data" in body
+  ) {
+    const envelope = body as ApiEnvelope<T>;
+    if (!envelope.success) {
+      throw new ApiError(
+        envelope.message ?? "요청 처리 중 오류가 발생했습니다.",
+        envelope.status ?? response.status,
+      );
+    }
+    return envelope.data;
+  }
+
+  return body as T;
 }

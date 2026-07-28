@@ -20,4 +20,5 @@ export interface AIRecommendation {
   executedAt?: string;
   completedAt?: string;
   verifiedResult?: string;
+  verificationRecommendationId?: number;
 }
