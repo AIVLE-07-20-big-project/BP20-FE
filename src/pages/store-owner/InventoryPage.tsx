@@ -16,7 +16,12 @@ import {
   generateAutomaticOrderRecommendation,
   type AutomaticOrderRecommendation,
 } from "../../features/order-recommendation/api/orderRecommendationApi";
-import { searchLocations, type LocationCandidate } from "../../features/location/api/locationApi";
+import {
+  getSavedLocation,
+  saveLocation,
+  searchLocations,
+  type LocationCandidate,
+} from "../../features/location/api/locationApi";
 
 const STATUS_BADGE: Record<string, { variant: any; label: string }> = {
   "정상": { variant: "positive", label: "정상" },
@@ -150,6 +155,13 @@ export function InventoryPage() {
     setLocationError("");
     setAutomaticResult(null);
     setRecommendationError("");
+    void saveLocation(location).catch((error) => {
+      setLocationError(
+        error instanceof Error
+          ? error.message
+          : "선택한 위치를 저장하지 못했습니다.",
+      );
+    });
   };
 
   const loadInventoryData = async () => {
@@ -200,6 +212,19 @@ export function InventoryPage() {
 
   useEffect(() => {
     void loadInventoryData();
+    void getSavedLocation()
+      .then((location) => {
+        if (!location) return;
+        setSelectedLocation(location);
+        setLocationQuery(location.displayName);
+      })
+      .catch((error) => {
+        setLocationError(
+          error instanceof Error
+            ? error.message
+            : "저장된 위치를 불러오지 못했습니다.",
+        );
+      });
   }, []);
 
   return (
