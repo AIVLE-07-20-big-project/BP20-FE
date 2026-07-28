@@ -4,7 +4,7 @@ import {
   ArrowUpDown, Archive, ChevronRight, Sparkles, CheckCircle2,
   Play, Eye, Pause, Search, Filter, X, AlertCircle, Clock,
   TrendingUp, Package, Star, Users, DollarSign, BarChart3,
-  Calendar, Info
+  Calendar, Info, Loader2
 } from "lucide-react";
 import { PageShell } from "../../shared/components/PageShell";
 import { AI_RECOMMENDATIONS } from "../../mocks";
@@ -17,6 +17,7 @@ const AI_ANALYSIS_ID_KEY = "bp20:ai-analysis-id";
 
 const CATEGORIES = ["전체", "매출", "재고", "리뷰", "고객", "원가"];
 const SORT_OPTIONS = ["우선순위순", "예상 효과순", "마감 임박순", "최신순"];
+const RECOMMENDATION_PROGRESS_STEPS = ["요청 접수", "AI 전략 분석", "추천 결과 생성"];
 
 type ExecStatus = "실행 완료" | "실행 중" | "효과 확인" | "보류";
 
@@ -336,6 +337,7 @@ export function AiStrategyPage() {
   const [recommendationRun, setRecommendationRun] = useState<AiRecommendationRun | null>(null);
   const [recommendationRuns, setRecommendationRuns] = useState<AiRecommendationRun[]>([]);
   const [recommendationLoading, setRecommendationLoading] = useState(false);
+  const [recommendationStage, setRecommendationStage] = useState(0);
   const [recommendationError, setRecommendationError] = useState("");
 
   useEffect(() => {
@@ -357,6 +359,7 @@ export function AiStrategyPage() {
     sessionStorage.setItem(AI_ACCESS_TOKEN_KEY, accessToken.trim());
     sessionStorage.setItem(AI_ANALYSIS_ID_KEY, analysisId.trim());
     setRecommendationLoading(true);
+    setRecommendationStage(1);
     setRecommendationError("");
     try {
       const result = await createRecommendation(analysisId.trim(), accessToken.trim());
@@ -367,12 +370,14 @@ export function AiStrategyPage() {
       setRecommendationError(error instanceof Error ? error.message : "전략 추천 요청에 실패했습니다.");
     } finally {
       setRecommendationLoading(false);
+      setRecommendationStage(0);
     }
   };
 
   const decideRecommendation = async (decision: AiRecommendationDecision) => {
     if (!recommendationRun) return;
     setRecommendationLoading(true);
+    setRecommendationStage(1);
     setRecommendationError("");
     try {
       const result = await resumeRecommendation(
@@ -388,6 +393,7 @@ export function AiStrategyPage() {
       setRecommendationError(error instanceof Error ? error.message : "추천 처리에 실패했습니다.");
     } finally {
       setRecommendationLoading(false);
+      setRecommendationStage(0);
     }
   };
 
@@ -473,6 +479,38 @@ export function AiStrategyPage() {
           </button>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">매출 분석 화면에서 완료한 최신 분석 ID가 자동으로 입력됩니다.</p>
+        {recommendationLoading && (
+          <div className="mt-4 bg-muted/60 border border-border rounded-xl p-3">
+            <div className="flex items-center gap-2 mb-2.5">
+              <Loader2 className="w-4 h-4 text-[#246BFD] animate-spin flex-shrink-0" />
+              <span className="text-xs font-semibold text-foreground">
+                {RECOMMENDATION_PROGRESS_STEPS[recommendationStage]} 중...
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              {RECOMMENDATION_PROGRESS_STEPS.map((step, index) => (
+                <div
+                  key={step}
+                  className={`h-1.5 flex-1 rounded-full transition-colors ${
+                    index <= recommendationStage ? "bg-[#246BFD]" : "bg-border"
+                  }`}
+                />
+              ))}
+            </div>
+            <div className="flex justify-between mt-1.5">
+              {RECOMMENDATION_PROGRESS_STEPS.map((step, index) => (
+                <span
+                  key={step}
+                  className={`text-[10px] ${
+                    index <= recommendationStage ? "text-[#246BFD] font-semibold" : "text-muted-foreground"
+                  }`}
+                >
+                  {step}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
         {recommendationError && <p className="mt-3 text-xs text-red-600">{recommendationError}</p>}
       </form>
 
