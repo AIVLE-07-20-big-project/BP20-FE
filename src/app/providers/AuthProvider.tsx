@@ -1,6 +1,6 @@
 import { createContext, useContext, useState } from "react";
 import type { User, UserRole } from "../../entities/user/user.types";
-import { getSessionUser, saveSessionUser } from "../../features/auth/model/authSession";
+import { getSessionUser, saveAccessToken, saveSessionUser } from "../../features/auth/model/authSession";
 import { DEMO_USERS } from "../../mocks";
 
 interface AuthContextType {
@@ -20,7 +20,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     saveSessionUser(nextUser);
   };
 
-  const login = async (email: string, _password: string, role: UserRole): Promise<{ ok: boolean; error?: string }> => {
+  const login = async (email: string, password: string, role: UserRole): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8081";
+      const response = await fetch(baseUrl + "/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const body = await response.json().catch(() => null);
+      if (response.ok && body?.success && body.data) {
+        const backendUser = body.data;
+        if (backendUser.role !== role && !(backendUser.role === "SUPER_ADMIN" && role === "ADMIN")) {
+          return { ok: false, error: "선택한 포털과 계정 역할이 일치하지 않습니다." };
+        }
+        saveAccessToken(backendUser.accessToken);
+        updateUser({ id: String(backendUser.id), name: backendUser.name, email: backendUser.email, role: backendUser.role });
+        return { ok: true };
+      }
+    } catch {
+      // 백엔드가 꺼져 있으면 데모 로그인으로 동작합니다.
+    }
+
     await new Promise((r) => setTimeout(r, 1000));
 
     const matched = DEMO_USERS.find((u) => u.email === email);
@@ -36,9 +57,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { ok: true };
   };
 
-  const logout = () => updateUser(null);
+  const logout = () => {
+    saveAccessToken(null);
+    updateUser(null);
+  };
 
   const switchDemo = (userId: string) => {
+    saveAccessToken(null);
     const u = DEMO_USERS.find((u) => u.id === userId);
     if (u) updateUser(u);
   };

@@ -16,6 +16,7 @@ const CostPage = lazy(() => import("../../pages/store-owner/CostPage").then(({ C
 const InventoryPage = lazy(() => import("../../pages/store-owner/InventoryPage").then(({ InventoryPage }) => ({ default: InventoryPage })));
 const ReviewsPage = lazy(() => import("../../pages/store-owner/ReviewsPage").then(({ ReviewsPage }) => ({ default: ReviewsPage })));
 const ReportsPage = lazy(() => import("../../pages/store-owner/ReportsPage").then(({ ReportsPage }) => ({ default: ReportsPage })));
+const StoreNoticesPage = lazy(() => import("../../pages/store-owner/NoticesPage").then(({ NoticesPage }) => ({ default: NoticesPage })));
 const PlaceholderPage = lazy(() => import("../../pages/store-owner/PlaceholderPage").then(({ PlaceholderPage }) => ({ default: PlaceholderPage })));
 
 const PortfolioDashboard = lazy(() => import("../../pages/admin/PortfolioDashboard").then(({ PortfolioDashboard }) => ({ default: PortfolioDashboard })));
@@ -78,6 +79,7 @@ export function AppRouter() {
           <Route path="reviews" element={<ReviewsPage />} />
           <Route path="customers" element={<PlaceholderPage title="고객·쿠폰 전략" />} />
           <Route path="reports" element={<ReportsPage />} />
+          <Route path="notices" element={<StoreNoticesPage />} />
           <Route path="commerce" element={<PlaceholderPage title="온라인 커머스" />} />
           <Route path="help" element={<PlaceholderPage title="도움말" />} />
           <Route path="profile" element={<PlaceholderPage title="내 정보 및 보안" />} />
