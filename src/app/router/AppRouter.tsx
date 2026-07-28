@@ -19,6 +19,7 @@ const InventoryPage = lazy(() => import("../../pages/store-owner/InventoryPage")
 const ReviewsPage = lazy(() => import("../../pages/store-owner/ReviewsPage").then(({ ReviewsPage }) => ({ default: ReviewsPage })));
 const ReportsPage = lazy(() => import("../../pages/store-owner/ReportsPage").then(({ ReportsPage }) => ({ default: ReportsPage })));
 const PlaceholderPage = lazy(() => import("../../pages/store-owner/PlaceholderPage").then(({ PlaceholderPage }) => ({ default: PlaceholderPage })));
+const ProductImagePage = lazy(() => import("../../pages/store-owner/ProductImagePage").then(({ ProductImagePage }) => ({ default: ProductImagePage })));
 
 const PortfolioDashboard = lazy(() => import("../../pages/admin/PortfolioDashboard").then(({ PortfolioDashboard }) => ({ default: PortfolioDashboard })));
 const MerchantsPage = lazy(() => import("../../pages/admin/MerchantsPage").then(({ MerchantsPage }) => ({ default: MerchantsPage })));
@@ -84,7 +85,7 @@ export function AppRouter() {
           <Route path="reviews" element={<ReviewsPage />} />
           <Route path="customers" element={<PlaceholderPage title="고객·쿠폰 전략" />} />
           <Route path="reports" element={<ReportsPage />} />
-          <Route path="commerce" element={<PlaceholderPage title="온라인 커머스" />} />
+          <Route path="commerce" element={<ProductImagePage />} />
           <Route path="help" element={<PlaceholderPage title="도움말" />} />
           <Route path="profile" element={<PlaceholderPage title="내 정보 및 보안" />} />
           <Route path="staff" element={<NotFoundPage returnTo="/store" returnLabel="점주 대시보드로 돌아가기" />} />
