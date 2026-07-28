@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, TrendingUp, Zap, BookOpen, Package,
@@ -7,6 +7,8 @@ import {
   Store, Menu, LogOut, DollarSign
 } from "lucide-react";
 import { clsx } from "clsx";
+import { commerceApi } from "../../features/commerce/api/commerceApi";
+import { ApiError } from "../../shared/api/apiClient";
 import { useAuth } from "../providers/AuthProvider";
 
 const NAV_ITEMS = [
@@ -19,17 +21,34 @@ const NAV_ITEMS = [
   { to: "/store/reviews", icon: Star, label: "리뷰 분석" },
   { to: "/store/customers", icon: Users, label: "고객·쿠폰" },
   { to: "/store/reports", icon: FileText, label: "경영 리포트" },
-  { to: "/store/commerce", icon: ShoppingBag, label: "온라인 커머스" },
+  { to: "/store/commerce", icon: ShoppingBag, label: "매장·커머스" },
 ];
 
 export function StoreOwnerLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { user, logout } = useAuth();
+  const [storeIdentity, setStoreIdentity] = useState<{ name: string; category: string } | null>(null);
+  const { user, isDemo, logout } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
+  useEffect(() => {
+    if (isDemo) {
+      setStoreIdentity(null);
+      return;
+    }
+
+    commerceApi.getStore()
+      .then(({ name, category }) => setStoreIdentity({ name, category }))
+      .catch((error: unknown) => {
+        if (!(error instanceof ApiError && error.status === 404)) {
+          console.error("매장 정보를 불러오지 못했습니다.", error);
+        }
+        setStoreIdentity(null);
+      });
+  }, [isDemo, user?.id]);
+
+  const handleLogout = async () => {
+    await logout();
     navigate("/login");
   };
 
@@ -46,8 +65,12 @@ export function StoreOwnerLayout() {
           </div>
           {(!collapsed || mobile) && (
             <div className="min-w-0">
-              <div className="text-sm font-bold text-white truncate">{user?.storeName || "성수 브루랩"}</div>
-              <div className="text-[11px] text-white/50">{user?.storeCategory || "카페·베이커리"}</div>
+              <div className="text-sm font-bold text-white truncate">
+                {storeIdentity?.name || user?.storeName || (isDemo ? "성수 브루랩" : "매장 미등록")}
+              </div>
+              <div className="text-[11px] text-white/50">
+                {storeIdentity?.category || user?.storeCategory || (isDemo ? "카페·베이커리" : "매장·커머스에서 매장을 등록해 주세요")}
+              </div>
             </div>
           )}
         </div>
