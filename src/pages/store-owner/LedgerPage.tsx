@@ -4,7 +4,7 @@ import {
   Upload, CheckCircle2, AlertCircle, Edit3, FileText,
   ChevronRight, Sparkles, TrendingUp, ExternalLink, Info, Loader2, Download
 } from "lucide-react";
-import { ApiError } from "@/shared/api/httpClient";
+import { ApiError } from "@/shared/api/apiClient";
 import { createReceipt, getLedgerReportHtml, getReceipts, parseReceiptImage } from "@/entities/receipt/receipt.api";
 import type {
   ReceiptItemData,

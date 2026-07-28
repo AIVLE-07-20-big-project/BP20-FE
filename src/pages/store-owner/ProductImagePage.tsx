@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Upload, Sparkles, Loader2, AlertCircle, Download, ImageIcon } from "lucide-react";
 import { PageShell } from "@/shared/components/PageShell";
-import { ApiError } from "@/shared/api/httpClient";
+import { ApiError } from "@/shared/api/apiClient";
 import { generateProductImage, getProductImageCategories } from "@/entities/product-image/product-image.api";
 
 export function ProductImagePage() {
