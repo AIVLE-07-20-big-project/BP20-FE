@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Download, Filter } from "lucide-react";
+import { Search, Download, Filter, UserPlus } from "lucide-react";
 import { PageShell } from "../../shared/components/PageShell";
 import { DataTable } from "../../shared/components/DataTable";
 import { Badge, RiskBadge, ConnectionBadge } from "../../shared/components/Badge";
@@ -28,6 +28,13 @@ export function MerchantsPage() {
           <button className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 bg-card border border-border rounded-xl hover:bg-muted transition-colors">
             <Download className="w-3.5 h-3.5" />
             내보내기
+          </button>
+          <button
+            onClick={() => navigate("/admin/accounts/store-owners")}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 bg-[#246BFD] text-white rounded-xl hover:bg-[#1D4ED8] transition-colors"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            점주 초대
           </button>
         </>
       }

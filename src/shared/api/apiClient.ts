@@ -1,47 +1,110 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080").replace(/\/$/, "");
-const ACCESS_TOKEN_KEY = "bp20:access-token";
+import {
+  clearAccessToken,
+  getAccessToken,
+} from "../../features/auth/model/authSession";
+
+export { getAccessToken };
+
+export const AUTH_EXPIRED_EVENT = "bp20:auth-expired";
 
 interface ApiEnvelope<T> {
+  status?: number;
   success: boolean;
   message?: string;
   data: T;
 }
 
+interface ApiErrorPayload {
+  message?: string;
+  detail?: string;
+  error?: {
+    message?: string;
+  };
+}
+
 export class ApiError extends Error {
-  constructor(message: string, public readonly status: number) {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
     super(message);
     this.name = "ApiError";
   }
 }
 
-export function getAccessToken() {
-  return window.sessionStorage.getItem(ACCESS_TOKEN_KEY);
-}
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
-export function saveAccessToken(token: string | null) {
-  if (token) window.sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
-  else window.sessionStorage.removeItem(ACCESS_TOKEN_KEY);
-}
+export async function apiRequest<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const headers = new Headers(init.headers);
 
-export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json");
+  }
+  if (
+    init.body
+    && !(init.body instanceof FormData)
+    && !headers.has("Content-Type")
+  ) {
+    headers.set("Content-Type", "application/json");
+  }
   const token = getAccessToken();
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      Accept: "application/json",
-      ...(init?.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init?.headers,
-    },
-  });
-  const payload = await response.json().catch(() => null) as ApiEnvelope<T> | { message?: string; detail?: string; error?: { message?: string } } | T | null;
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers,
+    });
+  } catch {
+    throw new ApiError(
+      "백엔드 서버에 연결할 수 없습니다. 서버 실행 상태와 API 주소를 확인해 주세요.",
+      0,
+    );
+  }
+
+  const body = await response.json().catch(() => null) as
+    | ApiEnvelope<T>
+    | ApiErrorPayload
+    | T
+    | null;
 
   if (!response.ok) {
-    const errorPayload = payload as { message?: string; detail?: string; error?: { message?: string } } | null;
-    throw new ApiError(errorPayload?.message ?? errorPayload?.detail ?? errorPayload?.error?.message ?? `요청에 실패했습니다. (${response.status})`, response.status);
+    if (response.status === 401 && token) {
+      clearAccessToken();
+      window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+    }
+
+    const errorBody = body as ApiErrorPayload | null;
+    throw new ApiError(
+      errorBody?.message
+        ?? errorBody?.detail
+        ?? errorBody?.error?.message
+        ?? "요청 처리 중 오류가 발생했습니다.",
+      response.status,
+    );
   }
-  if (payload && typeof payload === "object" && "success" in payload && "data" in payload) {
-    return (payload as ApiEnvelope<T>).data;
+
+  if (
+    body
+    && typeof body === "object"
+    && "success" in body
+    && "data" in body
+  ) {
+    const envelope = body as ApiEnvelope<T>;
+    if (!envelope.success) {
+      throw new ApiError(
+        envelope.message ?? "요청 처리 중 오류가 발생했습니다.",
+        envelope.status ?? response.status,
+      );
+    }
+    return envelope.data;
   }
-  return payload as T;
+
+  return body as T;
 }
