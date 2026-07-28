@@ -13,10 +13,16 @@ export interface DetailedDriver {
   contributionPct?: number;
 }
 
+export interface TopCategory {
+  category: string;
+  revenue: number;
+}
+
 export interface DetailedRootCauseAnalysis {
   change?: { direction?: string; amount?: number; ratePct?: number };
   headline?: string;
   narrative?: string;
+  topCategory?: TopCategory | null;
   internalDrivers?: DetailedDriver[];
   internalDetailedDrivers?: DetailedDriver[];
   externalDrivers?: Array<Record<string, unknown>>;
@@ -36,6 +42,16 @@ export interface AiAnalysisResult {
   detailed_analysis?: DetailedSalesAnalysis;
   warnings?: unknown[];
   [key: string]: unknown;
+}
+
+export type AiAnalysisJobStatus = "queued" | "running" | "completed" | "failed";
+
+export interface AiAnalysisJob {
+  job_id: string;
+  status: AiAnalysisJobStatus;
+  analysis_id?: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
 }
 
 export interface TrendPayload {
