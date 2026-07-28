@@ -26,3 +26,7 @@ export function saveAccessToken(token: string | null) {
   if (token) window.sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
   else window.sessionStorage.removeItem(ACCESS_TOKEN_KEY);
 }
+
+export function clearAccessToken() {
+  saveAccessToken(null);
+}
