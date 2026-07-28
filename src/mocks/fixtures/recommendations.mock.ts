@@ -18,6 +18,7 @@ export const AI_RECOMMENDATIONS: AIRecommendation[] = [
     assumptions: ["쿠폰 할인율 15% 적용", "발송 대상: 30일 이상 미방문 고객 284명", "측정 기간: 14일"],
     predictionRange: "+12%~+16%",
     measurementDays: 14,
+    verificationRecommendationId: 10001,
   },
   {
     id: "r2",
@@ -53,8 +54,9 @@ export const AI_RECOMMENDATIONS: AIRecommendation[] = [
     evidence: ["고객별 방문 이력", "코호트별 이탈 패턴", "유사 매장 구독 프로모션 반응률", "RFM 분석", "경쟁사 프로모션 동향"],
     assumptions: ["구독권 가격 ₩39,000/월", "이탈 방지율 가정 12~16%"],
     predictionRange: "+18~+25명",
-    measurementDays: 30,
+    measurementDays: 14,
     executedAt: "2025-07-18",
+    verificationRecommendationId: 10002,
   },
   {
     id: "r4",
@@ -72,8 +74,9 @@ export const AI_RECOMMENDATIONS: AIRecommendation[] = [
     evidence: ["네이버 플레이스 리뷰 데이터", "카카오맵 리뷰 데이터", "POS 주문 처리 시간", "시간대별 주문 밀집도", "직원 스케줄", "유사 매장 개선 사례"],
     assumptions: ["측정 기간: 21일", "대기시간 목표: 평균 8분 이내"],
     predictionRange: "부정 리뷰 -8~12%",
-    measurementDays: 21,
+    measurementDays: 14,
     executedAt: "2025-07-10",
+    verificationRecommendationId: 10003,
   },
   {
     id: "r5",
