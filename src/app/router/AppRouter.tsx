@@ -18,6 +18,9 @@ const CostPage = lazy(() => import("../../pages/store-owner/CostPage").then(({ C
 const InventoryPage = lazy(() => import("../../pages/store-owner/InventoryPage").then(({ InventoryPage }) => ({ default: InventoryPage })));
 const ReviewsPage = lazy(() => import("../../pages/store-owner/ReviewsPage").then(({ ReviewsPage }) => ({ default: ReviewsPage })));
 const ReportsPage = lazy(() => import("../../pages/store-owner/ReportsPage").then(({ ReportsPage }) => ({ default: ReportsPage })));
+const CommercePage = lazy(() => import("../../pages/store-owner/CommercePage").then(({ CommercePage }) => ({ default: CommercePage })));
+const CustomersPage = lazy(() => import("../../pages/store-owner/CustomersPage").then(({ CustomersPage }) => ({ default: CustomersPage })));
+const AccountPage = lazy(() => import("../../pages/account/AccountPage").then(({ AccountPage }) => ({ default: AccountPage })));
 const PlaceholderPage = lazy(() => import("../../pages/store-owner/PlaceholderPage").then(({ PlaceholderPage }) => ({ default: PlaceholderPage })));
 
 const PortfolioDashboard = lazy(() => import("../../pages/admin/PortfolioDashboard").then(({ PortfolioDashboard }) => ({ default: PortfolioDashboard })));
@@ -82,11 +85,11 @@ export function AppRouter() {
           <Route path="cost" element={<CostPage />} />
           <Route path="inventory" element={<InventoryPage />} />
           <Route path="reviews" element={<ReviewsPage />} />
-          <Route path="customers" element={<PlaceholderPage title="고객·쿠폰 전략" />} />
+          <Route path="customers" element={<CustomersPage />} />
           <Route path="reports" element={<ReportsPage />} />
-          <Route path="commerce" element={<PlaceholderPage title="온라인 커머스" />} />
+          <Route path="commerce" element={<CommercePage />} />
           <Route path="help" element={<PlaceholderPage title="도움말" />} />
-          <Route path="profile" element={<PlaceholderPage title="내 정보 및 보안" />} />
+          <Route path="profile" element={<AccountPage />} />
           <Route path="staff" element={<NotFoundPage returnTo="/store" returnLabel="점주 대시보드로 돌아가기" />} />
           <Route path="settings" element={<NotFoundPage returnTo="/store" returnLabel="점주 대시보드로 돌아가기" />} />
           <Route path="*" element={<NotFoundPage returnTo="/store" returnLabel="점주 대시보드로 돌아가기" />} />
@@ -111,6 +114,7 @@ export function AppRouter() {
           <Route path="subscriptions" element={<PlaceholderPage title="구독·계약 현황" />} />
           <Route path="notices" element={<NoticesPage />} />
           <Route path="service-status" element={<ServiceStatusPage />} />
+          <Route path="profile" element={<AccountPage />} />
           <Route
             path="accounts/admins"
             element={(
