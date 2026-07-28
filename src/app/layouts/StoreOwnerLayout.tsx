@@ -11,17 +11,32 @@ import { commerceApi } from "../../features/commerce/api/commerceApi";
 import { ApiError } from "../../shared/api/apiClient";
 import { useAuth } from "../providers/AuthProvider";
 
-const NAV_ITEMS = [
+const DASHBOARD_NAV = [
   { to: "/store", icon: LayoutDashboard, label: "점주 대시보드" },
-  { to: "/store/sales", icon: TrendingUp, label: "매출 분석" },
+];
+
+const STORE_NAV = [
+  { to: "/store/commerce", icon: ShoppingBag, label: "매장·커머스" },
+  { to: "/store/inventory", icon: Package, label: "재고·발주" },
+  { to: "/store/customers", icon: Users, label: "고객·쿠폰" },
+];
+
+const AI_NAV = [
   { to: "/store/actions", icon: Zap, label: "AI 전략 추천" },
   { to: "/store/ledger", icon: BookOpen, label: "AI 가계부" },
+];
+
+const ANALYTICS_NAV = [
+  { to: "/store/sales", icon: TrendingUp, label: "매출 분석" },
   { to: "/store/cost", icon: DollarSign, label: "지출·원가" },
-  { to: "/store/inventory", icon: Package, label: "재고·발주" },
   { to: "/store/reviews", icon: Star, label: "리뷰 분석" },
-  { to: "/store/customers", icon: Users, label: "고객·쿠폰" },
   { to: "/store/reports", icon: FileText, label: "경영 리포트" },
-  { to: "/store/commerce", icon: ShoppingBag, label: "매장·커머스" },
+];
+
+const NAV_GROUPS = [
+  { label: "Store", items: STORE_NAV },
+  { label: "AI", items: AI_NAV },
+  { label: "Analytics", items: ANALYTICS_NAV },
 ];
 
 export function StoreOwnerLayout() {
@@ -84,12 +99,14 @@ export function StoreOwnerLayout() {
 
       {/* Nav items */}
       <nav className="flex-1 overflow-y-auto py-2 px-2">
-        {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
+        {DASHBOARD_NAV.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
             end={to === "/store"}
             onClick={() => setMobileOpen(false)}
+            aria-label={label}
+            title={collapsed && !mobile ? label : undefined}
             className={({ isActive }) => clsx(
               "flex items-center gap-3 px-3 py-2.5 rounded-xl mb-0.5 text-sm font-medium transition-colors",
               isActive
@@ -100,6 +117,39 @@ export function StoreOwnerLayout() {
             <Icon className="w-4 h-4 flex-shrink-0" />
             {(!collapsed || mobile) && <span className="truncate">{label}</span>}
           </NavLink>
+        ))}
+
+        {NAV_GROUPS.map(({ label: groupLabel, items }) => (
+          <div
+            key={groupLabel}
+            className={clsx(collapsed && !mobile && "mt-2")}
+          >
+            {(!collapsed || mobile) && (
+              <div className="px-3 pb-1 pt-4">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">
+                  {groupLabel}
+                </span>
+              </div>
+            )}
+            {items.map(({ to, icon: Icon, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                onClick={() => setMobileOpen(false)}
+                aria-label={label}
+                title={collapsed && !mobile ? label : undefined}
+                className={({ isActive }) => clsx(
+                  "mb-0.5 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-[#246BFD]/20 text-[#93BBFD]"
+                    : "text-white/60 hover:bg-white/5 hover:text-white"
+                )}
+              >
+                <Icon className="h-4 w-4 flex-shrink-0" />
+                {(!collapsed || mobile) && <span className="truncate">{label}</span>}
+              </NavLink>
+            ))}
+          </div>
         ))}
       </nav>
 
@@ -137,6 +187,8 @@ export function StoreOwnerLayout() {
       <div className="hidden lg:flex flex-shrink-0 relative" style={{ width: collapsed ? 64 : 248 }}>
         <Sidebar />
         <button
+          type="button"
+          aria-label={collapsed ? "사이드바 펼치기" : "사이드바 접기"}
           onClick={() => setCollapsed(!collapsed)}
           className="absolute -right-3 top-16 w-6 h-6 rounded-full bg-card border border-border flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors z-10 shadow-sm"
         >
@@ -148,7 +200,12 @@ export function StoreOwnerLayout() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
         <header className="h-14 flex items-center gap-3 px-4 lg:px-6 border-b border-border bg-card flex-shrink-0">
-          <button className="lg:hidden p-1.5 rounded-lg text-muted-foreground hover:bg-muted" onClick={() => setMobileOpen(true)}>
+          <button
+            type="button"
+            aria-label="메뉴 열기"
+            className="lg:hidden p-1.5 rounded-lg text-muted-foreground hover:bg-muted"
+            onClick={() => setMobileOpen(true)}
+          >
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex-1 max-w-sm">
