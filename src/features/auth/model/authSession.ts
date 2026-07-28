@@ -30,6 +30,10 @@ export function saveAccessToken(token: string, remember: boolean) {
   storage.setItem(remember ? LOCAL_TOKEN_KEY : SESSION_TOKEN_KEY, token);
 }
 
+export function isAccessTokenRemembered() {
+  return window.localStorage.getItem(LOCAL_TOKEN_KEY) !== null;
+}
+
 export function clearAccessToken() {
   window.sessionStorage.removeItem(SESSION_TOKEN_KEY);
   window.localStorage.removeItem(LOCAL_TOKEN_KEY);

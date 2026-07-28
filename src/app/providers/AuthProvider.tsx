@@ -90,11 +90,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     remember: boolean,
   ): Promise<{ ok: boolean; error?: string }> => {
     try {
-      const result = await authApi.login(email.trim(), password);
+      const result = await authApi.login(email.trim(), password, remember);
       const roleMatches = result.user.role === role
         || (result.user.role === "SUPER_ADMIN" && role === "ADMIN");
 
       if (!roleMatches) {
+        await authApi.logout().catch(() => undefined);
         clearAccessToken();
         return {
           ok: false,
@@ -118,8 +119,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
-    clearAccessToken();
-    updateDemoUser(null);
+    try {
+      if (!isDemo) {
+        await authApi.logout();
+      }
+    } finally {
+      clearAccessToken();
+      updateDemoUser(null);
+    }
   };
 
   const signup = async (
@@ -145,6 +152,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const switchDemo = (userId: string) => {
     const u = DEMO_USERS.find((u) => u.id === userId);
     if (u) {
+      if (!isDemo && user) {
+        void authApi.logout().catch(() => undefined);
+      }
       clearAccessToken();
       updateDemoUser(u);
     }
