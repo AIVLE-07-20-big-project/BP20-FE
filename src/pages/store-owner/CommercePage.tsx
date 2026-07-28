@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   BadgePercent,
   BellRing,
@@ -463,14 +464,23 @@ export function CommercePage() {
       title="매장·커머스"
       subtitle="오프라인 상품 원장부터 온라인 판매와 할인까지 한곳에서 관리합니다."
       actions={(
-        <button
-          type="button"
-          onClick={() => openProductModal()}
-          className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#246BFD] px-4 text-xs font-bold text-white shadow-sm hover:bg-[#1D4ED8]"
-        >
-          <Plus className="h-4 w-4" />
-          상품 등록
-        </button>
+        <>
+          <Link
+            to="/store/commerce/product-images"
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#246BFD]/20 bg-[#EEF4FF] px-4 text-xs font-bold text-[#246BFD] transition-colors hover:bg-[#E2ECFF]"
+          >
+            <ImageIcon className="h-4 w-4" />
+            AI 상품 이미지
+          </Link>
+          <button
+            type="button"
+            onClick={() => openProductModal()}
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#246BFD] px-4 text-xs font-bold text-white shadow-sm hover:bg-[#1D4ED8]"
+          >
+            <Plus className="h-4 w-4" />
+            상품 등록
+          </button>
+        </>
       )}
     >
       {isDemo && (

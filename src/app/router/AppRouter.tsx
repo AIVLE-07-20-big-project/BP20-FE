@@ -22,6 +22,7 @@ const CommercePage = lazy(() => import("../../pages/store-owner/CommercePage").t
 const CustomersPage = lazy(() => import("../../pages/store-owner/CustomersPage").then(({ CustomersPage }) => ({ default: CustomersPage })));
 const AccountPage = lazy(() => import("../../pages/account/AccountPage").then(({ AccountPage }) => ({ default: AccountPage })));
 const PlaceholderPage = lazy(() => import("../../pages/store-owner/PlaceholderPage").then(({ PlaceholderPage }) => ({ default: PlaceholderPage })));
+const ProductImagePage = lazy(() => import("../../pages/store-owner/ProductImagePage").then(({ ProductImagePage }) => ({ default: ProductImagePage })));
 
 const PortfolioDashboard = lazy(() => import("../../pages/admin/PortfolioDashboard").then(({ PortfolioDashboard }) => ({ default: PortfolioDashboard })));
 const MerchantsPage = lazy(() => import("../../pages/admin/MerchantsPage").then(({ MerchantsPage }) => ({ default: MerchantsPage })));
@@ -88,6 +89,7 @@ export function AppRouter() {
           <Route path="customers" element={<CustomersPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="commerce" element={<CommercePage />} />
+          <Route path="commerce/product-images" element={<ProductImagePage />} />
           <Route path="help" element={<PlaceholderPage title="도움말" />} />
           <Route path="profile" element={<AccountPage />} />
           <Route path="staff" element={<NotFoundPage returnTo="/store" returnLabel="점주 대시보드로 돌아가기" />} />
