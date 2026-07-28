@@ -1,5 +1,7 @@
 import type {
   EffectVerificationResult,
+  RegisterMockThreadExecutionInput,
+  RegisterVerificationExecutionInput,
   VerificationExecution,
   VerificationStatus,
 } from "../../../entities/effect-verification/effect-verification.types";
@@ -69,6 +71,44 @@ export function getVerificationHistory(
   );
 }
 
+export function registerVerificationExecution(
+  input: RegisterVerificationExecutionInput,
+) {
+  return request<VerificationExecution>(
+    "/api/effect-verifications/executions",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function linkCampaignDecision(threadId: string, decisionId: string) {
+  return request<VerificationExecution>(
+    `/api/effect-verifications/executions/by-thread/${encodeURIComponent(threadId)}/decision`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision_id: decisionId }),
+    },
+  );
+}
+
+export function registerMockThreadExecution(
+  threadId: string,
+  input: RegisterMockThreadExecutionInput,
+) {
+  return request<VerificationExecution>(
+    `/api/mock/effect-verifications/executions/by-thread/${encodeURIComponent(threadId)}/register-auto`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+}
+
 export function registerMockExecution(recommendationId: string) {
   return request<VerificationExecution>(
     `/api/mock/effect-verifications/executions/${encodeURIComponent(recommendationId)}/register-auto`,
@@ -77,8 +117,22 @@ export function registerMockExecution(recommendationId: string) {
 }
 
 export function completeMockVerification(recommendationId: string) {
+  const identifierPath = recommendationId.includes("-")
+    ? `by-thread/${encodeURIComponent(recommendationId)}`
+    : encodeURIComponent(recommendationId);
   return request<EffectVerificationResult>(
-    `/api/mock/effect-verifications/executions/${encodeURIComponent(recommendationId)}/complete-auto`,
+    `/api/mock/effect-verifications/executions/${identifierPath}/complete-auto`,
+    { method: "POST" },
+  );
+}
+
+export function resetMockVerificationData() {
+  return request<{
+    deletedExecutions: number;
+    deletedResults: number;
+    deletedStrategyWeights: number;
+  }>(
+    "/api/mock/effect-verifications/executions/reset",
     { method: "POST" },
   );
 }

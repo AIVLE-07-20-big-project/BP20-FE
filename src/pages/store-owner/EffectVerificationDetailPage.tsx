@@ -18,6 +18,7 @@ import type {
   VerificationStatus,
 } from "../../entities/effect-verification/effect-verification.types";
 import {
+  completeMockVerification,
   EffectVerificationApiError,
   getVerificationExecution,
   getVerificationResult,
@@ -151,6 +152,7 @@ export function EffectVerificationDetailPage() {
   const [execution, setExecution] = useState<VerificationExecution | null>(null);
   const [result, setResult] = useState<EffectVerificationResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -200,6 +202,20 @@ export function EffectVerificationDetailPage() {
   const remainingDays = execution
     ? Math.max(0, Math.ceil((new Date(execution.verification_due_at).getTime() - Date.now()) / 86_400_000))
     : 0;
+
+  const retryVerification = async () => {
+    if (!recommendationId || retrying) return;
+    setRetrying(true);
+    setError(null);
+    try {
+      await completeMockVerification(recommendationId);
+      setReloadKey((key) => key + 1);
+    } catch (nextError) {
+      setError(getErrorMessage(nextError));
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   return (
     <PageShell
@@ -280,6 +296,17 @@ export function EffectVerificationDetailPage() {
                   <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   <span>실패 원인: {execution.failure_reason}</span>
                 </div>
+              )}
+              {execution.status === "FAILED" && (
+                <button
+                  type="button"
+                  disabled={retrying}
+                  onClick={retryVerification}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${retrying ? "animate-spin" : ""}`} aria-hidden="true" />
+                  {retrying ? "재시도 중" : "효과 검증 재시도"}
+                </button>
               )}
             </section>
           )}

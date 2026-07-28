@@ -10,6 +10,7 @@ import {
   ChevronRight,
   RefreshCw,
   Store,
+  Trash2,
   XCircle,
 } from "lucide-react";
 import type {
@@ -19,6 +20,7 @@ import type {
 import {
   EffectVerificationApiError,
   getVerificationHistory,
+  resetMockVerificationData,
 } from "../../features/effect-verification/api/effectVerificationApi";
 import { PageShell } from "../../shared/components/PageShell";
 
@@ -144,6 +146,7 @@ export function EffectVerificationHistoryPage() {
   const [status, setStatus] = useState<VerificationStatus | "">("");
   const [history, setHistory] = useState<VerificationExecution[]>([]);
   const [loading, setLoading] = useState(true);
+  const [resetting, setResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -178,6 +181,27 @@ export function EffectVerificationHistoryPage() {
     () => STORE_OPTIONS.find((store) => store.id === storeId)?.label ?? `매장 ${storeId}`,
     [storeId],
   );
+
+  const resetMockData = async () => {
+    if (!window.confirm("효과 검증 실행·결과 데이터를 초기화할까요? Mock 원본 데이터는 유지됩니다.")) {
+      return;
+    }
+    setResetting(true);
+    setError(null);
+    try {
+      await resetMockVerificationData();
+      setStatus("");
+      setReloadKey((key) => key + 1);
+    } catch (nextError) {
+      setError(
+        nextError instanceof EffectVerificationApiError
+          ? nextError.message
+          : "Mock 효과 검증 데이터를 초기화하지 못했습니다.",
+      );
+    } finally {
+      setResetting(false);
+    }
+  };
 
   return (
     <PageShell
@@ -237,6 +261,15 @@ export function EffectVerificationHistoryPage() {
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
           새로고침
+        </button>
+        <button
+          type="button"
+          onClick={resetMockData}
+          disabled={loading || resetting}
+          className="flex h-9 items-center gap-1.5 rounded-xl border border-red-200 px-3 text-xs font-bold text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+          {resetting ? "초기화 중" : "Mock 초기화"}
         </button>
       </section>
 
