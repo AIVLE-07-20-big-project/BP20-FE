@@ -154,7 +154,7 @@ export function AiStrategyDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const rec = AI_RECOMMENDATIONS.find((item) => item.id === id) || AI_RECOMMENDATIONS[0];
-  const recommendationId = rec.verificationRecommendationId;
+  const recommendationId = rec.effectVerificationEnabled ? rec.id : undefined;
   const [showEvidence, setShowEvidence] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [execution, setExecution] = useState<VerificationExecution | null>(null);

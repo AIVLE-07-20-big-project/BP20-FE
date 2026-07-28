@@ -43,11 +43,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function getVerificationExecution(
-  recommendationId: number,
+  recommendationId: string,
 ): Promise<VerificationExecution | null> {
   try {
     return await request<VerificationExecution>(
-      `/api/effect-verifications/executions/${recommendationId}`,
+      `/api/effect-verifications/executions/${encodeURIComponent(recommendationId)}`,
     );
   } catch (error) {
     if (error instanceof EffectVerificationApiError && error.status === 404) {
@@ -69,26 +69,26 @@ export function getVerificationHistory(
   );
 }
 
-export function registerMockExecution(recommendationId: number) {
+export function registerMockExecution(recommendationId: string) {
   return request<VerificationExecution>(
-    `/api/mock/effect-verifications/executions/${recommendationId}/register-auto`,
+    `/api/mock/effect-verifications/executions/${encodeURIComponent(recommendationId)}/register-auto`,
     { method: "POST" },
   );
 }
 
-export function completeMockVerification(recommendationId: number) {
+export function completeMockVerification(recommendationId: string) {
   return request<EffectVerificationResult>(
-    `/api/mock/effect-verifications/executions/${recommendationId}/complete-auto`,
+    `/api/mock/effect-verifications/executions/${encodeURIComponent(recommendationId)}/complete-auto`,
     { method: "POST" },
   );
 }
 
 export async function getVerificationResult(
-  recommendationId: number,
+  recommendationId: string,
 ): Promise<EffectVerificationResult | null> {
   try {
     return await request<EffectVerificationResult>(
-      `/api/effect-verifications/recommendations/${recommendationId}`,
+      `/api/effect-verifications/recommendations/${encodeURIComponent(recommendationId)}`,
     );
   } catch (error) {
     if (error instanceof EffectVerificationApiError && error.status === 404) {

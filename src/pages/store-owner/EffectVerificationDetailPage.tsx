@@ -147,7 +147,7 @@ function ResultSection({ result }: { result: EffectVerificationResult }) {
 export function EffectVerificationDetailPage() {
   const navigate = useNavigate();
   const { recommendationId: recommendationIdParam } = useParams();
-  const recommendationId = Number(recommendationIdParam);
+  const recommendationId = recommendationIdParam?.trim() ?? "";
   const [execution, setExecution] = useState<VerificationExecution | null>(null);
   const [result, setResult] = useState<EffectVerificationResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -156,7 +156,7 @@ export function EffectVerificationDetailPage() {
 
   useEffect(() => {
     let active = true;
-    if (!Number.isSafeInteger(recommendationId) || recommendationId <= 0) {
+    if (!recommendationId) {
       setError("올바르지 않은 추천 ID입니다.");
       setLoading(false);
       return () => { active = false; };

@@ -4,7 +4,9 @@ export type VerificationStatus = "COLLECTING" | "READY" | "VERIFIED" | "FAILED";
 
 export interface VerificationExecution {
   store_id: number;
-  recommendation_id: number;
+  recommendation_id: string;
+  thread_id: string | null;
+  decision_id: string | null;
   recommendation_type: RecommendationType;
   status: VerificationStatus;
   executed_at: string;
@@ -26,7 +28,7 @@ export interface VerificationMetricResult {
 
 export interface EffectVerificationResult {
   store_id: number;
-  recommendation_id: number;
+  recommendation_id: string;
   recommendation_type: RecommendationType;
   effect_score: number | null;
   verdict: "EFFECTIVE" | "PARTIALLY_EFFECTIVE" | "NOT_EFFECTIVE" | "INCONCLUSIVE" | "INEFFECTIVE";
