@@ -1,130 +1,329 @@
-import { useState } from "react";
-import { Shield, UserPlus, UserX, CheckCircle2, X } from "lucide-react";
-import { PageShell } from "../../shared/components/PageShell";
+import { useEffect, useState } from "react";
+import { CheckCircle2, Copy, Shield, UserPlus, UserX, X } from "lucide-react";
+import type { UserStatus } from "../../entities/user/user.types";
+import {
+  changeAdminStatus,
+  getAdminAccounts,
+  type AdminAccount,
+} from "../../features/iam/api/accountApi";
+import {
+  inviteAdmin,
+  type InvitationResponse,
+} from "../../features/iam/api/invitationApi";
+import { ApiError } from "../../shared/api/apiClient";
 import { Badge } from "../../shared/components/Badge";
+import { PageShell } from "../../shared/components/PageShell";
+import { PasswordField } from "../auth/components/PasswordField";
+import { AccountStatusDialog } from "./components/AccountStatusDialog";
+import { InvitationListSection } from "./components/InvitationListSection";
 
-const ADMINS = [
-  { id: "a1", name: "박준혁", email: "junhyuk@bp20.com", status: "활성", invitedBy: "이서연", joinedAt: "2024-10-15", lastLogin: "2025-07-20", scope: "전체" },
-  { id: "a2", name: "이수빈", email: "subin@bp20.com", status: "활성", invitedBy: "이서연", joinedAt: "2024-12-01", lastLogin: "2025-07-19", scope: "서울·경기" },
-  { id: "a3", name: "최민준", email: "minjun@bp20.com", status: "활성", invitedBy: "박준혁", joinedAt: "2025-02-20", lastLogin: "2025-07-18", scope: "부산·대전" },
-  { id: "a4", name: "강하은", email: "haeun@bp20.com", status: "비활성", invitedBy: "이서연", joinedAt: "2025-01-10", lastLogin: "2025-05-12", scope: "전체" },
-];
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(value));
+}
 
 export function AdminAccountsPage() {
+  const [accounts, setAccounts] = useState<AdminAccount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteSent, setInviteSent] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [invitation, setInvitation] = useState<InvitationResponse | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteError, setInviteError] = useState("");
+  const [invitationVersion, setInvitationVersion] = useState(0);
+  const [statusTarget, setStatusTarget] = useState<{
+    account: AdminAccount;
+    nextStatus: UserStatus;
+  } | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [statusError, setStatusError] = useState("");
 
-  const handleInvite = () => {
-    setInviteSent(true);
-    setTimeout(() => { setInviteSent(false); setShowInvite(false); setInviteEmail(""); }, 2000);
+  const loadAccounts = async () => {
+    setLoading(true);
+    setLoadError("");
+    try {
+      setAccounts(await getAdminAccounts());
+    } catch (error) {
+      setLoadError(
+        error instanceof ApiError
+          ? error.message
+          : "관리자 계정 목록을 불러오지 못했습니다.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadAccounts();
+  }, []);
+
+  const closeInvite = () => {
+    setShowInvite(false);
+    setInvitation(null);
+    setCopied(false);
+    setInviteEmail("");
+    setCurrentPassword("");
+    setInviteError("");
+  };
+
+  const handleInvite = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setInviteLoading(true);
+    setInviteError("");
+    try {
+      const created = await inviteAdmin({
+        email: inviteEmail.trim(),
+        currentPassword,
+      });
+      setInvitation(created);
+      setInvitationVersion((version) => version + 1);
+    } catch (error) {
+      setInviteError(
+        error instanceof ApiError
+          ? error.message
+          : "관리자 초대를 생성하지 못했습니다.",
+      );
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const handleStatusChange = async (password: string) => {
+    if (!statusTarget) return;
+    setStatusLoading(true);
+    setStatusError("");
+    try {
+      const updated = await changeAdminStatus(
+        statusTarget.account.id,
+        statusTarget.nextStatus,
+        password,
+      );
+      setAccounts((current) => current.map((account) => (
+        account.id === updated.id ? updated : account
+      )));
+      setStatusTarget(null);
+    } catch (error) {
+      setStatusError(
+        error instanceof ApiError
+          ? error.message
+          : "관리자 계정 상태를 변경하지 못했습니다.",
+      );
+    } finally {
+      setStatusLoading(false);
+    }
   };
 
   return (
     <PageShell
       title="관리자 계정"
-      subtitle="SUPER_ADMIN 전용 기능"
-      actions={
-        <button onClick={() => setShowInvite(true)} className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 bg-[#087F65] text-white rounded-xl hover:bg-[#066652] transition-colors">
-          <UserPlus className="w-3.5 h-3.5" />
+      subtitle="최고 관리자가 일반 관리자 계정과 관리자 초대를 관리합니다."
+      actions={(
+        <button
+          type="button"
+          onClick={() => setShowInvite(true)}
+          className="flex items-center gap-1.5 rounded-xl bg-[#246BFD] px-3 py-2 text-xs font-semibold text-white hover:bg-[#1D4ED8]"
+        >
+          <UserPlus className="h-3.5 w-3.5" />
           관리자 초대
         </button>
-      }
+      )}
     >
-      <div className="bg-card border border-border rounded-2xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                {["이름", "이메일", "상태", "초대자", "가입일", "최근 로그인", "관할 범위", ""].map((h) => (
-                  <th key={h} className="px-4 py-3 text-xs font-semibold text-muted-foreground text-left whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {ADMINS.map((admin) => (
-                <tr key={admin.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-xl bg-[#5B6CFF]/10 flex items-center justify-center text-xs font-bold text-[#5B6CFF]">
-                        {admin.name[0]}
-                      </div>
-                      <span className="font-semibold">{admin.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{admin.email}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant={admin.status === "활성" ? "positive" : "muted"}>{admin.status}</Badge>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{admin.invitedBy}</td>
-                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{admin.joinedAt}</td>
-                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{admin.lastLogin}</td>
-                  <td className="px-4 py-3"><Badge variant="muted">{admin.scope}</Badge></td>
-                  <td className="px-4 py-3">
-                    <button
-                      className={`text-xs font-semibold flex items-center gap-1 ${
-                        admin.status === "활성" ? "text-muted-foreground hover:text-red-600" : "text-muted-foreground hover:text-[#0E9F6E]"
-                      } transition-colors`}
-                    >
-                      {admin.status === "활성" ? <UserX className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                      {admin.status === "활성" ? "비활성화" : "활성화"}
-                    </button>
-                  </td>
+      <div className="overflow-hidden rounded-2xl border border-border bg-card">
+        {loadError ? (
+          <div className="p-8 text-center">
+            <p className="text-sm text-red-600">{loadError}</p>
+            <button onClick={() => void loadAccounts()} className="mt-3 text-xs font-semibold text-[#246BFD]">
+              다시 시도
+            </button>
+          </div>
+        ) : loading ? (
+          <div className="p-8 text-center text-sm text-muted-foreground">관리자 계정을 불러오는 중입니다.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/30">
+                  {["관리자", "연락처", "권한", "상태", "가입일", "최근 변경일", "작업"].map((header) => (
+                    <th key={header} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold text-muted-foreground">
+                      {header}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {accounts.map((account) => (
+                  <tr key={account.id} className="border-b border-border last:border-0 hover:bg-muted/20">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#5B6CFF]/10 text-xs font-bold text-[#5B6CFF]">
+                          {account.name[0]}
+                        </div>
+                        <div>
+                          <div className="font-semibold">{account.name}</div>
+                          <div className="text-xs text-muted-foreground">{account.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{account.phoneNumber ?? "-"}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant={account.role === "SUPER_ADMIN" ? "indigo" : "muted"}>
+                        {account.role === "SUPER_ADMIN" ? "최고 관리자" : "관리자"}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant={account.status === "ACTIVE" ? "positive" : "muted"}>
+                        {account.status === "ACTIVE" ? "활성" : "비활성"}
+                      </Badge>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{formatDate(account.createdAt)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{formatDate(account.updatedAt)}</td>
+                    <td className="px-4 py-3">
+                      {account.role === "ADMIN" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStatusTarget({
+                              account,
+                              nextStatus: account.status === "ACTIVE" ? "INACTIVE" : "ACTIVE",
+                            });
+                            setStatusError("");
+                          }}
+                          className={`inline-flex items-center gap-1 text-xs font-semibold ${
+                            account.status === "ACTIVE"
+                              ? "text-muted-foreground hover:text-red-600"
+                              : "text-[#0E9F6E] hover:text-[#087F65]"
+                          }`}
+                        >
+                          {account.status === "ACTIVE"
+                            ? <UserX className="h-3.5 w-3.5" />
+                            : <CheckCircle2 className="h-3.5 w-3.5" />}
+                          {account.status === "ACTIVE" ? "비활성화" : "활성화"}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* Invite modal */}
+      <InvitationListSection
+        title="관리자 초대 현황"
+        targetRole="ADMIN"
+        refreshKey={invitationVersion}
+      />
+
       {showInvite && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-border rounded-2xl p-6 max-w-sm w-full shadow-xl">
-            {inviteSent ? (
-              <div className="text-center py-4">
-                <CheckCircle2 className="w-10 h-10 text-[#0E9F6E] mx-auto mb-2" />
-                <p className="font-bold">초대 이메일이 발송되었습니다.</p>
-                <p className="text-xs text-muted-foreground mt-1">IAM 로그에서 확인할 수 있습니다.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-xl">
+            {invitation ? (
+              <div className="py-4 text-center">
+                <CheckCircle2 className="mx-auto mb-2 h-10 w-10 text-[#0E9F6E]" />
+                <h2 className="font-bold">관리자 초대가 생성되었습니다.</h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {invitation.email} 사용자에게 임시 비밀번호를 안전하게 전달해 주세요.
+                </p>
+                <div className="mt-4 rounded-xl border border-border bg-muted p-3 text-left">
+                  <div className="mb-1 text-[11px] font-semibold text-muted-foreground">일회용 임시 비밀번호</div>
+                  <div className="flex items-center gap-2">
+                    <code className="min-w-0 flex-1 break-all text-sm font-bold">
+                      {invitation.temporaryPassword}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(invitation.temporaryPassword);
+                        setCopied(true);
+                      }}
+                      className="inline-flex h-8 items-center gap-1 rounded-lg bg-card px-2 text-xs font-semibold"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      {copied ? "복사됨" : "복사"}
+                    </button>
+                  </div>
+                </div>
+                <p className="mt-2 text-left text-[11px] text-amber-700">
+                  임시 비밀번호는 지금 한 번만 표시되며 초대 만료 전까지 한 번만 사용할 수 있습니다.
+                </p>
+                <button onClick={closeInvite} className="mt-5 h-10 w-full rounded-xl bg-[#246BFD] text-sm font-bold text-white">
+                  확인
+                </button>
               </div>
             ) : (
-              <>
-                <div className="flex items-center justify-between mb-4">
+              <form onSubmit={handleInvite}>
+                <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-[#5B6CFF]" />
-                    <h3 className="font-bold">관리자 초대</h3>
+                    <Shield className="h-4 w-4 text-[#5B6CFF]" />
+                    <div>
+                      <h2 className="font-bold">관리자 초대</h2>
+                      <p className="mt-0.5 text-xs text-muted-foreground">일반 관리자 계정을 초대합니다.</p>
+                    </div>
                   </div>
-                  <button onClick={() => setShowInvite(false)} className="p-1 rounded-lg hover:bg-muted text-muted-foreground">
-                    <X className="w-4 h-4" />
+                  <button type="button" onClick={closeInvite} className="rounded-lg p-1 text-muted-foreground hover:bg-muted">
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="space-y-3 mb-4">
+                <div className="space-y-3">
                   <div>
-                    <label className="text-xs font-semibold mb-1.5 block">이메일 주소</label>
+                    <label htmlFor="admin-invite-email" className="mb-1.5 block text-xs font-semibold">이메일 주소</label>
                     <input
+                      id="admin-invite-email"
                       type="email"
                       value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      placeholder="newadmin@company.com"
-                      className="w-full h-10 px-3 text-sm bg-muted rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-[#18C79A]/40"
+                      onChange={(event) => setInviteEmail(event.target.value)}
+                      required
+                      disabled={inviteLoading}
+                      placeholder="admin@example.com"
+                      className="h-10 w-full rounded-xl border border-border bg-muted px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#246BFD]/40"
                     />
                   </div>
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
-                    초대받은 계정은 7일 내에 가입을 완료해야 합니다. 임시 자격증명은 최초 1회만 확인 가능합니다.
-                  </div>
+                  <PasswordField
+                    label="현재 최고 관리자 비밀번호"
+                    value={currentPassword}
+                    onChange={setCurrentPassword}
+                    autoComplete="current-password"
+                    disabled={inviteLoading}
+                  />
+                  {inviteError && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">{inviteError}</div>
+                  )}
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={handleInvite} disabled={!inviteEmail} className="flex-1 h-10 bg-[#087F65] text-white text-sm font-bold rounded-xl hover:bg-[#066652] transition-colors disabled:opacity-50">
-                    초대 발송
+                <div className="mt-5 flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={!inviteEmail.trim() || !currentPassword || inviteLoading}
+                    className="h-10 flex-1 rounded-xl bg-[#246BFD] text-sm font-bold text-white disabled:opacity-50"
+                  >
+                    {inviteLoading ? "생성 중..." : "초대 생성"}
                   </button>
-                  <button onClick={() => setShowInvite(false)} className="flex-1 h-10 bg-muted text-sm font-semibold rounded-xl hover:bg-muted-foreground/10 transition-colors">
+                  <button type="button" onClick={closeInvite} disabled={inviteLoading} className="h-10 flex-1 rounded-xl bg-muted text-sm font-semibold">
                     취소
                   </button>
                 </div>
-              </>
+              </form>
             )}
           </div>
         </div>
+      )}
+
+      {statusTarget && (
+        <AccountStatusDialog
+          accountName={statusTarget.account.name}
+          nextStatus={statusTarget.nextStatus}
+          loading={statusLoading}
+          error={statusError}
+          onClose={() => setStatusTarget(null)}
+          onConfirm={handleStatusChange}
+        />
       )}
     </PageShell>
   );

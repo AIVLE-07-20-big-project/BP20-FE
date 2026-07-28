@@ -1,14 +1,8 @@
 import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
-import type { UserRole } from "../../entities/user/user.types";
 import { useAuth } from "../providers/AuthProvider";
 
-interface ProtectedRouteProps {
-  children: ReactNode;
-  requiredRole?: UserRole;
-}
-
-export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
+export function GuestRoute({ children }: { children: ReactNode }) {
   const { user, isInitializing } = useAuth();
 
   if (isInitializing) {
@@ -21,14 +15,8 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
       </div>
     );
   }
-  if (!user) return <Navigate to="/login" replace />;
-  if (requiredRole === "STORE_OWNER" && user.role !== "STORE_OWNER") {
-    return <Navigate to="/admin" replace />;
-  }
-  if (requiredRole === "ADMIN" && user.role === "STORE_OWNER") {
-    return <Navigate to="/store" replace />;
-  }
-  if (requiredRole === "SUPER_ADMIN" && user.role !== "SUPER_ADMIN") {
+
+  if (user) {
     return <Navigate to={user.role === "STORE_OWNER" ? "/store" : "/admin"} replace />;
   }
 

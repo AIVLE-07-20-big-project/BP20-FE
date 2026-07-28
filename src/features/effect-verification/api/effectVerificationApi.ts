@@ -3,6 +3,7 @@ import type {
   VerificationExecution,
   VerificationStatus,
 } from "../../../entities/effect-verification/effect-verification.types";
+import { getAccessToken } from "../../../shared/api/apiClient";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080").replace(/\/$/, "");
 
@@ -17,10 +18,12 @@ export class EffectVerificationApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const accessToken = getAccessToken();
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
       Accept: "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...init?.headers,
     },
   });
