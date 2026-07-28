@@ -67,6 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const handleExpiredSession = () => {
+      clearAccessToken();
       saveSessionUser(null);
       setUser(null);
       setIsDemo(false);
