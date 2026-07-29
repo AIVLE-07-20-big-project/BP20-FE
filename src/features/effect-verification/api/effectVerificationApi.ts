@@ -8,8 +8,7 @@ import type {
   VerificationStatus,
 } from "../../../entities/effect-verification/effect-verification.types";
 import { getAccessToken } from "../../../shared/api/apiClient";
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080").replace(/\/$/, "");
+import { apiUrl } from "../../../shared/config/runtimeEnv";
 
 export class EffectVerificationApiError extends Error {
   constructor(
@@ -22,9 +21,8 @@ export class EffectVerificationApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const accessToken = getAccessToken()
-    ?? window.sessionStorage.getItem("bp20:ai-access-token");
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const accessToken = getAccessToken();
+  const response = await fetch(apiUrl(path), {
     ...init,
     headers: {
       Accept: "application/json",
