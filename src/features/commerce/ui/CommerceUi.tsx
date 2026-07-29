@@ -60,6 +60,7 @@ export function FormField({
   min,
   max,
   hint,
+  error,
   multiline,
   disabled,
 }: {
@@ -72,10 +73,15 @@ export function FormField({
   min?: number;
   max?: number;
   hint?: string;
+  error?: string;
   multiline?: boolean;
   disabled?: boolean;
 }) {
-  const baseClass = "w-full rounded-xl border border-border bg-card px-3 text-sm outline-none transition focus:border-[#246BFD] focus:ring-3 focus:ring-[#246BFD]/10";
+  const baseClass = `w-full rounded-xl border bg-card px-3 text-sm outline-none transition ${
+    error
+      ? "border-red-400 focus:border-red-500 focus:ring-3 focus:ring-red-500/10"
+      : "border-border focus:border-[#246BFD] focus:ring-3 focus:ring-[#246BFD]/10"
+  }`;
 
   return (
     <label className="block">
@@ -89,6 +95,7 @@ export function FormField({
           placeholder={placeholder}
           rows={4}
           disabled={disabled}
+          aria-invalid={Boolean(error)}
           className={`${baseClass} resize-none py-2.5 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground`}
         />
       ) : (
@@ -100,8 +107,14 @@ export function FormField({
           min={min}
           max={max}
           disabled={disabled}
+          aria-invalid={Boolean(error)}
           className={`${baseClass} h-10 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground`}
         />
+      )}
+      {error && (
+        <span role="alert" className="mt-1 block text-[11px] font-medium text-red-600">
+          {error}
+        </span>
       )}
       {hint && <span className="mt-1 block text-[11px] text-muted-foreground">{hint}</span>}
     </label>
@@ -147,12 +160,20 @@ export function FeedbackBanner({
   if (!error && !notice) return null;
 
   return error ? (
-    <div className="mb-4 flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-relaxed text-red-700">
+    <div
+      role="alert"
+      aria-live="assertive"
+      className="mb-4 flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-relaxed text-red-700"
+    >
       <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
       {error}
     </div>
   ) : (
-    <div className="mb-4 flex items-start gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-relaxed text-emerald-700">
+    <div
+      role="status"
+      aria-live="polite"
+      className="mb-4 flex items-start gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-relaxed text-emerald-700"
+    >
       <CircleCheck className="mt-0.5 h-4 w-4 shrink-0" />
       {notice}
     </div>
