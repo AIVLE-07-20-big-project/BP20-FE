@@ -2,6 +2,7 @@ import {
   clearAccessToken,
   getAccessToken,
 } from "../../features/auth/model/authSession";
+import { apiUrl } from "../config/runtimeEnv";
 
 export { getAccessToken };
 
@@ -15,6 +16,7 @@ interface ApiEnvelope<T> {
 }
 
 interface ApiErrorPayload {
+  code?: string;
   message?: string;
   detail?: string;
   error?: {
@@ -22,17 +24,23 @@ interface ApiErrorPayload {
   };
 }
 
+const SESSION_AUTH_ERROR_CODES = new Set([
+  "UNAUTHORIZED_ACCESS",
+  "UNAUTHORIZED_EXPIRED_TOKEN",
+  "UNAUTHORIZED_TOKEN_EMPTY",
+  "UNAUTHORIZED_INVALID_TOKEN",
+]);
+
 export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    public readonly code?: string,
   ) {
     super(message);
     this.name = "ApiError";
   }
 }
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 function buildRequestHeaders(init: RequestInit, token: string | null, expectJson: boolean): Headers {
   const headers = new Headers(init.headers);
@@ -59,7 +67,7 @@ function buildRequestHeaders(init: RequestInit, token: string | null, expectJson
 async function performFetch(path: string, init: RequestInit, token: string | null, expectJson: boolean): Promise<Response> {
   const headers = buildRequestHeaders(init, token, expectJson);
   try {
-    return await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+    return await fetch(apiUrl(path), { ...init, headers });
   } catch {
     throw new ApiError(
       "백엔드 서버에 연결할 수 없습니다. 서버 실행 상태와 API 주소를 확인해 주세요.",
@@ -69,18 +77,26 @@ async function performFetch(path: string, init: RequestInit, token: string | nul
 }
 
 async function throwForErrorResponse(response: Response, token: string | null): Promise<never> {
-  if (response.status === 401 && token) {
+  const errorBody = await response.json().catch(() => null) as ApiErrorPayload | null;
+  const errorCode = errorBody?.code;
+
+  if (
+    response.status === 401
+    && token
+    && errorCode
+    && SESSION_AUTH_ERROR_CODES.has(errorCode)
+  ) {
     clearAccessToken();
     window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
   }
 
-  const errorBody = await response.json().catch(() => null) as ApiErrorPayload | null;
   throw new ApiError(
     errorBody?.message
       ?? errorBody?.detail
       ?? errorBody?.error?.message
       ?? "요청 처리 중 오류가 발생했습니다.",
     response.status,
+    errorCode,
   );
 }
 

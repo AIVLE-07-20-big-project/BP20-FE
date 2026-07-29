@@ -7,6 +7,7 @@ import {
 import { useAuth } from "../../app/providers/AuthProvider";
 import { getAccessToken } from "../../features/auth/model/authSession";
 import { createNotice, deleteNotice, getNotices, updateNotice, uploadNoticeAttachment, type NoticeApi, type NoticeRequestApi } from "../../features/notices/api/noticesApi";
+import { apiUrl } from "../../shared/config/runtimeEnv";
 
 type NoticeStatus = "게시 중" | "게시 예정" | "임시 저장" | "종료됨";
 type NoticeCategory = "서비스 안내" | "점검 안내" | "기능 업데이트" | "정책 변경" | "긴급 공지";
@@ -56,7 +57,7 @@ function mapApiNotice(notice: NoticeApi): Notice {
     body: notice.body,
     attachment: notice.attachment && {
       originalName: notice.attachment.originalName,
-      downloadUrl: (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8081") + "/api/notices/" + notice.id + "/attachment",
+      downloadUrl: apiUrl(`/api/notices/${notice.id}/attachment`),
     },
   };
 }
@@ -386,7 +387,7 @@ export function NoticesPage() {
           const attachment = await uploadNoticeAttachment(Number(saved.id), file, token);
           mapped.attachment = {
             originalName: attachment.originalName,
-            downloadUrl: (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8081") + "/api/notices/" + saved.id + "/attachment",
+            downloadUrl: apiUrl(`/api/notices/${saved.id}/attachment`),
           };
         }
         setNotices(current => composeInitial
