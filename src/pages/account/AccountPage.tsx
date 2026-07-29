@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../app/providers/AuthProvider";
+import { StoreProfileSection } from "../../features/commerce/ui/StoreProfileSection";
 import { Badge } from "../../shared/components/Badge";
 import { PageShell } from "../../shared/components/PageShell";
 
@@ -31,9 +32,11 @@ export function AccountPage() {
   return (
     <PageShell
       title="내 정보"
-      subtitle="로그인한 계정의 기본 정보를 확인합니다."
+      subtitle={user.role === "STORE_OWNER"
+        ? "계정과 연결된 매장 정보를 확인하고 관리합니다."
+        : "로그인한 계정의 기본 정보를 확인합니다."}
     >
-      <div className="mx-auto max-w-3xl">
+      <div className={`mx-auto ${user.role === "STORE_OWNER" ? "max-w-5xl" : "max-w-3xl"}`}>
         <section className="overflow-hidden rounded-3xl border border-border bg-card">
           <div className="relative bg-gradient-to-r from-[#F2F7FF] via-white to-[#F5F1FF] px-6 py-7">
             <div className="absolute -right-10 -top-16 h-44 w-44 rounded-full bg-[#246BFD]/7" />
@@ -61,6 +64,8 @@ export function AccountPage() {
             <ProfileField icon={Phone} label="연락처" value={user.phoneNumber || "등록되지 않음"} />
           </div>
         </section>
+
+        {user.role === "STORE_OWNER" && <StoreProfileSection isDemo={isDemo} />}
 
         <section className="mt-5 rounded-3xl border border-border bg-card p-5">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
