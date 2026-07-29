@@ -1,19 +1,19 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { User, UserRole } from "../../entities/user/user.types";
+import * as authApi from "../../features/auth/api/authApi";
+import type { SignupPayload } from "../../features/auth/api/authApi";
 import {
   clearAccessToken,
-  getAccessToken,
   getSessionUser,
   saveAccessToken,
   saveSessionUser,
 } from "../../features/auth/model/authSession";
-import * as authApi from "../../features/auth/api/authApi";
-import type { SignupPayload } from "../../features/auth/api/authApi";
+import { DEMO_USERS } from "../../mocks";
 import {
   ApiError,
   AUTH_EXPIRED_EVENT,
+  getAccessToken,
 } from "../../shared/api/apiClient";
-import { DEMO_USERS } from "../../mocks";
 
 interface AuthContextType {
   user: User | null;
@@ -37,18 +37,11 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const demoUser = getSessionUser();
   const [user, setUser] = useState<User | null>(demoUser);
-  const [isInitializing, setIsInitializing] = useState(
-    !demoUser,
-  );
+  const [isInitializing, setIsInitializing] = useState(!demoUser);
   const [isDemo, setIsDemo] = useState(Boolean(demoUser));
 
   useEffect(() => {
-    if (demoUser) {
-      setIsInitializing(false);
-      return;
-    }
-
-    if (!getAccessToken()) {
+    if (demoUser || !getAccessToken()) {
       setIsInitializing(false);
       return;
     }
@@ -63,7 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
       })
       .finally(() => setIsInitializing(false));
-  }, []);
+  }, [demoUser]);
 
   useEffect(() => {
     const handleExpiredSession = () => {
@@ -89,6 +82,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     role: UserRole,
     remember: boolean,
   ): Promise<{ ok: boolean; error?: string }> => {
+    void remember;
+
     try {
       const result = await authApi.login(email.trim(), password);
       const roleMatches = result.user.role === role
@@ -103,16 +98,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       saveSessionUser(null);
-      saveAccessToken(result.token, remember);
+      saveAccessToken(result.token);
       setUser(result.user);
       setIsDemo(false);
       return { ok: true };
     } catch (error) {
       return {
         ok: false,
-        error: error instanceof ApiError
-          ? error.message
-          : "로그인에 실패했습니다.",
+        error: error instanceof ApiError ? error.message : "로그인에 실패했습니다.",
       };
     }
   };
@@ -128,25 +121,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const result = await authApi.signup(payload);
       saveSessionUser(null);
-      saveAccessToken(result.token, false);
+      saveAccessToken(result.token);
       setUser(result.user);
       setIsDemo(false);
       return { ok: true, user: result.user };
     } catch (error) {
       return {
         ok: false,
-        error: error instanceof ApiError
-          ? error.message
-          : "회원가입에 실패했습니다.",
+        error: error instanceof ApiError ? error.message : "회원가입에 실패했습니다.",
       };
     }
   };
 
   const switchDemo = (userId: string) => {
-    const u = DEMO_USERS.find((u) => u.id === userId);
-    if (u) {
+    const nextUser = DEMO_USERS.find((candidate) => candidate.id === userId);
+    if (nextUser) {
       clearAccessToken();
-      updateDemoUser(u);
+      updateDemoUser(nextUser);
     }
   };
 

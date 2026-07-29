@@ -1,0 +1,19 @@
+/* 인쇄(내보내기 → 브라우저 인쇄창에서 "PDF로 저장") 시에도 다크모드와 무관하게
+   밝은 배경으로 고정하고, 차트·배지 배경색이 인쇄 시 사라지지 않게 강제한다. */
+@media print {
+  :root,
+  .dark {
+    --background: #FFFFFF;
+    --foreground: #101828;
+    --card: #FFFFFF;
+    --card-foreground: #101828;
+    --muted: #F4F7FB;
+    --muted-foreground: #667085;
+    --border: #DDE3EC;
+  }
+
+  * {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+}

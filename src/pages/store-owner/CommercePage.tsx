@@ -37,6 +37,7 @@ import {
   SelectField,
 } from "../../features/commerce/ui/CommerceUi";
 import { ApiError } from "../../shared/api/apiClient";
+import aiProductImageBanner from "../../shared/assets/images/ai-product-image-banner-natural.png";
 import { Badge } from "../../shared/components/Badge";
 import { PageShell } from "../../shared/components/PageShell";
 
@@ -663,7 +664,7 @@ function AiProductImageBanner() {
 
         <div className="relative aspect-[16/7] min-h-[220px] overflow-hidden border-t border-white/10 sm:min-h-[250px] xl:-ml-32 xl:aspect-auto xl:min-h-[300px] xl:w-[calc(100%+8rem)] xl:border-t-0">
           <img
-            src="/images/ai-product-image-banner-natural.png"
+            src={aiProductImageBanner}
             alt="AI가 밝고 자연스러운 카페 배경을 합성한 아이스 아메리카노 판매 이미지 예시"
             className="absolute inset-0 h-full w-full object-cover object-[90%_center] sm:object-[76%_center] xl:object-[68%_center] 2xl:object-[88%_center]"
           />
