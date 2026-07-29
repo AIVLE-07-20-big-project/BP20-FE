@@ -24,6 +24,18 @@ const AI_ANALYSIS_ID_KEY = "bp20:ai-analysis-id";
 const AI_ANALYSIS_OPTIONS_KEY = "bp20:ai-analysis-options";
 const AI_STORE_ID_KEY = "bp20:ai-store-id";
 
+// 새로고침해도 방금 완료한 매출 분석이 사라지지 않도록, 세션에 저장해 둔 가장 최근
+// analysisId를 첫 렌더 때 다시 불러온다(AiStrategyPage/DashboardPage와 같은 방식).
+function latestAnalysisIdFromSession(): string {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(AI_ANALYSIS_OPTIONS_KEY) ?? "[]");
+    if (Array.isArray(saved) && saved[0]?.id) return saved[0].id;
+  } catch {
+    // 오래된 세션 값은 아래 fallback으로 처리한다.
+  }
+  return sessionStorage.getItem(AI_ANALYSIS_ID_KEY) ?? "";
+}
+
 const DATE_PRESETS = ["월별", "분기"];
 
 // scripts/modeling/sales_report_renderer.py의 REGION_COLORS와 동일하게 맞춰,
@@ -121,11 +133,23 @@ export function SalesPage() {
   const [statusMessage, setStatusMessage] = useState("");
   const [jobStatus, setJobStatus] = useState<AiAnalysisJobStatus | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [restoring, setRestoring] = useState(false);
   const elapsedTimerRef = useRef<number | null>(null);
 
   // 언마운트 시 타이머가 남아있으면 정리한다.
   useEffect(() => () => {
     if (elapsedTimerRef.current !== null) window.clearInterval(elapsedTimerRef.current);
+  }, []);
+
+  // 새로고침 직후에도 마지막으로 완료한 매출 분석을 다시 불러와 화면을 유지한다.
+  useEffect(() => {
+    const analysisId = latestAnalysisIdFromSession();
+    if (!analysisId) return;
+    setRestoring(true);
+    getAnalysis(analysisId)
+      .then(setAnalysis)
+      .catch(() => undefined)
+      .finally(() => setRestoring(false));
   }, []);
 
   const handleAnalysis = async (event: React.FormEvent) => {
@@ -372,8 +396,13 @@ export function SalesPage() {
             </div>
           </div>
         )}
+        {restoring && (
+          <p className="mt-3 text-xs text-muted-foreground flex items-center gap-1.5">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> 최근 매출 분석을 불러오는 중...
+          </p>
+        )}
         {apiError && <p className="mt-3 text-xs text-red-600">{apiError}</p>}
-        {analysis && <p className="mt-3 text-xs text-[#0E9F6E] font-semibold">분석 완료</p>}
+        {analysis && !restoring && <p className="mt-3 text-xs text-[#0E9F6E] font-semibold">분석 완료</p>}
       </form>
 
       {/* Date presets */}
@@ -587,12 +616,28 @@ export function SalesPage() {
       </div>
 
       {salesBreakdown && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-          {["daypart", "weekday", "hourly"].map((key) => {
-            const rows = (key === "daypart" ? salesBreakdown.daypart : key === "weekday" ? salesBreakdown.weekday : salesBreakdown.hourly) ?? [];
-            const title = key === "daypart" ? "시간대 구간별 매출" : key === "weekday" ? "요일별 매출" : "시간별 매출";
-            return <div key={key} className="bg-card border border-border rounded-2xl p-5"><h3 className="font-bold mb-3">{title}</h3>{rows.length ? <div className="space-y-2">{rows.map((row) => <div key={row.value} className="flex justify-between text-xs"><span>{row.value}</span><span className="font-semibold">{formatManwon(row.revenue)} · {row.revenueSharePct.toFixed(1)}%</span></div>)}</div> : <p className="text-sm text-muted-foreground">데이터 없음</p>}</div>;
-          })}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          {([
+            { key: "daypart", title: "시간대 구간별 매출", rows: salesBreakdown.daypart ?? [], color: "#246BFD" },
+            { key: "weekday", title: "요일별 매출", rows: salesBreakdown.weekday ?? [], color: "#8B5CF6" },
+          ] as const).map(({ key, title, rows, color }) => (
+            <div key={key} className="bg-card border border-border rounded-2xl p-5">
+              <h3 className="font-bold mb-3">{title}</h3>
+              {rows.length ? (
+                <div className="h-44">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={rows}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#DDE3EC" vertical={false} />
+                      <XAxis dataKey="value" tick={{ fontSize: 11, fill: "#667085" }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: "#667085" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 10000).toFixed(0)}만`} />
+                      <Tooltip formatter={(v: number, _n, item) => [`${formatManwon(v)} · ${item.payload.revenueSharePct.toFixed(1)}%`, "매출"]} />
+                      <Bar dataKey="revenue" fill={color} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : <p className="text-sm text-muted-foreground">데이터 없음</p>}
+            </div>
+          ))}
         </div>
       )}
 
@@ -696,7 +741,7 @@ export function SalesPage() {
               <div className="space-y-3">
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-1">분기별 상권 분석</p>
-                  <p className="text-sm text-foreground leading-relaxed">
+                  <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
                     {quarterlyInsight || "이번 분기 상권 데이터가 부족해 상권 분석 해설을 생성하지 못했습니다."}
                   </p>
                 </div>
