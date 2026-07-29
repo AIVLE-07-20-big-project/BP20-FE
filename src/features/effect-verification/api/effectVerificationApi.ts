@@ -170,6 +170,13 @@ export function completeMockVerification(recommendationId: string) {
   );
 }
 
+export function retryEffectVerification(recommendationId: string) {
+  return request<VerificationExecution>(
+    `/api/effect-verifications/executions/${encodeURIComponent(recommendationId)}/retry`,
+    { method: "POST" },
+  );
+}
+
 export function resetMockVerificationData() {
   return request<{
     deletedExecutions: number;

@@ -18,10 +18,10 @@ import type {
   VerificationStatus,
 } from "../../entities/effect-verification/effect-verification.types";
 import {
-  completeMockVerification,
   EffectVerificationApiError,
   getVerificationExecution,
   getVerificationResult,
+  retryEffectVerification,
 } from "../../features/effect-verification/api/effectVerificationApi";
 import { PageShell } from "../../shared/components/PageShell";
 
@@ -208,7 +208,7 @@ export function EffectVerificationDetailPage() {
     setRetrying(true);
     setError(null);
     try {
-      await completeMockVerification(recommendationId);
+      await retryEffectVerification(recommendationId);
       setReloadKey((key) => key + 1);
     } catch (nextError) {
       setError(getErrorMessage(nextError));
