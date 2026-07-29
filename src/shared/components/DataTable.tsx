@@ -1,9 +1,10 @@
 import { clsx } from "clsx";
+import type { ReactNode } from "react";
 
 interface Column<T> {
   key: keyof T | string;
-  label: string;
-  render?: (row: T) => React.ReactNode;
+  label: ReactNode;
+  render?: (row: T) => ReactNode;
   className?: string;
   align?: "left" | "right" | "center";
 }
