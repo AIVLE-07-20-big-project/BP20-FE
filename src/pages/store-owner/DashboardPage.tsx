@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Zap, Package, Star, TrendingDown, AlertCircle, ArrowRight,
@@ -12,6 +12,57 @@ import {
 import { MetricCard } from "../../shared/components/MetricCard";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { AI_RECOMMENDATIONS, WEEKLY_SALES } from "../../mocks";
+import { getAnalysis, getRecommendations } from "../../features/ai-analysis/api/aiAnalysisApi";
+import type { AiAnalysisResult, AiRecommendationRun, DetailedDailySales } from "../../entities/ai-analysis/ai-analysis.types";
+
+// SalesPage/AiStrategyPage와 동일한 세션 키 — 그 화면에서 완료한 매출 분석을 그대로 이어받는다.
+const AI_ANALYSIS_ID_KEY = "bp20:ai-analysis-id";
+const AI_ANALYSIS_OPTIONS_KEY = "bp20:ai-analysis-options";
+
+function latestAnalysisIdFromSession(): string {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(AI_ANALYSIS_OPTIONS_KEY) ?? "[]");
+    if (Array.isArray(saved) && saved[0]?.id) return saved[0].id;
+  } catch {
+    // 오래된 세션 값은 아래 fallback으로 처리한다.
+  }
+  return sessionStorage.getItem(AI_ANALYSIS_ID_KEY) ?? "";
+}
+
+// AiStrategyPage와 동일한 실행/측정/보류 판정 기준 — 대시보드도 같은 기준으로 집계한다.
+const isRejectedRun = (run: AiRecommendationRun) => run.상태.includes("반려") || run.상태.includes("종료");
+const isCompletedRun = (run: AiRecommendationRun) => Boolean(run.final_report);
+const isMeasuringRun = (run: AiRecommendationRun) => run.상태.includes("효과");
+
+function monthToDate(rows: DetailedDailySales[]) {
+  if (!rows.length) return null;
+  const latest = new Date(`${rows[rows.length - 1].date}T00:00:00`);
+  const monthStart = new Date(latest.getFullYear(), latest.getMonth(), 1);
+  const prevMonthStart = new Date(latest.getFullYear(), latest.getMonth() - 1, 1);
+  const sum = (list: DetailedDailySales[], key: "revenue" | "transactionCount") =>
+    list.reduce((total, row) => total + row[key], 0);
+  const current = rows.filter((row) => new Date(`${row.date}T00:00:00`) >= monthStart);
+  const previous = rows.filter((row) => {
+    const date = new Date(`${row.date}T00:00:00`);
+    return date >= prevMonthStart && date < monthStart;
+  });
+  const revenue = sum(current, "revenue");
+  const transactions = sum(current, "transactionCount");
+  const prevRevenue = sum(previous, "revenue");
+  const prevTransactions = sum(previous, "transactionCount");
+  return {
+    revenue, transactions,
+    revenueChange: prevRevenue > 0 ? ((revenue - prevRevenue) / prevRevenue) * 100 : undefined,
+    transactionsChange: prevTransactions > 0 ? ((transactions - prevTransactions) / prevTransactions) * 100 : undefined,
+  };
+}
+
+const dayOverDayChange = (rows: DetailedDailySales[], key: "revenue" | "transactionCount") => {
+  if (rows.length < 2) return undefined;
+  const latest = rows[rows.length - 1][key];
+  const previous = rows[rows.length - 2][key];
+  return previous > 0 ? ((latest - previous) / previous) * 100 : undefined;
+};
 
 const BRIEFING_ACTIONS = [
   {
@@ -129,6 +180,8 @@ export function DashboardPage() {
   const [chatMsg, setChatMsg] = useState("");
   const [chatLog, setChatLog] = useState<{ role: "user" | "ai"; text: string }[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
+  const [analysis, setAnalysis] = useState<AiAnalysisResult | null>(null);
+  const [recommendationRuns, setRecommendationRuns] = useState<AiRecommendationRun[]>([]);
 
   const isDashboard = location.pathname === "/store" || location.pathname === "/store/";
 
@@ -139,9 +192,59 @@ export function DashboardPage() {
     return "수고하셨어요";
   };
 
-  const executed = AI_RECOMMENDATIONS.filter(r => r.status === "효과 확인").length;
-  const measuring = AI_RECOMMENDATIONS.filter(r => r.status === "측정 중").length;
-  const total = AI_RECOMMENDATIONS.length;
+  // 매출 분석·AI 전략 추천 화면에서 이미 만든 실제 데이터를 그대로 이어받는다 — 실패해도
+  // 대시보드 전체가 깨지지 않도록 각각 조용히 무시하고 아래 mock 데이터로 대체 표시한다.
+  useEffect(() => {
+    const analysisId = latestAnalysisIdFromSession();
+    if (analysisId) getAnalysis(analysisId).then(setAnalysis).catch(() => undefined);
+    getRecommendations().then(setRecommendationRuns).catch(() => undefined);
+  }, []);
+
+  const isRunningRun = (run: AiRecommendationRun) => Boolean(
+    !run.대기중_승인 && !isCompletedRun(run) && !isRejectedRun(run) && !isMeasuringRun(run),
+  );
+  const hasRealRecommendations = recommendationRuns.length > 0;
+  const executed = hasRealRecommendations
+    ? recommendationRuns.filter(isCompletedRun).length
+    : AI_RECOMMENDATIONS.filter(r => r.status === "효과 확인").length;
+  const measuring = hasRealRecommendations
+    ? recommendationRuns.filter(isMeasuringRun).length
+    : AI_RECOMMENDATIONS.filter(r => r.status === "측정 중").length;
+  const pending = hasRealRecommendations
+    ? recommendationRuns.filter((run) => isRunningRun(run) || Boolean(run.대기중_승인)).length
+    : AI_RECOMMENDATIONS.length - executed - measuring;
+
+  const allDailySales = analysis?.detailed_analysis?.dailySales ?? [];
+  const latestDay = allDailySales.length ? allDailySales[allDailySales.length - 1] : null;
+  const monthly = analysis ? monthToDate(allDailySales) : null;
+  const rootCause = analysis?.detailed_analysis?.rootCauseAnalysis;
+  const quarterlyInsight = analysis?.report?.["분석결과 해설"];
+
+  const formatWon = (value: number) => `${Math.round(value).toLocaleString()}원`;
+  const salesSpark = allDailySales.slice(-6).map((row) => ({ v: row.revenue }));
+  const ordersSpark = allDailySales.slice(-6).map((row) => ({ v: row.transactionCount }));
+  const kpiCards = latestDay && monthly && salesSpark.length >= 2 ? [
+    {
+      label: "오늘 매출", value: formatWon(latestDay.revenue),
+      change: dayOverDayChange(allDailySales, "revenue"), period: "전일 대비",
+      sparkData: salesSpark, positive: (dayOverDayChange(allDailySales, "revenue") ?? 0) >= 0,
+    },
+    {
+      label: "오늘 거래 건수", value: `${latestDay.transactionCount.toLocaleString()}건`,
+      change: dayOverDayChange(allDailySales, "transactionCount"), period: "전일 대비",
+      sparkData: ordersSpark, positive: (dayOverDayChange(allDailySales, "transactionCount") ?? 0) >= 0,
+    },
+    {
+      label: "이번 달 매출", value: formatWon(monthly.revenue),
+      change: monthly.revenueChange, period: "지난달 대비",
+      sparkData: salesSpark, positive: (monthly.revenueChange ?? 0) >= 0,
+    },
+    {
+      label: "이번 달 거래 건수", value: `${monthly.transactions.toLocaleString()}건`,
+      change: monthly.transactionsChange, period: "지난달 대비",
+      sparkData: ordersSpark, positive: (monthly.transactionsChange ?? 0) >= 0,
+    },
+  ] : KPI_CARDS.map((card) => ({ ...card, sparkData: SPARKLINE_DATA[card.sparkKey] as { v: number }[] }));
 
   const sendChat = () => {
     const msg = chatMsg.trim();
@@ -184,8 +287,18 @@ export function DashboardPage() {
               </div>
               <span className="text-xs font-bold text-white/70 uppercase tracking-widest">AI 경영 인사이트</span>
             </div>
-            <h2 className="text-lg font-bold text-white mb-1.5">사장님, 이번 주 매출이 지난주 대비 15% 상승했습니다.</h2>
-            <p className="text-sm text-white/75 mb-4">배달 주문 증가가 성장을 견인했습니다. 금요일 14~17시 재방문 쿠폰 실행을 추천합니다.</p>
+            <h2 className="text-lg font-bold text-white mb-1.5">
+              {monthly?.revenueChange != null
+                ? `사장님, 이번 달 매출이 지난달 대비 ${Math.abs(monthly.revenueChange).toFixed(1)}% ${monthly.revenueChange >= 0 ? "상승" : "하락"}했습니다.`
+                : analysis
+                  ? (rootCause?.headline ?? "사장님, 매출 분석 결과를 확인해 보세요.")
+                  : "사장님, 이번 주 매출이 지난주 대비 15% 상승했습니다."}
+            </h2>
+            <p className="text-sm text-white/75 mb-4">
+              {analysis
+                ? (quarterlyInsight || rootCause?.narrative || "AI 전략 추천에서 데이터 기반 실행 방안을 확인할 수 있습니다.")
+                : "배달 주문 증가가 성장을 견인했습니다. 금요일 14~17시 재방문 쿠폰 실행을 추천합니다."}
+            </p>
             <button
               onClick={() => navigate("/store/actions")}
               className="inline-flex items-center gap-1.5 bg-white text-[#7C3AED] text-sm font-bold px-4 py-2 rounded-xl hover:bg-white/90 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
@@ -240,25 +353,26 @@ export function DashboardPage() {
 
         {/* KPI Row with sparklines */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-          {KPI_CARDS.map((k) => {
+          {kpiCards.map((k, i) => {
             const sparkColor = k.positive ? "#0E9F6E" : "#D92D20";
+            const sparkId = `spark-${i}`;
             return (
               <div key={k.label} className="bg-card border border-border rounded-2xl p-4 group relative">
                 <div className="text-xs text-muted-foreground mb-1">{k.label}</div>
                 <div className="text-xl font-black tabular-nums mb-0.5">{k.value}</div>
-                <div className={`text-xs font-semibold mb-2 ${k.positive ? "text-[#0E9F6E]" : "text-[#D92D20]"}`}>
-                  {k.positive ? "▲" : "▼"} {Math.abs(k.change)}% {k.period}
+                <div className={`text-xs font-semibold mb-2 ${k.change == null ? "text-muted-foreground" : k.positive ? "text-[#0E9F6E]" : "text-[#D92D20]"}`}>
+                  {k.change == null ? `비교 데이터 없음 · ${k.period}` : `${k.positive ? "▲" : "▼"} ${Math.abs(k.change).toFixed(1)}% ${k.period}`}
                 </div>
                 <div className="h-10">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={SPARKLINE_DATA[k.sparkKey]}>
+                    <AreaChart data={k.sparkData}>
                       <defs>
-                        <linearGradient id={`spark-${k.sparkKey}`} x1="0" y1="0" x2="0" y2="1">
+                        <linearGradient id={sparkId} x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor={sparkColor} stopOpacity={0.3} />
                           <stop offset="100%" stopColor={sparkColor} stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <Area type="monotone" dataKey="v" stroke={sparkColor} fill={`url(#spark-${k.sparkKey})`} strokeWidth={1.5} dot={false} />
+                      <Area type="monotone" dataKey="v" stroke={sparkColor} fill={`url(#${sparkId})`} strokeWidth={1.5} dot={false} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -266,8 +380,8 @@ export function DashboardPage() {
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-[#111A2E] text-white text-[11px] px-3 py-2 rounded-xl shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 whitespace-nowrap">
                   <div className="font-bold">{k.label}</div>
                   <div>{k.value}</div>
-                  <div className={k.positive ? "text-[#0E9F6E]" : "text-[#F87171]"}>
-                    {k.positive ? "▲" : "▼"} {Math.abs(k.change)}% ({k.period})
+                  <div className={k.change == null ? "text-muted-foreground" : k.positive ? "text-[#0E9F6E]" : "text-[#F87171]"}>
+                    {k.change == null ? "비교 데이터 없음" : `${k.positive ? "▲" : "▼"} ${Math.abs(k.change).toFixed(1)}% (${k.period})`}
                   </div>
                 </div>
               </div>
@@ -282,20 +396,24 @@ export function DashboardPage() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="font-bold">매출 추이</h3>
-                <p className="text-xs text-muted-foreground">최근 7일</p>
+                <p className="text-xs text-muted-foreground">{allDailySales.length ? "업로드 POS 최근 7일" : "최근 7일"}</p>
               </div>
-              <div className="flex gap-3 text-xs">
-                {[{ label: "온라인", color: "#8B5CF6" }, { label: "오프라인", color: "#246BFD" }].map((t) => (
-                  <div key={t.label} className="flex items-center gap-1 text-muted-foreground">
-                    <span className="w-2 h-2 rounded-full" style={{ background: t.color }} />
-                    {t.label}
-                  </div>
-                ))}
-              </div>
+              {!allDailySales.length && (
+                <div className="flex gap-3 text-xs">
+                  {[{ label: "온라인", color: "#8B5CF6" }, { label: "오프라인", color: "#246BFD" }].map((t) => (
+                    <div key={t.label} className="flex items-center gap-1 text-muted-foreground">
+                      <span className="w-2 h-2 rounded-full" style={{ background: t.color }} />
+                      {t.label}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="h-44">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={WEEKLY_SALES}>
+                <AreaChart data={allDailySales.length
+                  ? allDailySales.slice(-7).map((row) => ({ date: row.date.slice(5).replace("-", "."), offline: row.revenue }))
+                  : WEEKLY_SALES}>
                   <defs>
                     <linearGradient id="dashOfflineGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#246BFD" stopOpacity={0.3} />
@@ -309,15 +427,19 @@ export function DashboardPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#DDE3EC" vertical={false} />
                   <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#667085" }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: "#667085" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v/10000).toFixed(0)}만`} />
-                  <Tooltip formatter={(v: number, name: string) => [`₩${v.toLocaleString()}`, name === "offline" ? "오프라인" : "온라인"]} />
+                  <Tooltip formatter={(v: number, name: string) => [`₩${v.toLocaleString()}`, name === "offline" ? (allDailySales.length ? "매출" : "오프라인") : "온라인"]} />
                   <Area key="dash-area-offline" type="monotone" dataKey="offline" stroke="#246BFD" fill="url(#dashOfflineGrad)" strokeWidth={2} />
-                  <Area key="dash-area-online" type="monotone" dataKey="online" stroke="#8B5CF6" fill="url(#dashOnlineGrad)" strokeWidth={2} />
+                  {!allDailySales.length && (
+                    <Area key="dash-area-online" type="monotone" dataKey="online" stroke="#8B5CF6" fill="url(#dashOnlineGrad)" strokeWidth={2} />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
             <div className="mt-3 bg-[#246BFD]/8 rounded-xl px-3 py-2 text-xs text-[#246BFD] font-medium">
               <Sparkles className="w-3 h-3 inline mr-1" />
-              AI 분석: 비 예보로 오프라인 방문 감소 예상. 배달·온라인 채널 강화를 권장합니다.
+              {allDailySales.length
+                ? "실제 업로드된 POS 데이터를 반영한 최근 매출 추이입니다."
+                : "AI 분석: 비 예보로 오프라인 방문 감소 예상. 배달·온라인 채널 강화를 권장합니다."}
             </div>
           </div>
 
@@ -444,7 +566,7 @@ export function DashboardPage() {
               {[
                 { label: "실행 완료", value: executed, color: "text-[#0E9F6E]", bg: "bg-[#0E9F6E]/10" },
                 { label: "측정 중", value: measuring, color: "text-[#246BFD]", bg: "bg-[#246BFD]/10" },
-                { label: "추천됨", value: total - executed - measuring, color: "text-[#D97706]", bg: "bg-amber-50" },
+                { label: "추천됨", value: pending, color: "text-[#D97706]", bg: "bg-amber-50" },
               ].map((s) => (
                 <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
                   <div className={`text-2xl font-black ${s.color}`}>{s.value}</div>
