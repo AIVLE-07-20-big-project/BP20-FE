@@ -233,7 +233,7 @@ export function EffectVerificationHistoryPage() {
     return candidates.filter((candidate) => (
       Boolean(candidate.final_report)
       && candidate.approval_status !== "rejected"
-      && Boolean(candidate.selected_action?.방안)
+      && Boolean(candidate.selected_action?.action)
       && Number(candidate.store_id) === storeId
       && !startedThreadIds.has(candidate.thread_id)
     ));
@@ -413,7 +413,7 @@ export function EffectVerificationHistoryPage() {
                 className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-3"
               >
                 <div className="min-w-0">
-                  <p className="font-bold">{candidate.selected_action?.방안}</p>
+                  <p className="font-bold">{candidate.selected_action?.action}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     매장 {candidate.store_id} · {candidate.recommendation_type === "REVIEW" ? "리뷰형" : "매출형"}
                     {candidate.target_aspect ? ` · 대상 ${candidate.target_aspect}` : ""}

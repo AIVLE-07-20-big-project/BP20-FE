@@ -20,6 +20,32 @@ export class EffectVerificationApiError extends Error {
   }
 }
 
+type VerificationCandidateWire = Omit<
+  VerificationCandidateRecommendation,
+  "selected_action"
+> & {
+  selected_action?: {
+    action?: string;
+    방안?: string;
+    axis?: string | null;
+  } | null;
+};
+
+function normalizeCandidate(
+  candidate: VerificationCandidateWire,
+): VerificationCandidateRecommendation {
+  const selectedAction = candidate.selected_action;
+  return {
+    ...candidate,
+    selected_action: selectedAction
+      ? {
+          action: selectedAction.action ?? selectedAction.방안 ?? "",
+          axis: selectedAction.axis ?? null,
+        }
+      : null,
+  };
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const accessToken = getAccessToken();
   const response = await fetch(apiUrl(path), {
@@ -87,7 +113,7 @@ export function registerVerificationExecution(
 
 export async function getVerificationCandidates() {
   const actualCandidates = await request<{
-    data: VerificationCandidateRecommendation[];
+    data: VerificationCandidateWire[];
   }>("/api/ai/recommendations")
     .then((response) => response.data)
     .catch((error: unknown) => {
@@ -100,7 +126,7 @@ export async function getVerificationCandidates() {
       throw error;
     });
 
-  const mockCandidates = await request<VerificationCandidateRecommendation[]>(
+  const mockCandidates = await request<VerificationCandidateWire[]>(
     "/api/mock/effect-verifications/executions/candidates",
   ).catch((error: unknown) => {
     if (
@@ -112,7 +138,7 @@ export async function getVerificationCandidates() {
     throw error;
   });
 
-  return [...actualCandidates, ...mockCandidates];
+  return [...actualCandidates, ...mockCandidates].map(normalizeCandidate);
 }
 
 export function startRecommendationExecution(input: StartRecommendationExecutionInput) {

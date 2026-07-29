@@ -77,7 +77,7 @@ export interface VerificationCandidateRecommendation {
   target_aspect?: string | null;
   approval_status?: string | null;
   selected_action?: {
-    방안: string;
+    action: string;
     axis?: string | null;
   } | null;
   final_report?: Record<string, unknown> | null;
