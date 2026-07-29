@@ -70,6 +70,19 @@ export interface VerificationExecution {
   last_attempt_at: string | null;
 }
 
+export interface VerificationCandidateRecommendation {
+  thread_id: string;
+  store_id?: string | number | null;
+  approval_status?: string | null;
+  selected_action?: {
+    방안: string;
+    axis?: string | null;
+  } | null;
+  final_report?: Record<string, unknown> | null;
+  created_at?: string | null;
+  mock?: boolean;
+}
+
 export interface VerificationMetricResult {
   metric_name: string;
   before_value: number | null;

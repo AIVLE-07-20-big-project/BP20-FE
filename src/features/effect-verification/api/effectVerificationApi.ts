@@ -2,6 +2,7 @@ import type {
   EffectVerificationResult,
   RegisterMockThreadExecutionInput,
   RegisterVerificationExecutionInput,
+  VerificationCandidateRecommendation,
   VerificationExecution,
   VerificationStatus,
 } from "../../../entities/effect-verification/effect-verification.types";
@@ -20,7 +21,8 @@ export class EffectVerificationApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const accessToken = getAccessToken();
+  const accessToken = getAccessToken()
+    ?? window.sessionStorage.getItem("bp20:ai-access-token");
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
@@ -80,6 +82,47 @@ export function registerVerificationExecution(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
+    },
+  );
+}
+
+export async function getVerificationCandidates() {
+  const actualCandidates = await request<{
+    data: VerificationCandidateRecommendation[];
+  }>("/api/ai/recommendations")
+    .then((response) => response.data)
+    .catch((error: unknown) => {
+      if (
+        error instanceof EffectVerificationApiError
+        && (error.status === 401 || error.status === 403)
+      ) {
+        return [];
+      }
+      throw error;
+    });
+
+  const mockCandidates = await request<VerificationCandidateRecommendation[]>(
+    "/api/mock/effect-verifications/executions/candidates",
+  ).catch((error: unknown) => {
+    if (
+      error instanceof EffectVerificationApiError
+      && (error.status === 401 || error.status === 403 || error.status === 404)
+    ) {
+      return [];
+    }
+    throw error;
+  });
+
+  return [...actualCandidates, ...mockCandidates];
+}
+
+export function startRecommendationExecution(threadId: string) {
+  return request<VerificationExecution>(
+    "/api/effect-verifications/executions/start",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ thread_id: threadId }),
     },
   );
 }

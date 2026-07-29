@@ -8,19 +8,24 @@ import {
   Clock3,
   Filter,
   ChevronRight,
+  PlayCircle,
   RefreshCw,
   Store,
   Trash2,
   XCircle,
 } from "lucide-react";
 import type {
+  VerificationCandidateRecommendation,
   VerificationExecution,
   VerificationStatus,
 } from "../../entities/effect-verification/effect-verification.types";
 import {
   EffectVerificationApiError,
+  getVerificationCandidates,
   getVerificationHistory,
+  registerMockThreadExecution,
   resetMockVerificationData,
+  startRecommendationExecution,
 } from "../../features/effect-verification/api/effectVerificationApi";
 import { PageShell } from "../../shared/components/PageShell";
 
@@ -145,9 +150,13 @@ export function EffectVerificationHistoryPage() {
   const [storeId, setStoreId] = useState(1);
   const [status, setStatus] = useState<VerificationStatus | "">("");
   const [history, setHistory] = useState<VerificationExecution[]>([]);
+  const [candidates, setCandidates] = useState<VerificationCandidateRecommendation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [candidateLoading, setCandidateLoading] = useState(true);
+  const [startingThreadId, setStartingThreadId] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [candidateError, setCandidateError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -155,7 +164,7 @@ export function EffectVerificationHistoryPage() {
     setLoading(true);
     setError(null);
 
-    getVerificationHistory(storeId, status || undefined)
+    getVerificationHistory(storeId)
       .then((items) => {
         if (active) setHistory(items);
       })
@@ -175,12 +184,91 @@ export function EffectVerificationHistoryPage() {
     return () => {
       active = false;
     };
-  }, [storeId, status, reloadKey]);
+  }, [storeId, reloadKey]);
+
+  useEffect(() => {
+    let active = true;
+    setCandidateLoading(true);
+    setCandidateError(null);
+
+    getVerificationCandidates()
+      .then((items) => {
+        if (active) setCandidates(items);
+      })
+      .catch((nextError: unknown) => {
+        if (!active) return;
+        setCandidates([]);
+        setCandidateError(
+          nextError instanceof EffectVerificationApiError
+            ? nextError.message
+            : "실행 가능한 추천을 불러오지 못했습니다.",
+        );
+      })
+      .finally(() => {
+        if (active) setCandidateLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [reloadKey]);
 
   const selectedStore = useMemo(
     () => STORE_OPTIONS.find((store) => store.id === storeId)?.label ?? `매장 ${storeId}`,
     [storeId],
   );
+
+  const displayedHistory = useMemo(
+    () => status ? history.filter((execution) => execution.status === status) : history,
+    [history, status],
+  );
+
+  const availableCandidates = useMemo(() => {
+    const startedThreadIds = new Set(
+      history
+        .map((execution) => execution.thread_id)
+        .filter((threadId): threadId is string => Boolean(threadId)),
+    );
+
+    return candidates.filter((candidate) => (
+      Boolean(candidate.final_report)
+      && candidate.approval_status !== "rejected"
+      && Boolean(candidate.selected_action?.방안)
+      && Number(candidate.store_id) === storeId
+      && !startedThreadIds.has(candidate.thread_id)
+    ));
+  }, [candidates, history, storeId]);
+
+  const startExecution = async (candidate: VerificationCandidateRecommendation) => {
+    setStartingThreadId(candidate.thread_id);
+    setCandidateError(null);
+    try {
+      if (candidate.mock) {
+        await registerMockThreadExecution(candidate.thread_id, {
+          store_id: Number(candidate.store_id),
+          recommendation_type: "SALES",
+          condition: {
+            period_days: 14,
+            start_hour: null,
+            end_hour: null,
+            compare_same_weekday: false,
+            target_aspect: null,
+          },
+        });
+      } else {
+        await startRecommendationExecution(candidate.thread_id);
+      }
+      setReloadKey((key) => key + 1);
+    } catch (nextError) {
+      setCandidateError(
+        nextError instanceof EffectVerificationApiError
+          ? nextError.message
+          : "효과 검증을 시작하지 못했습니다.",
+      );
+    } finally {
+      setStartingThreadId(null);
+    }
+  };
 
   const resetMockData = async () => {
     if (!window.confirm("효과 검증 실행·결과 데이터를 초기화할까요? Mock 원본 데이터는 유지됩니다.")) {
@@ -273,11 +361,74 @@ export function EffectVerificationHistoryPage() {
         </button>
       </section>
 
+      <section className="mb-5 rounded-2xl border border-border bg-card p-4">
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="font-bold">검증 시작 가능한 추천</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              승인과 리포트 생성이 끝난 추천 중 실제로 실행할 항목을 선택합니다.
+            </p>
+          </div>
+          {!candidateLoading && !candidateError && (
+            <span className="text-xs font-bold">{availableCandidates.length}건</span>
+          )}
+        </div>
+
+        {candidateLoading ? (
+          <div className="rounded-xl bg-muted/40 p-5 text-center text-xs text-muted-foreground">
+            승인된 추천을 불러오는 중입니다.
+          </div>
+        ) : candidateError ? (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-red-100 bg-red-50 p-3">
+            <p className="text-xs font-semibold text-red-700">{candidateError}</p>
+            <button
+              type="button"
+              onClick={() => setReloadKey((key) => key + 1)}
+              className="shrink-0 text-xs font-bold text-red-700 underline"
+            >
+              다시 시도
+            </button>
+          </div>
+        ) : availableCandidates.length === 0 ? (
+          <div className="rounded-xl bg-muted/40 p-5 text-center">
+            <p className="text-sm font-semibold">현재 실행 가능한 추천이 없습니다.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              AI 전략 추천에서 추천 승인과 리포트 생성을 먼저 완료해 주세요.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {availableCandidates.map((candidate) => (
+              <article
+                key={candidate.thread_id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-3"
+              >
+                <div className="min-w-0">
+                  <p className="font-bold">{candidate.selected_action?.방안}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    매장 {candidate.store_id} · 실행 ID {candidate.thread_id}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={startingThreadId !== null}
+                  onClick={() => startExecution(candidate)}
+                  className="flex h-9 items-center gap-1.5 rounded-xl bg-[#246BFD] px-4 text-xs font-bold text-white transition-colors hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <PlayCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                  {startingThreadId === candidate.thread_id ? "시작 중" : "실행 시작"}
+                </button>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
       <div className="mb-3 flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
           {selectedStore} · {STATUS_OPTIONS.find((option) => option.value === status)?.label}
         </p>
-        {!loading && !error && <span className="text-xs font-bold">{history.length}건</span>}
+        {!loading && !error && <span className="text-xs font-bold">{displayedHistory.length}건</span>}
       </div>
 
       {loading ? (
@@ -296,7 +447,7 @@ export function EffectVerificationHistoryPage() {
             다시 시도
           </button>
         </div>
-      ) : history.length === 0 ? (
+      ) : displayedHistory.length === 0 ? (
         <div className="rounded-2xl border border-border bg-card p-12 text-center">
           <CalendarClock className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" aria-hidden="true" />
           <p className="text-sm font-semibold">조건에 맞는 효과 검증 이력이 없습니다.</p>
@@ -304,7 +455,7 @@ export function EffectVerificationHistoryPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          {history.map((execution) => (
+          {displayedHistory.map((execution) => (
             <HistoryCard
               key={execution.recommendation_id}
               execution={execution}
