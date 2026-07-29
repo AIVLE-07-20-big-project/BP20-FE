@@ -18,7 +18,6 @@ const CostPage = lazy(() => import("../../pages/store-owner/CostPage").then(({ C
 const InventoryPage = lazy(() => import("../../pages/store-owner/InventoryPage").then(({ InventoryPage }) => ({ default: InventoryPage })));
 const ReviewsPage = lazy(() => import("../../pages/store-owner/ReviewsPage").then(({ ReviewsPage }) => ({ default: ReviewsPage })));
 const ReportsPage = lazy(() => import("../../pages/store-owner/ReportsPage").then(({ ReportsPage }) => ({ default: ReportsPage })));
-const StoreNoticesPage = lazy(() => import("../../pages/store-owner/NoticesPage").then(({ NoticesPage }) => ({ default: NoticesPage })));
 const CommercePage = lazy(() => import("../../pages/store-owner/CommercePage").then(({ CommercePage }) => ({ default: CommercePage })));
 const CustomersPage = lazy(() => import("../../pages/store-owner/CustomersPage").then(({ CustomersPage }) => ({ default: CustomersPage })));
 const AccountPage = lazy(() => import("../../pages/account/AccountPage").then(({ AccountPage }) => ({ default: AccountPage })));
@@ -89,7 +88,6 @@ export function AppRouter() {
           <Route path="reviews" element={<ReviewsPage />} />
           <Route path="customers" element={<CustomersPage />} />
           <Route path="reports" element={<ReportsPage />} />
-          <Route path="notices" element={<StoreNoticesPage />} />
           <Route path="commerce" element={<CommercePage />} />
           <Route path="commerce/product-images" element={<ProductImagePage />} />
           <Route path="help" element={<PlaceholderPage title="도움말" />} />

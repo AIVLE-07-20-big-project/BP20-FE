@@ -1,15 +1,11 @@
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
-  Activity,
-  AlertTriangle,
-  BarChart3,
   Bell,
   Building2,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
-  CreditCard,
   LayoutDashboard,
   LogOut,
   Mail,
@@ -24,6 +20,7 @@ import {
   Users,
 } from "lucide-react";
 import { clsx } from "clsx";
+import { LiveDateTime } from "../../shared/components/LiveDateTime";
 import { useAuth } from "../providers/AuthProvider";
 
 const DASHBOARD_NAV = [
@@ -32,22 +29,12 @@ const DASHBOARD_NAV = [
 
 const STORE_NAV = [
   { to: "/admin/merchants", icon: Building2, label: "가맹점 관리" },
-  { to: "/admin/risks", icon: AlertTriangle, label: "위험 가맹점" },
   { to: "/admin/notices", icon: Megaphone, label: "가맹점 공지" },
-];
-
-const ANALYTICS_NAV = [
-  { to: "/admin/market-intelligence", icon: BarChart3, label: "소비·상권 분석" },
-  { to: "/admin/roi", icon: TrendingUp, label: "AI 성과·ROI" },
 ];
 
 const BUSINESS_NAV = [
   { to: "/admin/sales-targets", icon: Target, label: "영업 타겟" },
-  { to: "/admin/subscriptions", icon: CreditCard, label: "구독·계약" },
-];
-
-const SYSTEM_NAV = [
-  { to: "/admin/service-status", icon: Activity, label: "서비스 상태" },
+  { to: "/admin/roi", icon: TrendingUp, label: "AI 성과·ROI" },
 ];
 
 export function AdminLayout() {
@@ -71,9 +58,7 @@ export function AdminLayout() {
   const navGroups = [
     { label: "Account", items: accountNav },
     { label: "Store", items: STORE_NAV },
-    { label: "Analytics", items: ANALYTICS_NAV },
     { label: "Business", items: BUSINESS_NAV },
-    { label: "System", items: SYSTEM_NAV },
   ];
 
   const handleLogout = async () => {
@@ -242,10 +227,7 @@ export function AdminLayout() {
             </div>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <span className="hidden items-center gap-1.5 text-xs text-muted-foreground md:flex">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#0E9F6E]" />
-              오늘 09:42 기준
-            </span>
+            <LiveDateTime className="hidden md:flex" />
             <button
               type="button"
               aria-label="알림"

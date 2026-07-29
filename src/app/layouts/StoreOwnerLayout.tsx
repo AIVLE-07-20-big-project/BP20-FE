@@ -2,13 +2,15 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, TrendingUp, Zap, BookOpen, Package,
-  Star, Users, FileText, ShoppingBag,
-  HelpCircle, User, Bell, Megaphone, Search, ChevronLeft, ChevronRight,
-  Store, Menu, LogOut, DollarSign
+  Star, Users, ShoppingBag,
+  User, Search, ChevronLeft, ChevronRight,
+  Store, Menu, LogOut
 } from "lucide-react";
 import { clsx } from "clsx";
 import { commerceApi } from "../../features/commerce/api/commerceApi";
+import { StoreNoticePopover } from "../../features/notices/ui/StoreNoticePopover";
 import { ApiError } from "../../shared/api/apiClient";
+import { LiveDateTime } from "../../shared/components/LiveDateTime";
 import { useAuth } from "../providers/AuthProvider";
 
 const DASHBOARD_NAV = [
@@ -19,7 +21,6 @@ const STORE_NAV = [
   { to: "/store/commerce", icon: ShoppingBag, label: "매장·커머스" },
   { to: "/store/inventory", icon: Package, label: "재고·발주" },
   { to: "/store/customers", icon: Users, label: "고객·쿠폰" },
-  { to: "/store/notices", icon: Megaphone, label: "공지사항" },
 ];
 
 const AI_NAV = [
@@ -29,9 +30,7 @@ const AI_NAV = [
 
 const ANALYTICS_NAV = [
   { to: "/store/sales", icon: TrendingUp, label: "매출 분석" },
-  { to: "/store/cost", icon: DollarSign, label: "지출·원가" },
   { to: "/store/reviews", icon: Star, label: "리뷰 분석" },
-  { to: "/store/reports", icon: FileText, label: "경영 리포트" },
 ];
 
 const NAV_GROUPS = [
@@ -156,10 +155,6 @@ export function StoreOwnerLayout() {
 
       {/* Bottom */}
       <div className="border-t border-white/8 p-2">
-        <NavLink to="/store/help" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/50 hover:text-white hover:bg-white/5 transition-colors">
-          <HelpCircle className="w-4 h-4 flex-shrink-0" />
-          {(!collapsed || mobile) && <span>도움말</span>}
-        </NavLink>
         <NavLink to="/store/profile" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/50 hover:text-white hover:bg-white/5 transition-colors">
           <User className="w-4 h-4 flex-shrink-0" />
           {(!collapsed || mobile) && <span>내 정보</span>}
@@ -220,14 +215,8 @@ export function StoreOwnerLayout() {
             </div>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <span className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#0E9F6E]" />
-              오늘 09:42 기준
-            </span>
-            <button className="relative p-2 rounded-lg text-muted-foreground hover:bg-muted transition-colors">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[#D92D20]" />
-            </button>
+            <LiveDateTime className="hidden sm:flex" />
+            <StoreNoticePopover isDemo={isDemo} />
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#246BFD] to-[#8B5CF6] flex items-center justify-center text-white text-xs font-bold">
               {(user?.name || "김")[0]}
             </div>
