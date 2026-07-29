@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
+  Ban,
   BadgePercent,
   BellRing,
   CalendarDays,
   Clock3,
+  Gift,
   Globe2,
   ImageIcon,
   Package,
@@ -18,12 +20,16 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../app/providers/AuthProvider";
 import type {
+  Coupon,
+  CouponStatus,
   CreateDiscountPayload,
   CreateProductPayload,
   CreateStorePayload,
+  Customer,
   Discount,
   DiscountStatus,
   DiscountType,
+  IssueCouponPayload,
   Product,
   ProductStatus,
   Store,
@@ -40,9 +46,13 @@ import { ApiError } from "../../shared/api/apiClient";
 import aiProductImageBanner from "../../shared/assets/images/ai-product-image-banner-natural.png";
 import { Badge } from "../../shared/components/Badge";
 import { PageShell } from "../../shared/components/PageShell";
+import {
+  formatPhoneNumber,
+  isValidPhoneNumber,
+} from "../../shared/lib/phoneNumber";
 
-type CommerceTab = "products" | "online" | "discounts";
-type CommerceModal = "store" | "product" | "discount" | null;
+type CommerceTab = "products" | "online" | "discounts" | "coupons";
+type CommerceModal = "store" | "product" | "discount" | "coupon" | null;
 
 const EMPTY_STORE: CreateStorePayload = {
   name: "",
@@ -79,6 +89,16 @@ function emptyDiscount(): CreateDiscountPayload {
     dailyStartTime: null,
     dailyEndTime: null,
     reminderEnabled: false,
+  };
+}
+
+function emptyCoupon(customerId = 0): IssueCouponPayload {
+  return {
+    customerId,
+    name: "",
+    discountType: "FIXED_AMOUNT",
+    discountValue: 3_000,
+    expiresAt: localDateTime(30, 23),
   };
 }
 
@@ -173,12 +193,48 @@ const DEMO_DISCOUNTS: Discount[] = [
   },
 ];
 
+const DEMO_CUSTOMERS: Customer[] = [
+  {
+    id: 1,
+    email: "customer@bp20.com",
+    name: "김고객",
+    phoneNumber: "010-1234-5678",
+    status: "ACTIVE",
+    createdAt: "2026-07-20T10:00:00",
+    updatedAt: "2026-07-20T10:00:00",
+  },
+];
+
+const DEMO_COUPONS: Coupon[] = [
+  {
+    id: 1,
+    name: "재방문 고객 3,000원 쿠폰",
+    status: "ISSUED",
+    discountType: "FIXED_AMOUNT",
+    discountValue: 3_000,
+    customerId: 1,
+    customerEmail: "customer@bp20.com",
+    customerName: "김고객",
+    issuedAt: "2026-07-28T10:00:00",
+    expiresAt: "2026-08-28T23:00:00",
+    usedAt: null,
+    revokedAt: null,
+  },
+];
+
 const DISCOUNT_STATUS_LABEL: Record<DiscountStatus, string> = {
   DRAFT: "작성 중",
   SCHEDULED: "예약",
   ACTIVE: "진행 중",
   PAUSED: "일시중지",
   ENDED: "종료",
+};
+
+const COUPON_STATUS_LABEL: Record<CouponStatus, string> = {
+  ISSUED: "사용 가능",
+  USED: "사용 완료",
+  EXPIRED: "기간 만료",
+  REVOKED: "발급 취소",
 };
 
 export function CommercePage() {
@@ -188,13 +244,17 @@ export function CommercePage() {
   const [store, setStore] = useState<Store | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [discounts, setDiscounts] = useState<Discount[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [storeForm, setStoreForm] = useState<CreateStorePayload>(EMPTY_STORE);
   const [productForm, setProductForm] = useState<CreateProductPayload>(EMPTY_PRODUCT);
   const [discountForm, setDiscountForm] = useState<CreateDiscountPayload>(emptyDiscount);
+  const [couponForm, setCouponForm] = useState<IssueCouponPayload>(emptyCoupon);
   const [useDailyTime, setUseDailyTime] = useState(false);
   const [productQuery, setProductQuery] = useState("");
   const [productFilter, setProductFilter] = useState<"ALL" | ProductStatus>("ALL");
+  const [couponFilter, setCouponFilter] = useState<"ALL" | CouponStatus>("ALL");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -208,6 +268,10 @@ export function CommercePage() {
   const activeDiscounts = useMemo(
     () => discounts.filter((discount) => discount.status === "ACTIVE" || discount.status === "SCHEDULED"),
     [discounts],
+  );
+  const filteredCoupons = useMemo(
+    () => coupons.filter((coupon) => couponFilter === "ALL" || coupon.status === couponFilter),
+    [couponFilter, coupons],
   );
   const filteredProducts = useMemo(() => {
     const query = productQuery.trim().toLowerCase();
@@ -228,24 +292,32 @@ export function CommercePage() {
       setStore(DEMO_STORE);
       setProducts(DEMO_PRODUCTS);
       setDiscounts(DEMO_DISCOUNTS);
+      setCustomers(DEMO_CUSTOMERS);
+      setCoupons(DEMO_COUPONS);
       setLoading(false);
       return;
     }
 
     try {
       const currentStore = await commerceApi.getStore();
-      const [productList, discountList] = await Promise.all([
+      const [productList, discountList, customerList, couponList] = await Promise.all([
         commerceApi.getProducts(),
         commerceApi.getDiscounts(),
+        commerceApi.getCustomers(),
+        commerceApi.getCoupons(),
       ]);
       setStore(currentStore);
       setProducts(productList);
       setDiscounts(discountList);
+      setCustomers(customerList);
+      setCoupons(couponList);
     } catch (requestError) {
       if (requestError instanceof ApiError && requestError.status === 404) {
         setStore(null);
         setProducts([]);
         setDiscounts([]);
+        setCustomers([]);
+        setCoupons([]);
       } else {
         setError(requestError instanceof Error ? requestError.message : "매장 정보를 불러오지 못했습니다.");
       }
@@ -287,7 +359,7 @@ export function CommercePage() {
       businessNumber: store.businessNumber,
       category: store.category,
       address: store.address,
-      phoneNumber: store.phoneNumber ?? "",
+      phoneNumber: formatPhoneNumber(store.phoneNumber),
     } : EMPTY_STORE);
     setModal("store");
   };
@@ -321,6 +393,13 @@ export function CommercePage() {
     });
     setUseDailyTime(false);
     setModal("discount");
+  };
+
+  const openCouponModal = () => {
+    const firstActiveCustomer = customers.find((customer) => customer.status === "ACTIVE");
+    setCouponForm(emptyCoupon(firstActiveCustomer?.id ?? 0));
+    setModalError("");
+    setModal("coupon");
   };
 
   const saveStore = async (event: React.FormEvent) => {
@@ -408,6 +487,29 @@ export function CommercePage() {
     if (succeeded) setModal(null);
   };
 
+  const saveCoupon = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const succeeded = await perform(async () => {
+      const selectedCustomer = customers.find((customer) => customer.id === couponForm.customerId);
+      const issued = isDemo
+        ? {
+            id: Math.max(0, ...coupons.map((coupon) => coupon.id)) + 1,
+            ...couponForm,
+            status: "ISSUED" as const,
+            customerEmail: selectedCustomer?.email ?? "",
+            customerName: selectedCustomer?.name ?? "",
+            issuedAt: new Date().toISOString(),
+            usedAt: null,
+            revokedAt: null,
+          }
+        : await commerceApi.issueCoupon(couponForm);
+      setCoupons((current) => [issued, ...current]);
+    }, "고객에게 쿠폰을 발급했습니다.", (message) => {
+      setModalError(toModalErrorMessage(message));
+    });
+    if (succeeded) setModal(null);
+  };
+
   const changeProductStatus = (product: Product, status: ProductStatus) => {
     void perform(async () => {
       const updated = isDemo
@@ -452,6 +554,15 @@ export function CommercePage() {
         : await commerceApi.changeDiscountStatus(discount.id, status);
       setDiscounts((current) => current.map((item) => item.id === updated.id ? updated : item));
     }, `${discount.name} 할인의 상태가 변경되었습니다.`);
+  };
+
+  const revokeCoupon = (coupon: Coupon) => {
+    void perform(async () => {
+      const revoked = isDemo
+        ? { ...coupon, status: "REVOKED" as const, revokedAt: new Date().toISOString() }
+        : await commerceApi.revokeCoupon(coupon.id);
+      setCoupons((current) => current.map((item) => item.id === revoked.id ? revoked : item));
+    }, "쿠폰 발급을 취소했습니다.");
   };
 
   if (loading) return <LoadingState />;
@@ -499,7 +610,7 @@ export function CommercePage() {
   return (
     <PageShell
       title="매장·커머스"
-      subtitle="매장 상품과 온라인 판매, 할인을 한곳에서 관리합니다."
+      subtitle="매장 상품과 온라인 판매, 할인·고객 쿠폰을 한곳에서 관리합니다."
     >
       {isDemo && (
         <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
@@ -545,6 +656,7 @@ export function CommercePage() {
         <TabButton active={activeTab === "products"} onClick={() => setActiveTab("products")} icon={Package}>상품 관리</TabButton>
         <TabButton active={activeTab === "online"} onClick={() => setActiveTab("online")} icon={Globe2}>온라인 판매</TabButton>
         <TabButton active={activeTab === "discounts"} onClick={() => setActiveTab("discounts")} icon={BadgePercent}>할인 관리</TabButton>
+        <TabButton active={activeTab === "coupons"} onClick={() => setActiveTab("coupons")} icon={Gift}>쿠폰 관리</TabButton>
       </div>
 
       {activeTab === "products" && (
@@ -584,6 +696,19 @@ export function CommercePage() {
         />
       )}
 
+      {activeTab === "coupons" && (
+        <CouponSection
+          coupons={filteredCoupons}
+          totalCount={coupons.length}
+          customers={customers}
+          filter={couponFilter}
+          saving={saving}
+          onFilterChange={setCouponFilter}
+          onCreate={openCouponModal}
+          onRevoke={revokeCoupon}
+        />
+      )}
+
       <ProductModal
         open={modal === "product"}
         editingProduct={editingProduct}
@@ -606,6 +731,22 @@ export function CommercePage() {
         saving={saving}
         onClose={() => setModal(null)}
         onSubmit={saveDiscount}
+      />
+      <CouponModal
+        open={modal === "coupon"}
+        customers={customers}
+        form={couponForm}
+        setForm={(form) => {
+          setCouponForm(form);
+          setModalError("");
+        }}
+        saving={saving}
+        error={modalError}
+        onClose={() => {
+          setModal(null);
+          setModalError("");
+        }}
+        onSubmit={saveCoupon}
       />
     </PageShell>
   );
@@ -973,6 +1114,128 @@ function DiscountSection({
   );
 }
 
+function CouponSection({
+  coupons,
+  totalCount,
+  customers,
+  filter,
+  saving,
+  onFilterChange,
+  onCreate,
+  onRevoke,
+}: {
+  coupons: Coupon[];
+  totalCount: number;
+  customers: Customer[];
+  filter: "ALL" | CouponStatus;
+  saving: boolean;
+  onFilterChange: (filter: "ALL" | CouponStatus) => void;
+  onCreate: () => void;
+  onRevoke: (coupon: Coupon) => void;
+}) {
+  const activeCustomers = customers.filter((customer) => customer.status === "ACTIVE");
+
+  return (
+    <section className="overflow-hidden rounded-3xl border border-[#D9E1F0] bg-card shadow-sm">
+      <div className="flex flex-col gap-3 border-b border-[#E4EAF4] bg-gradient-to-r from-[#F7FAFF] via-white to-[#FBF9FF] p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="font-bold">고객 쿠폰</h2>
+            <Badge variant="info">총 {totalCount}개</Badge>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">등록 고객에게 개별 혜택을 발급하고 사용·만료 상태를 확인합니다.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={filter}
+            onChange={(event) => onFilterChange(event.target.value as "ALL" | CouponStatus)}
+            className="h-9 rounded-xl border border-border bg-card px-3 text-xs font-semibold outline-none focus:border-[#246BFD]"
+          >
+            <option value="ALL">전체 상태</option>
+            <option value="ISSUED">사용 가능</option>
+            <option value="USED">사용 완료</option>
+            <option value="EXPIRED">기간 만료</option>
+            <option value="REVOKED">발급 취소</option>
+          </select>
+          <button
+            type="button"
+            onClick={onCreate}
+            disabled={activeCustomers.length === 0}
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#246BFD] px-3 text-xs font-bold text-white shadow-sm transition hover:bg-[#1D4ED8] disabled:opacity-40"
+          >
+            <Plus className="h-3.5 w-3.5" />쿠폰 발급
+          </button>
+        </div>
+      </div>
+
+      {activeCustomers.length === 0 && (
+        <div className="flex flex-col gap-3 border-b border-[#DDE7FA] bg-[#F7FAFF] px-5 py-4 text-xs text-[#36537D] sm:flex-row sm:items-center sm:justify-between">
+          <span>쿠폰을 발급하려면 먼저 고객을 등록해야 합니다.</span>
+          <Link
+            to="/store/customers"
+            className="inline-flex items-center gap-1 font-bold text-[#246BFD] hover:underline"
+          >
+            고객 등록하러 가기 <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      )}
+
+      {coupons.length === 0 ? (
+        <EmptyState
+          icon={Gift}
+          title={totalCount === 0 ? "발급된 쿠폰이 없습니다" : "조건에 맞는 쿠폰이 없습니다"}
+          description={totalCount === 0 ? "등록 고객을 선택해 첫 쿠폰을 발급해 보세요." : "다른 쿠폰 상태를 선택해 보세요."}
+        />
+      ) : (
+        <div className="grid gap-3 p-4 lg:grid-cols-2">
+          {coupons.map((coupon) => (
+            <article
+              key={coupon.id}
+              className="rounded-2xl border border-[#E1E7F1] bg-gradient-to-br from-white to-[#F9FBFF] p-4 transition hover:border-[#C8D7EF] hover:shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="truncate text-sm font-bold">{coupon.name}</h3>
+                    <CouponStatusBadge status={coupon.status} />
+                  </div>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                    {coupon.customerName} · {coupon.customerEmail}
+                  </p>
+                </div>
+                <div className="shrink-0 rounded-xl bg-[#F2EEFF] px-3 py-2 text-right text-base font-black text-[#7654D6]">
+                  {coupon.discountType === "RATE"
+                    ? `${coupon.discountValue}%`
+                    : `₩${coupon.discountValue.toLocaleString()}`}
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-muted/35 p-3 text-xs">
+                <div>
+                  <div className="text-[11px] text-muted-foreground">발급일</div>
+                  <div className="mt-1 font-semibold">{formatDate(coupon.issuedAt)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">만료일</div>
+                  <div className="mt-1 font-semibold">{formatDate(coupon.expiresAt)}</div>
+                </div>
+              </div>
+              {coupon.status === "ISSUED" && (
+                <div className="mt-3 flex justify-end">
+                  <ActionButton onClick={() => onRevoke(coupon)} disabled={saving} danger>
+                    <span className="inline-flex items-center gap-1">
+                      <Ban className="h-3.5 w-3.5" />발급 취소
+                    </span>
+                  </ActionButton>
+                </div>
+              )}
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function DiscountActions({
   discount,
   saving,
@@ -1023,10 +1286,14 @@ function StoreModal({
   const businessNumberError = !store && form.businessNumber.length > 0 && !isValidBusinessNumber(form.businessNumber)
     ? "사업자등록번호 형식이 올바르지 않습니다."
     : "";
+  const phoneNumberError = form.phoneNumber.length > 0 && !isValidPhoneNumber(form.phoneNumber)
+    ? "전화번호 형식이 올바르지 않습니다."
+    : "";
   const invalid = !form.name.trim()
     || !isValidBusinessNumber(form.businessNumber)
     || !form.category.trim()
-    || !form.address.trim();
+    || !form.address.trim()
+    || Boolean(phoneNumberError);
 
   return (
     <OperationModal
@@ -1053,7 +1320,17 @@ function StoreModal({
           error={businessNumberError}
           disabled={Boolean(store)}
         />
-        <FormField label="전화번호" value={form.phoneNumber} onChange={(phoneNumber) => setForm({ ...form, phoneNumber })} placeholder="02-0000-0000" />
+        <FormField
+          label="전화번호"
+          type="tel"
+          value={form.phoneNumber}
+          onChange={(phoneNumber) => setForm({
+            ...form,
+            phoneNumber: formatPhoneNumber(phoneNumber),
+          })}
+          placeholder="숫자만 입력해 주세요"
+          error={phoneNumberError}
+        />
         <div className="sm:col-span-2">
           <FormField label="매장 주소" required value={form.address} onChange={(address) => setForm({ ...form, address })} placeholder="도로명 주소를 입력해 주세요" />
         </div>
@@ -1092,7 +1369,13 @@ function ProductModal({
         <div className="sm:col-span-2">
           <FormField label="상품명" required value={form.name} onChange={(name) => setForm({ ...form, name })} placeholder="클럽 샌드위치" />
         </div>
-        <FormField label="판매 가격" required type="number" min={1} value={form.price} onChange={(price) => setForm({ ...form, price: Number(price) })} />
+        <CurrencyField
+          label="판매 가격"
+          required
+          value={form.price}
+          onChange={(price) => setForm({ ...form, price })}
+          hint="숫자만 입력하면 원 단위로 자동 표시됩니다."
+        />
         <FormField label="재고 수량" required type="number" min={0} value={form.stockQuantity} onChange={(stockQuantity) => setForm({ ...form, stockQuantity: Number(stockQuantity) })} />
         <div className="sm:col-span-2">
           <FormField label="상품 설명" multiline value={form.description} onChange={(description) => setForm({ ...form, description })} placeholder="상품의 특징과 구성을 입력해 주세요." />
@@ -1203,6 +1486,152 @@ function DiscountModal({
   );
 }
 
+function CouponModal({
+  open,
+  customers,
+  form,
+  setForm,
+  saving,
+  error,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  customers: Customer[];
+  form: IssueCouponPayload;
+  setForm: (form: IssueCouponPayload) => void;
+  saving: boolean;
+  error: string;
+  onClose: () => void;
+  onSubmit: (event: React.FormEvent) => void;
+}) {
+  const activeCustomers = customers.filter((customer) => customer.status === "ACTIVE");
+  const invalid = !form.customerId
+    || !form.name.trim()
+    || form.discountValue <= 0
+    || (form.discountType === "RATE" && form.discountValue > 100)
+    || !form.expiresAt;
+
+  return (
+    <OperationModal
+      open={open}
+      title="고객 쿠폰 발급"
+      description="등록 고객 한 명에게 쿠폰을 발급합니다. 사용하지 않은 쿠폰만 발급 취소할 수 있습니다."
+      onClose={onClose}
+      footer={<ModalActions saving={saving} onClose={onClose} submitLabel="쿠폰 발급" disabled={invalid} formId="commerce-coupon-form" />}
+    >
+      <FeedbackBanner error={error} notice="" />
+      <form id="commerce-coupon-form" onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <SelectField
+            label="수령 고객"
+            required
+            value={form.customerId}
+            onChange={(customerId) => setForm({ ...form, customerId: Number(customerId) })}
+          >
+            <option value={0}>고객을 선택하세요</option>
+            {activeCustomers.map((customer) => (
+              <option key={customer.id} value={customer.id}>{customer.name} · {customer.email}</option>
+            ))}
+          </SelectField>
+        </div>
+        <div className="sm:col-span-2">
+          <FormField
+            label="쿠폰명"
+            required
+            value={form.name}
+            onChange={(name) => setForm({ ...form, name })}
+            placeholder="재방문 고객 3,000원 쿠폰"
+          />
+        </div>
+        <SelectField
+          label="할인 유형"
+          required
+          value={form.discountType}
+          onChange={(discountType) => setForm({
+            ...form,
+            discountType: discountType as DiscountType,
+            discountValue: discountType === "RATE" ? 10 : 3_000,
+          })}
+        >
+          <option value="FIXED_AMOUNT">정액 할인(원)</option>
+          <option value="RATE">정률 할인(%)</option>
+        </SelectField>
+        {form.discountType === "RATE" ? (
+          <FormField
+            label="할인율"
+            required
+            type="number"
+            min={1}
+            max={100}
+            value={form.discountValue}
+            onChange={(discountValue) => setForm({ ...form, discountValue: Number(discountValue) })}
+          />
+        ) : (
+          <CurrencyField
+            label="할인 금액"
+            required
+            value={form.discountValue}
+            onChange={(discountValue) => setForm({ ...form, discountValue })}
+          />
+        )}
+        <div className="sm:col-span-2">
+          <FormField
+            label="만료 일시"
+            required
+            type="datetime-local"
+            value={form.expiresAt}
+            onChange={(expiresAt) => setForm({ ...form, expiresAt })}
+          />
+        </div>
+      </form>
+    </OperationModal>
+  );
+}
+
+function CurrencyField({
+  label,
+  value,
+  onChange,
+  required,
+  hint,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  required?: boolean;
+  hint?: string;
+}) {
+  const formattedValue = value > 0 ? value.toLocaleString("ko-KR") : "";
+
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-semibold text-foreground">
+        {label}{required && <span className="ml-0.5 text-[#D92D20]">*</span>}
+      </span>
+      <div className="relative">
+        <input
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          value={formattedValue}
+          onChange={(event) => {
+            const digits = event.target.value.replace(/\D/g, "").slice(0, 12);
+            onChange(digits ? Number(digits) : 0);
+          }}
+          placeholder="0"
+          aria-label={label}
+          className="h-10 w-full rounded-xl border border-border bg-card px-3 pr-9 text-sm tabular-nums outline-none transition focus:border-[#246BFD] focus:ring-3 focus:ring-[#246BFD]/10"
+        />
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
+          원
+        </span>
+      </div>
+      {hint && <span className="mt-1 block text-[11px] text-muted-foreground">{hint}</span>}
+    </label>
+  );
+}
+
 function ProductImage({ product, compact = false }: { product: Product; compact?: boolean }) {
   const size = compact ? "h-10 w-10 rounded-xl" : "h-14 w-14 rounded-2xl";
   return product.imageUrl ? (
@@ -1221,6 +1650,18 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
       <div className="mt-1 text-base font-black">{value}</div>
     </div>
   );
+}
+
+function CouponStatusBadge({ status }: { status: CouponStatus }) {
+  const variant = status === "ISSUED"
+    ? "positive"
+    : status === "USED"
+      ? "info"
+      : status === "REVOKED"
+        ? "negative"
+        : "muted";
+
+  return <Badge variant={variant}>{COUPON_STATUS_LABEL[status]}</Badge>;
 }
 
 function TabButton({

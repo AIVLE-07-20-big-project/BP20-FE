@@ -14,6 +14,10 @@ import type {
 } from "../../../entities/commerce/commerce.types";
 import { ApiError } from "../../../shared/api/apiClient";
 import { Badge } from "../../../shared/components/Badge";
+import {
+  formatPhoneNumber,
+  isValidPhoneNumber,
+} from "../../../shared/lib/phoneNumber";
 import { commerceApi } from "../api/commerceApi";
 import {
   FeedbackBanner,
@@ -79,7 +83,7 @@ export function StoreProfileSection({ isDemo }: { isDemo: boolean }) {
       name: store.name,
       category: store.category,
       address: store.address,
-      phoneNumber: store.phoneNumber ?? "",
+      phoneNumber: formatPhoneNumber(store.phoneNumber),
     });
     setModalError("");
     setNotice("");
@@ -156,6 +160,10 @@ export function StoreProfileSection({ isDemo }: { isDemo: boolean }) {
     );
   }
 
+  const phoneNumberError = form.phoneNumber.length > 0 && !isValidPhoneNumber(form.phoneNumber)
+    ? "전화번호 형식이 올바르지 않습니다."
+    : "";
+
   return (
     <>
       <section className="mt-5 overflow-hidden rounded-3xl border border-[#D8E3F2] bg-card shadow-sm">
@@ -190,7 +198,7 @@ export function StoreProfileSection({ isDemo }: { isDemo: boolean }) {
             <StoreField icon={Building2} label="매장명" value={store.name} />
             <StoreField icon={Globe2} label="업종" value={store.category} />
             <StoreField icon={MapPin} label="매장 주소" value={store.address} wide />
-            <StoreField icon={Phone} label="전화번호" value={store.phoneNumber || "등록되지 않음"} />
+            <StoreField icon={Phone} label="전화번호" value={formatPhoneNumber(store.phoneNumber) || "등록되지 않음"} />
             <StoreField icon={StoreIcon} label="사업자등록번호" value={formatBusinessNumber(store.businessNumber)} />
           </div>
         </div>
@@ -206,7 +214,10 @@ export function StoreProfileSection({ isDemo }: { isDemo: boolean }) {
             saving={saving}
             onClose={closeEditModal}
             submitLabel="수정 완료"
-            disabled={!form.name.trim() || !form.category.trim() || !form.address.trim()}
+            disabled={!form.name.trim()
+              || !form.category.trim()
+              || !form.address.trim()
+              || Boolean(phoneNumberError)}
             formId="profile-store-form"
           />
         )}
@@ -222,7 +233,17 @@ export function StoreProfileSection({ isDemo }: { isDemo: boolean }) {
             disabled
             hint="사업자등록번호는 등록 후 변경할 수 없습니다."
           />
-          <FormField label="전화번호" value={form.phoneNumber} onChange={(phoneNumber) => updateForm({ ...form, phoneNumber })} placeholder="02-0000-0000" />
+          <FormField
+            label="전화번호"
+            type="tel"
+            value={form.phoneNumber}
+            onChange={(phoneNumber) => updateForm({
+              ...form,
+              phoneNumber: formatPhoneNumber(phoneNumber),
+            })}
+            placeholder="숫자만 입력해 주세요"
+            error={phoneNumberError}
+          />
           <div className="sm:col-span-2">
             <FormField label="매장 주소" required value={form.address} onChange={(address) => updateForm({ ...form, address })} placeholder="도로명 주소를 입력해 주세요" />
           </div>

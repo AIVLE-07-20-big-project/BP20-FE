@@ -30,6 +30,11 @@ import {
 } from "../../features/commerce/ui/CommerceUi";
 import { Badge } from "../../shared/components/Badge";
 import { PageShell } from "../../shared/components/PageShell";
+import {
+  formatPhoneNumber,
+  isValidPhoneNumber,
+  normalizePhoneNumber,
+} from "../../shared/lib/phoneNumber";
 
 type CustomerTab = "customers" | "coupons";
 type CustomerModal = "customer" | "coupon" | null;
@@ -135,14 +140,18 @@ export function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [customerModalError, setCustomerModalError] = useState("");
   const [notice, setNotice] = useState("");
 
   const filteredCustomers = useMemo(() => {
     const normalized = query.trim().toLowerCase();
+    const normalizedPhone = normalizePhoneNumber(normalized);
     return customers.filter((customer) => !normalized
       || customer.name.toLowerCase().includes(normalized)
       || customer.email.toLowerCase().includes(normalized)
-      || customer.phoneNumber?.includes(normalized));
+      || customer.phoneNumber?.includes(normalized)
+      || (Boolean(normalizedPhone)
+        && normalizePhoneNumber(customer.phoneNumber).includes(normalizedPhone)));
   }, [customers, query]);
 
   const filteredCoupons = useMemo(
@@ -179,7 +188,11 @@ export function CustomersPage() {
     void load();
   }, [isDemo]);
 
-  const perform = async (action: () => Promise<void>, message: string) => {
+  const perform = async (
+    action: () => Promise<void>,
+    message: string,
+    onError: (message: string) => void = setError,
+  ) => {
     setSaving(true);
     setError("");
     setNotice("");
@@ -188,7 +201,7 @@ export function CustomersPage() {
       setNotice(message);
       return true;
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "요청 처리에 실패했습니다.");
+      onError(requestError instanceof Error ? requestError.message : "요청 처리에 실패했습니다.");
       return false;
     } finally {
       setSaving(false);
@@ -218,9 +231,12 @@ export function CustomersPage() {
           }
         : await commerceApi.createCustomer(customerForm);
       setCustomers((current) => [created, ...current]);
-    }, "고객이 등록되었습니다.");
+    }, "고객이 등록되었습니다.", (message) => {
+      setCustomerModalError(toModalErrorMessage(message));
+    });
     if (succeeded) {
       setCustomerForm(EMPTY_CUSTOMER);
+      setCustomerModalError("");
       setModal(null);
     }
   };
@@ -276,7 +292,11 @@ export function CustomersPage() {
       actions={(
         <button
           type="button"
-          onClick={() => setModal("customer")}
+          onClick={() => {
+            setCustomerForm(EMPTY_CUSTOMER);
+            setCustomerModalError("");
+            setModal("customer");
+          }}
           className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#246BFD] px-4 text-xs font-bold text-white hover:bg-[#1D4ED8]"
         >
           <UserPlus className="h-4 w-4" />고객 등록
@@ -345,7 +365,7 @@ export function CustomersPage() {
                   </div>
                   <div className="space-y-1.5 text-xs text-muted-foreground">
                     <div className="flex items-center gap-2"><Mail className="h-3.5 w-3.5" />{customer.email}</div>
-                    <div className="flex items-center gap-2"><Phone className="h-3.5 w-3.5" />{customer.phoneNumber || "전화번호 미등록"}</div>
+                    <div className="flex items-center gap-2"><Phone className="h-3.5 w-3.5" />{formatPhoneNumber(customer.phoneNumber) || "전화번호 미등록"}</div>
                   </div>
                   <button
                     type="button"
@@ -432,9 +452,16 @@ export function CustomersPage() {
       <CustomerModal
         open={modal === "customer"}
         form={customerForm}
-        setForm={setCustomerForm}
+        setForm={(form) => {
+          setCustomerForm(form);
+          setCustomerModalError("");
+        }}
         saving={saving}
-        onClose={() => setModal(null)}
+        error={customerModalError}
+        onClose={() => {
+          setCustomerModalError("");
+          setModal(null);
+        }}
         onSubmit={saveCustomer}
       />
       <CouponModal
@@ -455,6 +482,7 @@ function CustomerModal({
   form,
   setForm,
   saving,
+  error,
   onClose,
   onSubmit,
 }: {
@@ -462,10 +490,14 @@ function CustomerModal({
   form: CreateCustomerPayload;
   setForm: (form: CreateCustomerPayload) => void;
   saving: boolean;
+  error: string;
   onClose: () => void;
   onSubmit: (event: React.FormEvent) => void;
 }) {
-  const invalid = !form.name.trim() || !form.email.trim();
+  const phoneNumberError = form.phoneNumber.length > 0 && !isValidPhoneNumber(form.phoneNumber)
+    ? "전화번호 형식이 올바르지 않습니다."
+    : "";
+  const invalid = !form.name.trim() || !form.email.trim() || Boolean(phoneNumberError);
   return (
     <OperationModal
       open={open}
@@ -474,13 +506,34 @@ function CustomerModal({
       onClose={onClose}
       footer={<ModalActions saving={saving} onClose={onClose} submitLabel="고객 등록" disabled={invalid} formId="customer-form" />}
     >
+      <FeedbackBanner error={error} notice="" />
       <form id="customer-form" onSubmit={onSubmit} className="space-y-4">
-        <FormField label="이름" required value={form.name} onChange={(name) => setForm({ ...form, name })} placeholder="김고객" />
-        <FormField label="이메일" required type="email" value={form.email} onChange={(email) => setForm({ ...form, email })} placeholder="customer@example.com" />
-        <FormField label="전화번호" value={form.phoneNumber} onChange={(phoneNumber) => setForm({ ...form, phoneNumber })} placeholder="010-1234-5678" />
+        <FormField label="이름" required value={form.name} onChange={(name) => setForm({ ...form, name })} placeholder="이름을 입력해 주세요" />
+        <FormField label="이메일" required type="email" value={form.email} onChange={(email) => setForm({ ...form, email })} placeholder="이메일을 입력해 주세요" />
+        <FormField
+          label="전화번호"
+          type="tel"
+          value={form.phoneNumber}
+          onChange={(phoneNumber) => setForm({
+            ...form,
+            phoneNumber: formatPhoneNumber(phoneNumber),
+          })}
+          placeholder="숫자만 입력해 주세요"
+          error={phoneNumberError}
+        />
       </form>
     </OperationModal>
   );
+}
+
+function toModalErrorMessage(message: string) {
+  const separatorIndex = message.indexOf(":");
+  if (separatorIndex < 0) return message;
+
+  const fieldName = message.slice(0, separatorIndex).trim();
+  return /^[A-Za-z][A-Za-z0-9_.]*$/.test(fieldName)
+    ? message.slice(separatorIndex + 1).trim()
+    : message;
 }
 
 function CouponModal({

@@ -16,18 +16,26 @@ import type {
   UpdateStorePayload,
 } from "../../../entities/commerce/commerce.types";
 import { apiRequest } from "../../../shared/api/apiClient";
+import { normalizePhoneNumber } from "../../../shared/lib/phoneNumber";
 
 const STORE_OWNER_BASE = "/api/store-owner/stores/me";
+
+function withNormalizedPhone<T extends { phoneNumber: string }>(payload: T): T {
+  return {
+    ...payload,
+    phoneNumber: normalizePhoneNumber(payload.phoneNumber),
+  };
+}
 
 export const commerceApi = {
   getStore: () => apiRequest<Store>("/api/store-owner/stores/me"),
   createStore: (payload: CreateStorePayload) => apiRequest<Store>("/api/store-owner/stores", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(withNormalizedPhone(payload)),
   }),
   updateStore: (payload: UpdateStorePayload) => apiRequest<Store>(`${STORE_OWNER_BASE}`, {
     method: "PUT",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(withNormalizedPhone(payload)),
   }),
 
   getProducts: () => apiRequest<Product[]>(`${STORE_OWNER_BASE}/products`),
@@ -76,7 +84,7 @@ export const commerceApi = {
   createCustomer: (payload: CreateCustomerPayload) =>
     apiRequest<Customer>(`${STORE_OWNER_BASE}/customers`, {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify(withNormalizedPhone(payload)),
     }),
   getCoupons: () => apiRequest<Coupon[]>(`${STORE_OWNER_BASE}/coupons`),
   issueCoupon: (payload: IssueCouponPayload) =>
