@@ -56,7 +56,7 @@ export function InventoryPage() {
   const [inventorySortKey, setInventorySortKey] = useState<InventorySortKey>("name");
   const [inventorySortDirection, setInventorySortDirection] = useState<"ASC" | "DESC">("ASC");
   const [drawerItem, setDrawerItem] = useState<InventoryItem | null>(null);
-  const [orderQty, setOrderQty] = useState<number>(0);
+  const [orderQty, setOrderQty] = useState<number | "">("");
   const [orderConfirmed, setOrderConfirmed] = useState(false);
   const [automaticResult, setAutomaticResult] = useState<AutomaticOrderRecommendation | null>(null);
   const [recommendationLoading, setRecommendationLoading] = useState(false);
@@ -82,6 +82,7 @@ export function InventoryPage() {
   const [bulkOrderQuantities, setBulkOrderQuantities] = useState<Record<string, number>>({});
   const [completedOrders, setCompletedOrders] = useState<CompletedOrder[]>([]);
   const [completedOrderDetail, setCompletedOrderDetail] = useState<CompletedOrder | null>(null);
+  const [orderSelectionMessage, setOrderSelectionMessage] = useState("");
 
   const filters = ["전체", "부족", "품절", "임박", "과잉"];
 
@@ -125,9 +126,19 @@ export function InventoryPage() {
     return result;
   }, [completedOrders]);
 
+  const getRecommendedQuantity = (item: InventoryItem) => automaticResult?.recommendations.find(
+    (recommendation) => recommendation.ingredientName.trim() === item.name.trim(),
+  )?.recommendedOrderQuantity;
+
+  const drawerRecommendation = drawerItem
+    ? automaticResult?.recommendations.find(
+        (recommendation) => recommendation.ingredientName.trim() === drawerItem.name.trim(),
+      )
+    : undefined;
+
   const openDrawer = (item: InventoryItem) => {
     setDrawerItem(item);
-    setOrderQty(item.reorderQty || 0);
+    setOrderQty(getRecommendedQuantity(item) ?? "");
     setOrderConfirmed(latestCompletedOrderByInventoryId.has(item.id));
   };
 
@@ -143,10 +154,33 @@ export function InventoryPage() {
   const openBulkOrder = () => {
     const quantities = Object.fromEntries(selectedInventoryItems.map((item) => [
       item.id,
-      Math.max(1, item.reorderQty || 1),
+      getRecommendedQuantity(item) ?? Math.max(1, item.reorderQty || 1),
     ]));
     setBulkOrderQuantities(quantities);
     setBulkOrderOpen(true);
+  };
+
+  const selectRecommendedOrderItems = () => {
+    if (!automaticResult) {
+      setOrderSelectionMessage("발주 추천 기능을 실행해야 합니다.");
+      return;
+    }
+
+    const recommendedNames = new Set(
+      automaticResult.recommendations
+        .filter((recommendation) => recommendation.orderRequired && recommendation.recommendedOrderQuantity > 0)
+        .map((recommendation) => recommendation.ingredientName.trim()),
+    );
+    const recommendedInventoryIds = inventoryItems
+      .filter((item) => recommendedNames.has(item.name.trim()))
+      .map((item) => item.id);
+
+    setSelectedOrderIds(new Set(recommendedInventoryIds));
+    setOrderSelectionMessage(
+      recommendedInventoryIds.length > 0
+        ? `${recommendedInventoryIds.length}개 발주 추천 품목을 선택했습니다.`
+        : "발주가 필요한 추천 품목이 없습니다.",
+    );
   };
 
   const recordOrders = (items: Array<{ item: InventoryItem; quantity: number }>) => {
@@ -182,6 +216,7 @@ export function InventoryPage() {
     }
     setRecommendationLoading(true);
     setRecommendationError("");
+    setOrderSelectionMessage("");
     generateAutomaticOrderRecommendation(selectedLocation.latitude, selectedLocation.longitude)
       .then((result) => {
         setAutomaticResult(result);
@@ -519,16 +554,34 @@ export function InventoryPage() {
             {f}
           </button>
         ))}</div>
-        <button
-          type="button"
-          onClick={openBulkOrder}
-          disabled={selectedInventoryItems.length === 0}
-          className="h-9 px-4 inline-flex items-center gap-2 rounded-xl bg-[#246BFD] text-white text-xs font-bold disabled:opacity-40"
-        >
-          <ShoppingCart className="w-4 h-4" />
-          선택 품목 일괄 발주 ({selectedInventoryItems.length})
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={selectRecommendedOrderItems}
+            className="h-9 px-4 rounded-xl border border-[#246BFD] bg-card text-[#246BFD] text-xs font-bold hover:bg-blue-50"
+          >
+            발주 추천 품목 선택
+          </button>
+          <button
+            type="button"
+            onClick={openBulkOrder}
+            disabled={selectedInventoryItems.length === 0}
+            className="h-9 px-4 inline-flex items-center gap-2 rounded-xl bg-[#246BFD] text-white text-xs font-bold disabled:opacity-40"
+          >
+            <ShoppingCart className="w-4 h-4" />
+            선택 품목 일괄 발주 ({selectedInventoryItems.length})
+          </button>
+        </div>
       </div>
+      {orderSelectionMessage && (
+        <div className={`mb-3 rounded-xl border px-3 py-2 text-xs ${
+          !automaticResult
+            ? "border-amber-200 bg-amber-50 text-amber-700"
+            : "border-blue-200 bg-blue-50 text-blue-700"
+        }`}>
+          {orderSelectionMessage}
+        </div>
+      )}
 
       {/* Table */}
       <DataTable
@@ -769,10 +822,12 @@ export function InventoryPage() {
                 ))}
               </div>
 
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
-                <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />
-                AI 추천: {drawerItem.reorderQty}{drawerItem.unit} 발주 권장 (안전재고 기준 + 날씨 보정)
-              </div>
+              {drawerRecommendation && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
+                  <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />
+                  AI 추천: {drawerRecommendation.recommendedOrderQuantity}{drawerItem.unit} 발주 권장 (재고·매출·날씨 분석)
+                </div>
+              )}
 
               <div>
                 <label className="text-xs font-semibold mb-1.5 block">발주 수량</label>
@@ -780,7 +835,9 @@ export function InventoryPage() {
                   <input
                     type="number"
                     value={orderQty}
-                    onChange={(e) => setOrderQty(Number(e.target.value))}
+                    min={1}
+                    placeholder={automaticResult ? "추천 수량 없음" : "날씨 기반 추천 실행 후 자동 입력"}
+                    onChange={(e) => setOrderQty(e.target.value === "" ? "" : Number(e.target.value))}
                     className="flex-1 h-10 px-3 text-sm bg-muted rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-[#246BFD]/40"
                   />
                   <span className="text-sm text-muted-foreground">{drawerItem.unit}</span>
@@ -790,7 +847,7 @@ export function InventoryPage() {
               {drawerItem.supplierPrice != null && drawerItem.supplierPrice > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">예상 발주 금액</span>
-                  <span className="font-bold tabular-nums">₩{(drawerItem.supplierPrice * orderQty).toLocaleString()}</span>
+                  <span className="font-bold tabular-nums">₩{(drawerItem.supplierPrice * (orderQty || 0)).toLocaleString()}</span>
                 </div>
               )}
             </div>
@@ -800,12 +857,12 @@ export function InventoryPage() {
                 <>
                   <button
                     onClick={() => {
-                      if (drawerItem && orderQty > 0) {
+                      if (drawerItem && orderQty !== "" && orderQty > 0) {
                         recordOrders([{ item: drawerItem, quantity: orderQty }]);
                         setOrderConfirmed(true);
                       }
                     }}
-                    disabled={orderQty <= 0}
+                    disabled={orderQty === "" || orderQty <= 0}
                     className="flex-1 h-11 bg-[#246BFD] text-white text-sm font-bold rounded-xl hover:bg-[#1D4ED8] transition-colors disabled:opacity-40"
                   >
                     발주안 확정
