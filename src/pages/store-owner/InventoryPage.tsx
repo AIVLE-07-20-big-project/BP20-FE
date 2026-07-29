@@ -41,6 +41,16 @@ const STATUS_SORT_ORDER: Record<InventoryItem["status"], number> = {
 
 type InventorySortKey = "name" | "status";
 
+interface CompletedOrder {
+  id: string;
+  inventoryId: string;
+  itemName: string;
+  quantity: number;
+  unit: string;
+  supplier: string;
+  orderedAt: string;
+}
+
 export function InventoryPage() {
   const [filterStatus, setFilterStatus] = useState<string>("전체");
   const [inventorySortKey, setInventorySortKey] = useState<InventorySortKey>("name");
@@ -67,8 +77,11 @@ export function InventoryPage() {
   const [recommendationSortDirection, setRecommendationSortDirection] = useState<"ASC" | "DESC">("ASC");
   const [orderRequiredOnly, setOrderRequiredOnly] = useState(false);
   const [bulkOrderOpen, setBulkOrderOpen] = useState(false);
-  const [bulkOrderConfirmed, setBulkOrderConfirmed] = useState(false);
   const [recommendationsExpanded, setRecommendationsExpanded] = useState(true);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+  const [bulkOrderQuantities, setBulkOrderQuantities] = useState<Record<string, number>>({});
+  const [completedOrders, setCompletedOrders] = useState<CompletedOrder[]>([]);
+  const [completedOrderDetail, setCompletedOrderDetail] = useState<CompletedOrder | null>(null);
 
   const filters = ["전체", "부족", "품절", "임박", "과잉"];
 
@@ -103,14 +116,54 @@ export function InventoryPage() {
     });
   }, [automaticResult, orderRequiredOnly, recommendationSortDirection]);
 
-  const requiredRecommendations = automaticResult?.recommendations.filter(
-    (recommendation) => recommendation.orderRequired,
-  ) ?? [];
+  const selectedInventoryItems = inventoryItems.filter((item) => selectedOrderIds.has(item.id));
+  const latestCompletedOrderByInventoryId = useMemo(() => {
+    const result = new Map<string, CompletedOrder>();
+    completedOrders.forEach((order) => {
+      if (!result.has(order.inventoryId)) result.set(order.inventoryId, order);
+    });
+    return result;
+  }, [completedOrders]);
 
   const openDrawer = (item: InventoryItem) => {
     setDrawerItem(item);
     setOrderQty(item.reorderQty || 0);
-    setOrderConfirmed(false);
+    setOrderConfirmed(latestCompletedOrderByInventoryId.has(item.id));
+  };
+
+  const toggleOrderSelection = (item: InventoryItem) => {
+    setSelectedOrderIds((current) => {
+      const next = new Set(current);
+      if (next.has(item.id)) next.delete(item.id);
+      else next.add(item.id);
+      return next;
+    });
+  };
+
+  const openBulkOrder = () => {
+    const quantities = Object.fromEntries(selectedInventoryItems.map((item) => [
+      item.id,
+      Math.max(1, item.reorderQty || 1),
+    ]));
+    setBulkOrderQuantities(quantities);
+    setBulkOrderOpen(true);
+  };
+
+  const recordOrders = (items: Array<{ item: InventoryItem; quantity: number }>) => {
+    const orderedAt = new Date().toISOString();
+    const orders = items
+      .filter(({ quantity }) => quantity > 0)
+      .map(({ item, quantity }, index) => ({
+        id: `${orderedAt}-${item.id}-${index}`,
+        inventoryId: item.id,
+        itemName: item.name,
+        quantity,
+        unit: item.unit,
+        supplier: item.supplier,
+        orderedAt,
+      }));
+    setCompletedOrders((current) => [...orders, ...current]);
+    return orders;
   };
 
   const toggleInventorySort = (key: InventorySortKey) => {
@@ -132,7 +185,6 @@ export function InventoryPage() {
     generateAutomaticOrderRecommendation(selectedLocation.latitude, selectedLocation.longitude)
       .then((result) => {
         setAutomaticResult(result);
-        setBulkOrderConfirmed(false);
         setRecommendationsExpanded(true);
       })
       .catch((error) => setRecommendationError(error instanceof Error ? error.message : "발주 추천을 불러오지 못했습니다."))
@@ -342,15 +394,6 @@ export function InventoryPage() {
                 {recommendationsExpanded && <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setBulkOrderOpen(true)}
-                    disabled={requiredRecommendations.length === 0 || bulkOrderConfirmed}
-                    className="h-8 px-3 inline-flex items-center gap-1.5 rounded-lg bg-[#246BFD] text-white text-xs font-semibold disabled:opacity-50"
-                  >
-                    {bulkOrderConfirmed ? <Check className="w-3.5 h-3.5" /> : <ShoppingCart className="w-3.5 h-3.5" />}
-                    {bulkOrderConfirmed ? "일괄 발주 확정" : "AI 추천 일괄 발주"}
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setOrderRequiredOnly((current) => !current)}
                     aria-pressed={orderRequiredOnly}
                     className={`h-8 px-3 rounded-lg border text-xs font-semibold transition-colors ${
@@ -464,8 +507,8 @@ export function InventoryPage() {
           업로드된 재고 CSV가 없습니다. 재고 CSV를 먼저 업로드해 주세요.
         </div>
       )}
-      <div className="flex gap-1 mb-4 flex-wrap">
-        {filters.map((f) => (
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex gap-1 flex-wrap">{filters.map((f) => (
           <button
             key={f}
             onClick={() => setFilterStatus(f)}
@@ -475,12 +518,47 @@ export function InventoryPage() {
           >
             {f}
           </button>
-        ))}
+        ))}</div>
+        <button
+          type="button"
+          onClick={openBulkOrder}
+          disabled={selectedInventoryItems.length === 0}
+          className="h-9 px-4 inline-flex items-center gap-2 rounded-xl bg-[#246BFD] text-white text-xs font-bold disabled:opacity-40"
+        >
+          <ShoppingCart className="w-4 h-4" />
+          선택 품목 일괄 발주 ({selectedInventoryItems.length})
+        </button>
       </div>
 
       {/* Table */}
       <DataTable
         columns={[
+          { key: "selection", label: (
+            <input
+              type="checkbox"
+              aria-label="현재 표시된 품목 전체 선택"
+              checked={filtered.length > 0 && filtered.every((item) => selectedOrderIds.has(item.id))}
+              onChange={(event) => {
+                const checked = event.target.checked;
+                setSelectedOrderIds((current) => {
+                  const next = new Set(current);
+                  filtered.forEach((item) => checked ? next.add(item.id) : next.delete(item.id));
+                  return next;
+                });
+              }}
+              onClick={(event) => event.stopPropagation()}
+              className="h-4 w-4 accent-[#246BFD]"
+            />
+          ), render: (row) => (
+            <input
+              type="checkbox"
+              aria-label={`${row.name} 발주 선택`}
+              checked={selectedOrderIds.has(row.id)}
+              onChange={() => toggleOrderSelection(row)}
+              onClick={(event) => event.stopPropagation()}
+              className="h-4 w-4 accent-[#246BFD]"
+            />
+          )},
           { key: "name", label: (
             <button
               type="button"
@@ -521,28 +599,58 @@ export function InventoryPage() {
             const s = STATUS_BADGE[row.status];
             return <Badge variant={s.variant}>{s.label}</Badge>;
           }},
-          { key: "action", label: "", render: (row) => (
-            <button
-              onClick={(e) => { e.stopPropagation(); openDrawer(row); }}
-              className="text-xs text-[#246BFD] font-semibold hover:underline whitespace-nowrap"
-            >
-              발주 추천
-            </button>
-          )},
+          { key: "action", label: "", render: (row) => {
+            const completedOrder = latestCompletedOrderByInventoryId.get(row.id);
+            return completedOrder ? (
+              <button
+                onClick={(event) => { event.stopPropagation(); setCompletedOrderDetail(completedOrder); }}
+                className="text-xs text-emerald-600 font-semibold hover:underline whitespace-nowrap"
+              >
+                발주 완료
+              </button>
+            ) : null;
+          }},
         ]}
         data={filtered}
         keyField="id"
         onRowClick={(row) => openDrawer(row)}
       />
 
+      <section className="mt-5 mb-5">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-base font-bold">발주 완료 품목</h2>
+          <span className="text-xs text-muted-foreground">총 {completedOrders.length}건</span>
+        </div>
+        <DataTable
+          columns={[
+            { key: "itemName", label: "품목명", render: (row) => <span className="font-semibold">{row.itemName}</span> },
+            { key: "quantity", label: "발주 수량", align: "right", render: (row) => <span className="font-semibold tabular-nums">{row.quantity} {row.unit}</span> },
+            { key: "supplier", label: "공급사", render: (row) => <span className="text-muted-foreground">{row.supplier}</span> },
+            { key: "orderedAt", label: "발주 일시", render: (row) => <span className="text-muted-foreground">{new Date(row.orderedAt).toLocaleString("ko-KR")}</span> },
+            { key: "detail", label: "", render: (row) => (
+              <button
+                type="button"
+                onClick={(event) => { event.stopPropagation(); setCompletedOrderDetail(row); }}
+                className="text-xs font-semibold text-[#246BFD] hover:underline"
+              >
+                상세 보기
+              </button>
+            )},
+          ]}
+          data={completedOrders}
+          keyField="id"
+          emptyMessage="아직 발주 완료된 품목이 없습니다."
+        />
+      </section>
+
       {bulkOrderOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-xl">
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
-                <h3 className="font-bold">AI 추천 일괄 발주</h3>
+                <h3 className="font-bold">선택 품목 일괄 발주</h3>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  발주가 필요한 {requiredRecommendations.length}개 품목을 추천 수량대로 확정합니다.
+                  선택한 {selectedInventoryItems.length}개 품목의 발주 수량을 확인해 주세요.
                 </p>
               </div>
               <button
@@ -555,15 +663,25 @@ export function InventoryPage() {
               </button>
             </div>
             <div className="max-h-80 space-y-2 overflow-y-auto p-5">
-              {requiredRecommendations.map((recommendation) => (
+              {selectedInventoryItems.map((item) => (
                 <div
-                  key={recommendation.ingredientName}
+                  key={item.id}
                   className="flex items-center justify-between rounded-xl bg-muted px-3 py-2.5"
                 >
-                  <span className="text-sm font-semibold">{recommendation.ingredientName}</span>
-                  <span className="text-sm font-bold text-[#246BFD]">
-                    {recommendation.recommendedOrderQuantity}개
-                  </span>
+                  <span className="text-sm font-semibold">{item.name}</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      value={bulkOrderQuantities[item.id] ?? 1}
+                      onChange={(event) => setBulkOrderQuantities((current) => ({
+                        ...current,
+                        [item.id]: Math.max(1, Number(event.target.value)),
+                      }))}
+                      className="h-9 w-24 rounded-lg border border-border bg-card px-2 text-right text-sm"
+                    />
+                    <span className="w-8 text-xs text-muted-foreground">{item.unit}</span>
+                  </div>
                   </div>
                 ))}
               </div>
@@ -571,12 +689,16 @@ export function InventoryPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setBulkOrderConfirmed(true);
+                  recordOrders(selectedInventoryItems.map((item) => ({
+                    item,
+                    quantity: bulkOrderQuantities[item.id] ?? 1,
+                  })));
+                  setSelectedOrderIds(new Set());
                   setBulkOrderOpen(false);
                 }}
                 className="h-11 flex-1 rounded-xl bg-[#246BFD] text-sm font-bold text-white hover:bg-[#1D4ED8]"
               >
-                {requiredRecommendations.length}개 품목 일괄 발주 확정
+                {selectedInventoryItems.length}개 품목 발주 확정
               </button>
               <button
                 type="button"
@@ -590,13 +712,40 @@ export function InventoryPage() {
         </div>
       )}
 
+      {completedOrderDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card shadow-xl">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <h3 className="font-bold">발주 완료 상세</h3>
+              <button
+                type="button"
+                onClick={() => setCompletedOrderDetail(null)}
+                className="rounded-lg p-1 text-muted-foreground hover:bg-muted"
+                aria-label="발주 상세 닫기"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-3 p-5 text-sm">
+              <div className="flex justify-between gap-4"><span className="text-muted-foreground">품목명</span><strong>{completedOrderDetail.itemName}</strong></div>
+              <div className="flex justify-between gap-4"><span className="text-muted-foreground">발주 수량</span><strong className="text-[#246BFD]">{completedOrderDetail.quantity} {completedOrderDetail.unit}</strong></div>
+              <div className="flex justify-between gap-4"><span className="text-muted-foreground">공급사</span><strong>{completedOrderDetail.supplier}</strong></div>
+              <div className="flex justify-between gap-4"><span className="text-muted-foreground">발주 일시</span><strong>{new Date(completedOrderDetail.orderedAt).toLocaleString("ko-KR")}</strong></div>
+            </div>
+            <div className="border-t border-border p-4">
+              <button type="button" onClick={() => setCompletedOrderDetail(null)} className="h-10 w-full rounded-xl bg-muted text-sm font-semibold">확인</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Order drawer */}
       {drawerItem && (
         <div className="fixed inset-0 z-50 flex">
           <div className="flex-1 bg-black/40" onClick={() => setDrawerItem(null)} />
           <div className="w-full max-w-md bg-card border-l border-border h-full flex flex-col shadow-xl">
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <h3 className="font-bold">발주 추천</h3>
+              <h3 className="font-bold">발주 등록</h3>
               <button onClick={() => setDrawerItem(null)} className="p-1 rounded-lg hover:bg-muted text-muted-foreground">
                 <X className="w-4 h-4" />
               </button>
@@ -650,8 +799,14 @@ export function InventoryPage() {
               {!orderConfirmed ? (
                 <>
                   <button
-                    onClick={() => setOrderConfirmed(true)}
-                    className="flex-1 h-11 bg-[#246BFD] text-white text-sm font-bold rounded-xl hover:bg-[#1D4ED8] transition-colors"
+                    onClick={() => {
+                      if (drawerItem && orderQty > 0) {
+                        recordOrders([{ item: drawerItem, quantity: orderQty }]);
+                        setOrderConfirmed(true);
+                      }
+                    }}
+                    disabled={orderQty <= 0}
+                    className="flex-1 h-11 bg-[#246BFD] text-white text-sm font-bold rounded-xl hover:bg-[#1D4ED8] transition-colors disabled:opacity-40"
                   >
                     발주안 확정
                   </button>
