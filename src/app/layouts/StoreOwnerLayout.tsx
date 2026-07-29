@@ -3,7 +3,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, TrendingUp, Zap, BookOpen, Package,
   Star, Users, FileText, ShoppingBag,
-  HelpCircle, User, Bell, Search, ChevronLeft, ChevronRight,
+  HelpCircle, User, Bell, Megaphone, Search, ChevronLeft, ChevronRight,
   Store, Menu, LogOut, DollarSign
 } from "lucide-react";
 import { clsx } from "clsx";
@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { to: "/store/customers", icon: Users, label: "고객·쿠폰" },
   { to: "/store/reports", icon: FileText, label: "경영 리포트" },
   { to: "/store/commerce", icon: ShoppingBag, label: "온라인 커머스" },
+  { to: "/store/notices", icon: Megaphone, label: "공지사항" },
 ];
 
 export function StoreOwnerLayout() {
@@ -99,7 +100,7 @@ export function StoreOwnerLayout() {
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen overflow-hidden bg-background print:block print:h-auto print:overflow-visible">
       {/* Mobile overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 z-40 flex lg:hidden">
@@ -111,7 +112,7 @@ export function StoreOwnerLayout() {
       )}
 
       {/* Desktop sidebar */}
-      <div className="hidden lg:flex flex-shrink-0 relative" style={{ width: collapsed ? 64 : 248 }}>
+      <div className="hidden lg:flex flex-shrink-0 relative print:!hidden" style={{ width: collapsed ? 64 : 248 }}>
         <Sidebar />
         <button
           onClick={() => setCollapsed(!collapsed)}
@@ -122,9 +123,9 @@ export function StoreOwnerLayout() {
       </div>
 
       {/* Main */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 print:block print:w-full">
         {/* Top bar */}
-        <header className="h-14 flex items-center gap-3 px-4 lg:px-6 border-b border-border bg-card flex-shrink-0">
+        <header className="h-14 flex items-center gap-3 px-4 lg:px-6 border-b border-border bg-card flex-shrink-0 print:hidden">
           <button className="lg:hidden p-1.5 rounded-lg text-muted-foreground hover:bg-muted" onClick={() => setMobileOpen(true)}>
             <Menu className="w-5 h-5" />
           </button>
@@ -154,7 +155,7 @@ export function StoreOwnerLayout() {
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 overflow-hidden print:overflow-visible print:h-auto">
           <Outlet />
         </main>
       </div>

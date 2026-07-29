@@ -1,25 +1,31 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowUpDown, Archive, ChevronRight, Sparkles, CheckCircle2,
   Play, Eye, Pause, Search, Filter, X, AlertCircle, Clock,
   TrendingUp, Package, Star, Users, DollarSign, BarChart3,
-  Calendar, Info
+  Calendar, Info, Loader2
 } from "lucide-react";
 import { PageShell } from "../../shared/components/PageShell";
 import { AI_RECOMMENDATIONS } from "../../mocks";
 import type { AIRecommendation } from "../../entities/recommendation/recommendation.types";
+import type { AiRecommendationDecision, AiRecommendationRun, AiStrategyAction } from "../../entities/ai-analysis/ai-analysis.types";
+import { createRecommendation, getRecommendations, resumeRecommendation } from "../../features/ai-analysis/api/aiAnalysisApi";
+
+const AI_ACCESS_TOKEN_KEY = "bp20:ai-access-token";
+const AI_ANALYSIS_ID_KEY = "bp20:ai-analysis-id";
 
 const CATEGORIES = ["전체", "매출", "재고", "리뷰", "고객", "원가"];
 const SORT_OPTIONS = ["우선순위순", "예상 효과순", "마감 임박순", "최신순"];
+const RECOMMENDATION_PROGRESS_STEPS = ["요청 접수", "AI 전략 분석", "추천 결과 생성"];
 
 type ExecStatus = "실행 완료" | "실행 중" | "효과 확인" | "보류";
 
-const EXEC_SUMMARY: { key: ExecStatus; label: string; count: number; change: string; icon: typeof CheckCircle2; bg: string; iconColor: string; textColor: string; desc: string }[] = [
-  { key: "실행 완료", label: "실행 완료", count: 12, change: "+3 (30일)", icon: CheckCircle2, bg: "bg-[#0E9F6E]/8 border-[#0E9F6E]/20", iconColor: "text-[#0E9F6E]", textColor: "text-[#0E9F6E]", desc: "결과 확정됨" },
-  { key: "실행 중", label: "실행 중", count: 3, change: "진행 중", icon: Play, bg: "bg-[#246BFD]/8 border-[#246BFD]/20", iconColor: "text-[#246BFD]", textColor: "text-[#246BFD]", desc: "현재 진행" },
-  { key: "효과 확인", label: "효과 확인", count: 2, change: "데이터 수집 중", icon: Eye, bg: "bg-[#8B5CF6]/8 border-[#8B5CF6]/20", iconColor: "text-[#8B5CF6]", textColor: "text-[#8B5CF6]", desc: "성과 측정 중" },
-  { key: "보류", label: "보류", count: 4, change: "대기 중", icon: Pause, bg: "bg-muted border-border", iconColor: "text-muted-foreground", textColor: "text-muted-foreground", desc: "점주 보류" },
+const EXEC_SUMMARY: { key: ExecStatus; label: string; icon: typeof CheckCircle2; bg: string; iconColor: string; textColor: string; desc: string }[] = [
+  { key: "실행 완료", label: "실행 완료", icon: CheckCircle2, bg: "bg-[#0E9F6E]/8 border-[#0E9F6E]/20", iconColor: "text-[#0E9F6E]", textColor: "text-[#0E9F6E]", desc: "결과 확정됨" },
+  { key: "실행 중", label: "실행 중", icon: Play, bg: "bg-[#246BFD]/8 border-[#246BFD]/20", iconColor: "text-[#246BFD]", textColor: "text-[#246BFD]", desc: "현재 진행" },
+  { key: "효과 확인", label: "효과 확인", icon: Eye, bg: "bg-[#8B5CF6]/8 border-[#8B5CF6]/20", iconColor: "text-[#8B5CF6]", textColor: "text-[#8B5CF6]", desc: "성과 측정 중" },
+  { key: "보류", label: "보류", icon: Pause, bg: "bg-muted border-border", iconColor: "text-muted-foreground", textColor: "text-muted-foreground", desc: "점주 보류" },
 ];
 
 const NEW_RECS = [
@@ -321,13 +327,95 @@ export function AiStrategyPage() {
   const navigate = useNavigate();
   const [filterStatus, setFilterStatus] = useState<ExecStatus | null>(null);
   const [category, setCategory] = useState("전체");
+  const [storeFilter, setStoreFilter] = useState("전체");
   const [sort, setSort] = useState("우선순위순");
   const [search, setSearch] = useState("");
   const [drawerRec, setDrawerRec] = useState<typeof NEW_RECS[0] | null>(null);
+  const [viewMode, setViewMode] = useState<"current" | "history">("current");
+  const [accessToken, setAccessToken] = useState(() => sessionStorage.getItem(AI_ACCESS_TOKEN_KEY) ?? "");
+  const [analysisId, setAnalysisId] = useState(() => sessionStorage.getItem(AI_ANALYSIS_ID_KEY) ?? "");
+  const [recommendationRun, setRecommendationRun] = useState<AiRecommendationRun | null>(null);
+  const [recommendationRuns, setRecommendationRuns] = useState<AiRecommendationRun[]>([]);
+  const [recommendationLoading, setRecommendationLoading] = useState(false);
+  const [recommendationStage, setRecommendationStage] = useState(0);
+  const [recommendationError, setRecommendationError] = useState("");
 
-  const filteredExisting = AI_RECOMMENDATIONS.filter(r => {
-    if (category !== "전체" && r.category !== category) return false;
-    if (search && !r.title.includes(search)) return false;
+  useEffect(() => {
+    const token = sessionStorage.getItem(AI_ACCESS_TOKEN_KEY);
+    if (!token) return;
+    getRecommendations(token)
+      .then(setRecommendationRuns)
+      .catch((error) => setRecommendationError(
+        error instanceof Error ? error.message : "추천 이력을 불러오지 못했습니다.",
+      ));
+  }, []);
+
+  const requestRecommendation = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!accessToken.trim() || !analysisId.trim()) {
+      setRecommendationError("JWT와 매출 분석 ID를 입력해 주세요.");
+      return;
+    }
+    sessionStorage.setItem(AI_ACCESS_TOKEN_KEY, accessToken.trim());
+    sessionStorage.setItem(AI_ANALYSIS_ID_KEY, analysisId.trim());
+    setRecommendationLoading(true);
+    setRecommendationStage(1);
+    setRecommendationError("");
+    try {
+      const result = await createRecommendation(analysisId.trim(), accessToken.trim());
+      setRecommendationRun(result);
+      setRecommendationRuns((current) => [result, ...current.filter((item) => item.thread_id !== result.thread_id)]);
+      setViewMode("current");
+    } catch (error) {
+      setRecommendationError(error instanceof Error ? error.message : "전략 추천 요청에 실패했습니다.");
+    } finally {
+      setRecommendationLoading(false);
+      setRecommendationStage(0);
+    }
+  };
+
+  const decideRecommendation = async (decision: AiRecommendationDecision) => {
+    if (!recommendationRun) return;
+    setRecommendationLoading(true);
+    setRecommendationStage(1);
+    setRecommendationError("");
+    try {
+      const result = await resumeRecommendation(
+        recommendationRun.thread_id,
+        decision,
+        accessToken.trim(),
+      );
+      setRecommendationRun(result);
+      setRecommendationRuns((current) => current.map((item) => (
+        item.thread_id === result.thread_id ? result : item
+      )));
+    } catch (error) {
+      setRecommendationError(error instanceof Error ? error.message : "추천 처리에 실패했습니다.");
+    } finally {
+      setRecommendationLoading(false);
+      setRecommendationStage(0);
+    }
+  };
+
+  const stores = Array.from(new Set(recommendationRuns.map((run) => run.store_id ?? "미지정")));
+
+  const filteredRuns = recommendationRuns.filter((run) => {
+    if (category !== "전체" && category !== "매출") return false;
+    if (storeFilter !== "전체" && (run.store_id ?? "미지정") !== storeFilter) return false;
+    const title = run.selected_action?.방안 ?? "추천 가능한 전략 없음";
+    if (search && !title.includes(search)) return false;
+    if (filterStatus) {
+      const status: ExecStatus | null = run.final_report
+        ? "실행 완료"
+        : run.상태.includes("효과")
+          ? "효과 확인"
+          : run.상태.includes("반려") || run.상태.includes("종료")
+            ? "보류"
+            : run.대기중_승인
+              ? null
+              : "실행 중";
+      if (status !== filterStatus) return false;
+    }
     return true;
   });
 
@@ -339,7 +427,19 @@ export function AiStrategyPage() {
         return true;
       });
 
-  const resultCount = filteredNew.length + filteredExisting.length;
+  const resultCount = filteredRuns.length;
+  const isRejected = (run: AiRecommendationRun) => run.상태.includes("반려") || run.상태.includes("종료");
+  const isCompleted = (run: AiRecommendationRun) => Boolean(run.final_report);
+  const isMeasuring = (run: AiRecommendationRun) => run.상태.includes("효과");
+  const isRunning = (run: AiRecommendationRun) => Boolean(
+    !run.대기중_승인 && !isCompleted(run) && !isRejected(run) && !isMeasuring(run),
+  );
+  const executionCounts: Record<ExecStatus, number> = {
+    "실행 완료": recommendationRuns.filter(isCompleted).length,
+    "실행 중": recommendationRuns.filter(isRunning).length + (recommendationLoading ? 1 : 0),
+    "효과 확인": recommendationRuns.filter(isMeasuring).length,
+    "보류": recommendationRuns.filter(isRejected).length,
+  };
 
   return (
     <PageShell
@@ -347,12 +447,119 @@ export function AiStrategyPage() {
       subtitle="매출, 재고, 원가, 리뷰 데이터를 분석한 전략을 검토하고 실행 효과를 관리합니다."
       freshness="오늘 09:42 기준"
       actions={
-        <button className="text-xs text-muted-foreground font-semibold flex items-center gap-1 hover:text-foreground transition-colors">
-          <Archive className="w-3.5 h-3.5" /> 추천 이력
+        <button
+          onClick={() => setViewMode((mode) => (mode === "history" ? "current" : "history"))}
+          className="text-xs text-muted-foreground font-semibold flex items-center gap-1 hover:text-foreground transition-colors"
+        >
+          <Archive className="w-3.5 h-3.5" /> {viewMode === "history" ? "현재 결과 보기" : "추천 이력"}
         </button>
       }
     >
-      {/* AI 추천 현황 summary */}
+      <form onSubmit={requestRecommendation} className="bg-card border border-border rounded-2xl p-5 mb-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
+          <h3 className="font-bold">매출 분석 기반 전략 생성</h3>
+        </div>
+        <input
+          type="password"
+          value={accessToken}
+          onChange={(event) => setAccessToken(event.target.value)}
+          placeholder="임시 JWT accessToken"
+          className="w-full h-10 px-3 mb-3 text-sm bg-muted rounded-xl border border-border"
+        />
+        <div className="flex flex-col md:flex-row gap-3">
+          <input
+            value={analysisId}
+            onChange={(event) => setAnalysisId(event.target.value)}
+            placeholder="매출 분석 ID"
+            className="flex-1 h-10 px-3 text-sm bg-muted rounded-xl border border-border"
+          />
+          <button disabled={recommendationLoading} className="h-10 px-4 bg-[#246BFD] text-white text-sm font-bold rounded-xl disabled:opacity-60">
+            {recommendationLoading ? "AI 처리 중..." : "전략 추천 생성"}
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">매출 분석 화면에서 완료한 최신 분석 ID가 자동으로 입력됩니다.</p>
+        {recommendationLoading && (
+          <div className="mt-4 bg-muted/60 border border-border rounded-xl p-3">
+            <div className="flex items-center gap-2 mb-2.5">
+              <Loader2 className="w-4 h-4 text-[#246BFD] animate-spin flex-shrink-0" />
+              <span className="text-xs font-semibold text-foreground">
+                {RECOMMENDATION_PROGRESS_STEPS[recommendationStage]} 중...
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              {RECOMMENDATION_PROGRESS_STEPS.map((step, index) => (
+                <div
+                  key={step}
+                  className={`h-1.5 flex-1 rounded-full transition-colors ${
+                    index <= recommendationStage ? "bg-[#246BFD]" : "bg-border"
+                  }`}
+                />
+              ))}
+            </div>
+            <div className="flex justify-between mt-1.5">
+              {RECOMMENDATION_PROGRESS_STEPS.map((step, index) => (
+                <span
+                  key={step}
+                  className={`text-[10px] ${
+                    index <= recommendationStage ? "text-[#246BFD] font-semibold" : "text-muted-foreground"
+                  }`}
+                >
+                  {step}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {recommendationError && <p className="mt-3 text-xs text-red-600">{recommendationError}</p>}
+      </form>
+
+      {recommendationRun && (
+        <div className="bg-card border border-[#246BFD]/30 rounded-2xl p-5 mb-5">
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div>
+              <div className="text-xs font-semibold text-[#246BFD] mb-1">실제 AI 추천 결과</div>
+              <h3 className="text-xl font-black">{recommendationRun.selected_action?.방안 ?? "추천 가능한 전략 없음"}</h3>
+              {recommendationRun.문제유형 && (
+                <p className="text-xs text-muted-foreground mt-0.5">진단 유형: {recommendationRun.문제유형}</p>
+              )}
+            </div>
+            <div className="flex flex-col items-end gap-1 flex-shrink-0">
+              <span className="text-xs text-muted-foreground">매장: {recommendationRun.store_id ?? "미지정"}</span>
+              <span className="text-xs px-2 py-1 rounded-lg bg-[#246BFD]/10 text-[#246BFD] font-semibold whitespace-nowrap">{recommendationRun.상태}</span>
+            </div>
+          </div>
+
+          <CandidateChips
+            actions={recommendationRun.candidate_actions ?? []}
+            selected={recommendationRun.selected_action?.방안}
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+            <EffectSummaryCard scm={recommendationRun.scm_result} />
+            <PolicyCheckCard ope={recommendationRun.ope_result} />
+          </div>
+
+          <EvidenceSection rag={recommendationRun.rag_evidence} />
+
+          {recommendationRun.warnings && recommendationRun.warnings.length > 0 && (
+            <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3">{recommendationRun.warnings.join(" · ")}</div>
+          )}
+
+          {recommendationRun.대기중_승인 && (
+            <div className="flex gap-2 mt-4">
+              <button type="button" disabled={recommendationLoading} onClick={() => decideRecommendation("approve")} className="px-4 py-2 bg-[#0E9F6E] text-white text-xs font-bold rounded-xl disabled:opacity-60">추천 승인 및 리포트 생성</button>
+              <button type="button" disabled={recommendationLoading} onClick={() => decideRecommendation("reject")} className="px-4 py-2 border border-border text-xs font-bold rounded-xl disabled:opacity-60">추천 반려</button>
+            </div>
+          )}
+
+          <FinalReportSection report={recommendationRun.final_report} />
+
+          <div className="text-[10px] text-muted-foreground mt-3 break-all">실행 ID: {recommendationRun.thread_id}</div>
+        </div>
+      )}
+
+      {/* AI 추천 현황 summary — 이력 토글과 무관하게 항상 표시 */}
       <div className="bg-card border border-border rounded-2xl p-5 mb-5">
         <div className="flex items-center gap-2 mb-4">
           <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
@@ -372,108 +579,125 @@ export function AiStrategyPage() {
                   <Icon className={`w-4 h-4 ${s.iconColor}`} />
                   {isActive && <span className="text-[10px] font-bold text-[#246BFD] bg-[#246BFD]/10 px-1.5 py-0.5 rounded">필터 중</span>}
                 </div>
-                <div className={`text-2xl font-black tabular-nums ${s.textColor}`}>{s.count}</div>
+                <div className={`text-2xl font-black tabular-nums ${s.textColor}`}>{executionCounts[s.key]}</div>
                 <div className="text-xs font-bold mt-0.5">{s.label}</div>
                 <div className="text-[11px] text-muted-foreground">{s.desc}</div>
-                <div className="text-[11px] text-muted-foreground mt-1">{s.change}</div>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* 오늘 우선 검토할 전략 */}
-      {!filterStatus && filteredNew.length > 0 && (
-        <div className="mb-5">
-          <div className="flex items-center gap-2 mb-3">
-            <h3 className="font-bold">오늘 우선 검토할 전략</h3>
-            <span className="text-xs font-bold text-[#246BFD] bg-[#246BFD]/10 border border-[#246BFD]/20 px-2 py-0.5 rounded-full">
-              새 추천 {filteredNew.length}건
-            </span>
+      {viewMode === "history" && (
+        <>
+          {/* Controls */}
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <div className="relative flex-1 min-w-44">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="추천 제목 검색"
+                className="w-full h-8 pl-8 pr-3 text-xs bg-card border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#246BFD]/30"
+              />
+            </div>
+            <div className="flex gap-1 flex-wrap">
+              {CATEGORIES.map(c => (
+                <button
+                  key={c}
+                  onClick={() => setCategory(c)}
+                  className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-colors ${
+                    category === c
+                      ? "bg-[#246BFD]/10 text-[#246BFD] border border-[#246BFD]/20"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+            {stores.length > 0 && (
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="text-[10px] text-muted-foreground">매장</span>
+                {["전체", ...stores].map(s => (
+                  <button
+                    key={s}
+                    onClick={() => setStoreFilter(s)}
+                    className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-colors ${
+                      storeFilter === s
+                        ? "bg-[#8B5CF6]/10 text-[#8B5CF6] border border-[#8B5CF6]/20"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-1 ml-auto">
+              <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+              <select
+                value={sort}
+                onChange={e => setSort(e.target.value)}
+                className="text-xs bg-transparent text-muted-foreground focus:outline-none cursor-pointer"
+              >
+                {SORT_OPTIONS.map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {filteredNew.map(rec => (
-              <NewRecCard key={rec.id} rec={rec} onOpen={() => setDrawerRec(rec)} />
-            ))}
-          </div>
-        </div>
-      )}
 
-      {/* Controls */}
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <div className="relative flex-1 min-w-44">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="추천 제목 검색"
-            className="w-full h-8 pl-8 pr-3 text-xs bg-card border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#246BFD]/30"
-          />
-        </div>
-        <div className="flex gap-1 flex-wrap">
-          {CATEGORIES.map(c => (
-            <button
-              key={c}
-              onClick={() => setCategory(c)}
-              className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-colors ${
-                category === c
-                  ? "bg-[#246BFD]/10 text-[#246BFD] border border-[#246BFD]/20"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-1 ml-auto">
-          <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-          <select
-            value={sort}
-            onChange={e => setSort(e.target.value)}
-            className="text-xs bg-transparent text-muted-foreground focus:outline-none cursor-pointer"
-          >
-            {SORT_OPTIONS.map(o => <option key={o}>{o}</option>)}
-          </select>
-        </div>
-      </div>
-
-      {filterStatus && (
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs text-muted-foreground">필터:</span>
-          <span className="flex items-center gap-1 text-xs font-semibold text-[#246BFD] bg-[#246BFD]/10 border border-[#246BFD]/20 px-2 py-0.5 rounded-full">
-            {filterStatus}
-            <button onClick={() => setFilterStatus(null)}><X className="w-3 h-3" /></button>
-          </span>
-        </div>
-      )}
-
-      <div className="flex items-center gap-1.5 mb-3">
-        <span className="text-xs text-muted-foreground">결과</span>
-        <span className="text-xs font-bold text-foreground">{resultCount}건</span>
-        {search && <span className="text-xs text-muted-foreground">· "{search}" 검색 중</span>}
-      </div>
-
-      {/* Existing recs */}
-      {filteredExisting.length === 0 ? (
-        <div className="bg-card border border-border rounded-2xl p-12 text-center">
-          <Sparkles className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">해당 조건의 추천이 없습니다.</p>
-          {(filterStatus || category !== "전체" || search) && (
-            <button onClick={() => { setFilterStatus(null); setCategory("전체"); setSearch(""); }} className="mt-2 text-xs text-[#246BFD] font-semibold hover:underline">
-              필터 초기화
-            </button>
+          {filterStatus && (
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs text-muted-foreground">필터:</span>
+              <span className="flex items-center gap-1 text-xs font-semibold text-[#246BFD] bg-[#246BFD]/10 border border-[#246BFD]/20 px-2 py-0.5 rounded-full">
+                {filterStatus}
+                <button onClick={() => setFilterStatus(null)}><X className="w-3 h-3" /></button>
+              </span>
+            </div>
           )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {filteredExisting.map(rec => (
-            <ExistingRecCard
-              key={rec.id}
-              rec={rec}
-              onClick={() => navigate(`/store/actions/${rec.id}`)}
-            />
-          ))}
-        </div>
+
+          <div className="flex items-center gap-1.5 mb-3">
+            <span className="text-xs text-muted-foreground">결과</span>
+            <span className="text-xs font-bold text-foreground">{resultCount}건</span>
+            {search && <span className="text-xs text-muted-foreground">· "{search}" 검색 중</span>}
+          </div>
+
+          {/* Persisted AI recommendations */}
+          {filteredRuns.length === 0 ? (
+            <div className="bg-card border border-border rounded-2xl p-12 text-center">
+              <Sparkles className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">저장된 실제 AI 추천이 없습니다.</p>
+              {(filterStatus || category !== "전체" || storeFilter !== "전체" || search) && (
+                <button onClick={() => { setFilterStatus(null); setCategory("전체"); setStoreFilter("전체"); setSearch(""); }} className="mt-2 text-xs text-[#246BFD] font-semibold hover:underline">
+                  필터 초기화
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {filteredRuns.map((run) => (
+                <button
+                  key={run.thread_id}
+                  onClick={() => setRecommendationRun(run)}
+                  className="bg-card border border-border rounded-2xl p-4 text-left hover:border-[#246BFD]/40 hover:shadow-sm transition-all"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#246BFD]/10 text-[#246BFD]">실제 AI 추천</span>
+                      <span className="text-[10px] text-muted-foreground">매출</span>
+                      <span className="text-[10px] text-muted-foreground">· {run.store_id ?? "미지정"}</span>
+                    </div>
+                    <span className="text-[10px] font-semibold text-muted-foreground">{run.상태}</span>
+                  </div>
+                  <h4 className="font-bold text-sm mb-1">{run.selected_action?.방안 ?? "추천 가능한 전략 없음"}</h4>
+                  <p className="text-xs text-muted-foreground mb-3">진단 유형: {run.문제유형 ?? "확인 불가"}</p>
+                  <div className="text-xs text-muted-foreground">후보: {run.candidate_actions?.map((item) => item.방안).join(", ") || "없음"}</div>
+                  <div className="text-[10px] text-muted-foreground mt-2 break-all">{run.created_at ?? run.thread_id}</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {drawerRec && (
@@ -484,5 +708,147 @@ export function AiStrategyPage() {
         />
       )}
     </PageShell>
+  );
+}
+
+const VERDICT_STYLE: Record<string, string> = {
+  "양호": "text-[#0E9F6E] bg-[#0E9F6E]/10",
+  "사용가능": "text-[#0E9F6E] bg-[#0E9F6E]/10",
+  "탐색적": "text-amber-600 bg-amber-50",
+  "적합도 미달": "text-amber-600 bg-amber-50",
+  "판정불가": "text-muted-foreground bg-muted",
+};
+
+function VerdictBadge({ verdict }: { verdict?: string }) {
+  if (!verdict) return null;
+  return (
+    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${VERDICT_STYLE[verdict] ?? "text-muted-foreground bg-muted"}`}>
+      {verdict}
+    </span>
+  );
+}
+
+const formatPct = (value: unknown) => (typeof value === "number" ? `${(value * 100).toFixed(1)}%` : undefined);
+
+function CandidateChips({ actions, selected }: { actions: AiStrategyAction[]; selected?: string }) {
+  if (actions.length <= 1) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 mb-1">
+      <span className="text-xs text-muted-foreground mr-0.5">후보 방안:</span>
+      {actions.map((action) => (
+        <span
+          key={action.방안}
+          className={`text-[11px] px-2 py-0.5 rounded-full border ${
+            action.방안 === selected
+              ? "bg-[#246BFD]/10 text-[#246BFD] border-[#246BFD]/20 font-bold"
+              : "text-muted-foreground border-border"
+          }`}
+        >
+          {action.방안}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// scm_result = {베이스라인, 실측효과: {판정, 효과율_평균?, 효과율_95%CI?, 사유?}}
+function EffectSummaryCard({ scm }: { scm?: Record<string, unknown> | null }) {
+  const measured = scm?.["실측효과"] as Record<string, unknown> | undefined;
+  const verdict = measured?.["판정"] as string | undefined;
+  const avg = formatPct(measured?.["효과율_평균"]);
+  const ci = measured?.["효과율_95%CI"] as [number, number] | undefined;
+  return (
+    <div className="bg-muted rounded-xl p-3">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-xs font-bold text-muted-foreground">예상 효과</span>
+        <VerdictBadge verdict={verdict} />
+      </div>
+      {avg ? (
+        <>
+          <div className="text-lg font-black text-[#0E9F6E]">{avg}</div>
+          {ci && (
+            <div className="text-[11px] text-muted-foreground">
+              95% 신뢰구간 {formatPct(ci[0])} ~ {formatPct(ci[1])}
+            </div>
+          )}
+        </>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          {(measured?.["사유"] as string) ?? "실측 데이터가 아직 충분하지 않아 참고용 수치가 없습니다."}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ope_result = {판정, 기준정책_대비_차이?, 사유?}
+function PolicyCheckCard({ ope }: { ope?: Record<string, unknown> | null }) {
+  const verdict = ope?.["판정"] as string | undefined;
+  const diff = ope?.["기준정책_대비_차이"] as number | undefined;
+  return (
+    <div className="bg-muted rounded-xl p-3">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-xs font-bold text-muted-foreground">정책 사전 검증</span>
+        <VerdictBadge verdict={verdict} />
+      </div>
+      {typeof diff === "number" ? (
+        <div className={`text-lg font-black ${diff >= 0 ? "text-[#0E9F6E]" : "text-red-500"}`}>
+          기준 대비 {diff >= 0 ? "+" : ""}{diff.toFixed(3)}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          {(ope?.["사유"] as string) ?? "비교할 실행 로그가 아직 부족합니다."}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// rag_evidence = {direction_refs: [{text, tier_label}], allowed_numbers: [{sentence}], has_magnitude}
+function EvidenceSection({ rag }: { rag?: Record<string, unknown> | null }) {
+  const directionRefs = (rag?.["direction_refs"] as Array<Record<string, unknown>> | undefined) ?? [];
+  if (!directionRefs.length) return null;
+  return (
+    <div className="bg-muted rounded-xl p-3 mt-3">
+      <div className="text-xs font-bold text-muted-foreground mb-2">추천 근거</div>
+      <ul className="space-y-1.5">
+        {directionRefs.slice(0, 3).map((ref, index) => (
+          <li key={index} className="flex items-start gap-1.5 text-xs text-foreground">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#5B6CFF] mt-1.5 flex-shrink-0" />
+            <span>
+              {String(ref["text"] ?? "")}
+              {ref["tier_label"] ? <span className="text-[10px] text-muted-foreground"> ({String(ref["tier_label"])})</span> : null}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// final_report = {report, verified, error?}
+function FinalReportSection({ report }: { report?: Record<string, unknown> | null }) {
+  if (!report) return null;
+  const error = report["error"] as string | undefined;
+  const text = String(report["report"] ?? "");
+  const verified = Boolean(report["verified"]);
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-bold text-muted-foreground">최종 리포트</span>
+        {!error && (
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${verified ? "text-[#0E9F6E] bg-[#0E9F6E]/10" : "text-amber-600 bg-amber-50"}`}>
+            {verified ? "수치 검증됨" : "수치 재확인 필요"}
+          </span>
+        )}
+      </div>
+      {error ? (
+        <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl p-3">{error}</p>
+      ) : (
+        <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap bg-muted rounded-xl p-4">
+          {text || "리포트 내용이 비어 있습니다."}
+        </p>
+      )}
+    </div>
   );
 }
