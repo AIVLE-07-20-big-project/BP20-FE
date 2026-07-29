@@ -1,14 +1,12 @@
 import { apiRequest } from "../../../shared/api/apiClient";
 
 export interface WeatherForecast {
-  orderDateTime: string;
-  forecastDateTime: string;
+  date: string;
   latitude: number;
   longitude: number;
-  temperature: number | null;
-  windSpeed: number | null;
-  sky: string | null;
-  precipitationType: string | null;
+  maximumTemperature: number | null;
+  minimumTemperature: number | null;
+  weatherCondition: "맑음" | "흐림" | "비" | "눈" | null;
   rainProbability: number | null;
   humidity: number | null;
 }
@@ -35,7 +33,19 @@ export interface AutomaticOrderRecommendation {
   recommendations: OrderRecommendation[];
 }
 
-export function generateAutomaticOrderRecommendation(latitude: number, longitude: number) {
-  const params = new URLSearchParams({ latitude: String(latitude), longitude: String(longitude) });
+export type SortDirection = "ASC" | "DESC";
+
+export function generateAutomaticOrderRecommendation(
+  latitude: number,
+  longitude: number,
+  sortDirection: SortDirection = "ASC",
+  orderRequiredOnly = false,
+) {
+  const params = new URLSearchParams({
+    latitude: String(latitude),
+    longitude: String(longitude),
+    sortDirection,
+    orderRequiredOnly: String(orderRequiredOnly),
+  });
   return apiRequest<AutomaticOrderRecommendation>(`/api/order-recommendations/automatic?${params}`, { method: "POST" });
 }

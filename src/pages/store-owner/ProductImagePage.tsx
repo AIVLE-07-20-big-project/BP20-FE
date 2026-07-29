@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Upload, Sparkles, Loader2, AlertCircle, Download, ImageIcon } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowLeft, Upload, Sparkles, Loader2, AlertCircle, Download, ImageIcon } from "lucide-react";
 import { PageShell } from "@/shared/components/PageShell";
 import { ApiError } from "@/shared/api/apiClient";
 import { generateProductImage, getProductImageCategories } from "@/entities/product-image/product-image.api";
@@ -66,8 +67,17 @@ export function ProductImagePage() {
 
   return (
     <PageShell
-      title="온라인 커머스 · AI 상품 이미지 생성"
-      subtitle="상품 사진과 메뉴 카테고리를 선택하면, AI가 배경을 자동으로 합성해줍니다."
+      title="AI 상품 이미지 생성"
+      subtitle="온라인 판매에 사용할 상품 사진을 업로드하면 AI가 메뉴에 어울리는 배경을 합성합니다."
+      actions={(
+        <Link
+          to="/store/commerce"
+          className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-card px-4 text-xs font-bold text-foreground transition-colors hover:bg-muted"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          매장·커머스로 돌아가기
+        </Link>
+      )}
     >
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* 왼쪽: 업로드 + 설정 */}
