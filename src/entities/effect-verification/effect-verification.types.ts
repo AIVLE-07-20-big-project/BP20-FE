@@ -73,6 +73,8 @@ export interface VerificationExecution {
 export interface VerificationCandidateRecommendation {
   thread_id: string;
   store_id?: string | number | null;
+  recommendation_type?: RecommendationType | null;
+  target_aspect?: string | null;
   approval_status?: string | null;
   selected_action?: {
     방안: string;
@@ -81,6 +83,12 @@ export interface VerificationCandidateRecommendation {
   final_report?: Record<string, unknown> | null;
   created_at?: string | null;
   mock?: boolean;
+}
+
+export interface StartRecommendationExecutionInput {
+  thread_id: string;
+  recommendation_type?: RecommendationType;
+  target_aspect?: string | null;
 }
 
 export interface VerificationMetricResult {

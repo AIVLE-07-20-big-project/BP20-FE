@@ -243,20 +243,26 @@ export function EffectVerificationHistoryPage() {
     setStartingThreadId(candidate.thread_id);
     setCandidateError(null);
     try {
+      const recommendationType = candidate.recommendation_type ?? "SALES";
+      const targetAspect = candidate.target_aspect ?? null;
       if (candidate.mock) {
         await registerMockThreadExecution(candidate.thread_id, {
           store_id: Number(candidate.store_id),
-          recommendation_type: "SALES",
+          recommendation_type: recommendationType,
           condition: {
             period_days: 14,
             start_hour: null,
             end_hour: null,
             compare_same_weekday: false,
-            target_aspect: null,
+            target_aspect: targetAspect,
           },
         });
       } else {
-        await startRecommendationExecution(candidate.thread_id);
+        await startRecommendationExecution({
+          thread_id: candidate.thread_id,
+          recommendation_type: recommendationType,
+          target_aspect: targetAspect,
+        });
       }
       setReloadKey((key) => key + 1);
     } catch (nextError) {
@@ -409,7 +415,9 @@ export function EffectVerificationHistoryPage() {
                 <div className="min-w-0">
                   <p className="font-bold">{candidate.selected_action?.방안}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    매장 {candidate.store_id} · 실행 ID {candidate.thread_id}
+                    매장 {candidate.store_id} · {candidate.recommendation_type === "REVIEW" ? "리뷰형" : "매출형"}
+                    {candidate.target_aspect ? ` · 대상 ${candidate.target_aspect}` : ""}
+                    {" · "}실행 ID {candidate.thread_id}
                   </p>
                 </div>
                 <button

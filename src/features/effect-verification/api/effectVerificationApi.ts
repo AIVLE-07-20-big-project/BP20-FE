@@ -2,6 +2,7 @@ import type {
   EffectVerificationResult,
   RegisterMockThreadExecutionInput,
   RegisterVerificationExecutionInput,
+  StartRecommendationExecutionInput,
   VerificationCandidateRecommendation,
   VerificationExecution,
   VerificationStatus,
@@ -116,13 +117,13 @@ export async function getVerificationCandidates() {
   return [...actualCandidates, ...mockCandidates];
 }
 
-export function startRecommendationExecution(threadId: string) {
+export function startRecommendationExecution(input: StartRecommendationExecutionInput) {
   return request<VerificationExecution>(
     "/api/effect-verifications/executions/start",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ thread_id: threadId }),
+      body: JSON.stringify(input),
     },
   );
 }
