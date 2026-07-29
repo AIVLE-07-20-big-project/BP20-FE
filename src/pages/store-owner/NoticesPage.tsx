@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { FileText, Megaphone } from "lucide-react";
 import { getAccessToken } from "../../features/auth/model/authSession";
 import { getPublishedNotices, type NoticeApi } from "../../features/notices/api/noticesApi";
+import { apiUrl } from "../../shared/config/runtimeEnv";
 
 export function NoticesPage() {
   const [notices, setNotices] = useState<NoticeApi[]>([]);
@@ -10,8 +11,6 @@ export function NoticesPage() {
     const token = getAccessToken();
     if (token) getPublishedNotices(token).then(setNotices).catch(() => undefined);
   }, []);
-
-  const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8081";
 
   return (
     <div className="h-full overflow-y-auto">
@@ -34,7 +33,7 @@ export function NoticesPage() {
               <h2 className="text-base font-bold">{notice.title}</h2>
               <p className="text-sm leading-relaxed whitespace-pre-wrap mt-3 text-muted-foreground">{notice.body}</p>
               {notice.attachment && (
-                <a href={baseUrl + "/api/notices/" + notice.id + "/attachment"} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 mt-4 text-sm text-[#246BFD] hover:underline">
+                <a href={apiUrl(`/api/notices/${notice.id}/attachment`)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 mt-4 text-sm text-[#246BFD] hover:underline">
                   <FileText className="w-4 h-4" />{notice.attachment.originalName} 다운로드
                 </a>
               )}

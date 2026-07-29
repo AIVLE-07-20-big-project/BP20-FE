@@ -2,6 +2,7 @@ import {
   clearAccessToken,
   getAccessToken,
 } from "../../features/auth/model/authSession";
+import { apiUrl } from "../config/runtimeEnv";
 
 export { getAccessToken };
 
@@ -41,8 +42,6 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
-
 function buildRequestHeaders(init: RequestInit, token: string | null, expectJson: boolean): Headers {
   const headers = new Headers(init.headers);
 
@@ -68,7 +67,7 @@ function buildRequestHeaders(init: RequestInit, token: string | null, expectJson
 async function performFetch(path: string, init: RequestInit, token: string | null, expectJson: boolean): Promise<Response> {
   const headers = buildRequestHeaders(init, token, expectJson);
   try {
-    return await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+    return await fetch(apiUrl(path), { ...init, headers });
   } catch {
     throw new ApiError(
       "백엔드 서버에 연결할 수 없습니다. 서버 실행 상태와 API 주소를 확인해 주세요.",
