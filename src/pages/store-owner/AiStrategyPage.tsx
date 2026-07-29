@@ -447,12 +447,22 @@ export function AiStrategyPage() {
       subtitle="매출, 재고, 원가, 리뷰 데이터를 분석한 전략을 검토하고 실행 효과를 관리합니다."
       freshness="오늘 09:42 기준"
       actions={
-        <button
-          onClick={() => setViewMode((mode) => (mode === "history" ? "current" : "history"))}
-          className="text-xs text-muted-foreground font-semibold flex items-center gap-1 hover:text-foreground transition-colors"
-        >
-          <Archive className="w-3.5 h-3.5" /> {viewMode === "history" ? "현재 결과 보기" : "추천 이력"}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate("/store/actions/history")}
+            className="text-xs text-muted-foreground font-semibold flex items-center gap-1 hover:text-foreground transition-colors"
+          >
+            <Eye className="w-3.5 h-3.5" /> 효과 검증 이력
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode((mode) => (mode === "history" ? "current" : "history"))}
+            className="text-xs text-muted-foreground font-semibold flex items-center gap-1 hover:text-foreground transition-colors"
+          >
+            <Archive className="w-3.5 h-3.5" /> {viewMode === "history" ? "현재 결과 보기" : "추천 이력"}
+          </button>
+        </div>
       }
     >
       <form onSubmit={requestRecommendation} className="bg-card border border-border rounded-2xl p-5 mb-5">

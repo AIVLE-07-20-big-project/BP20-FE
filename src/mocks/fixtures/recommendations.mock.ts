@@ -2,7 +2,7 @@ import type { AIRecommendation } from "../../entities/recommendation/recommendat
 
 export const AI_RECOMMENDATIONS: AIRecommendation[] = [
   {
-    id: "r1",
+    id: "10001",
     category: "매출",
     title: "오후 2~5시 재방문 쿠폰 발송",
     problem: "평일 오후 2~5시 방문자가 지난 4주 대비 23% 감소했습니다. 동일 시간대 비교 업종 매장 대비 33% 낮은 수준입니다.",
@@ -18,7 +18,7 @@ export const AI_RECOMMENDATIONS: AIRecommendation[] = [
     assumptions: ["쿠폰 할인율 15% 적용", "발송 대상: 30일 이상 미방문 고객 284명", "측정 기간: 14일"],
     predictionRange: "+12%~+16%",
     measurementDays: 14,
-    verificationRecommendationId: 10001,
+    effectVerificationEnabled: true,
   },
   {
     id: "r2",
@@ -39,7 +39,7 @@ export const AI_RECOMMENDATIONS: AIRecommendation[] = [
     measurementDays: 7,
   },
   {
-    id: "r3",
+    id: "10002",
     category: "고객",
     title: "장기 미방문 고객 구독권 프로모션",
     problem: "60일 이상 미방문 고객 156명이 이탈 위험 구간에 진입했습니다. 이 고객군의 과거 월 평균 지출액은 ₩42,000입니다.",
@@ -56,10 +56,10 @@ export const AI_RECOMMENDATIONS: AIRecommendation[] = [
     predictionRange: "+18~+25명",
     measurementDays: 14,
     executedAt: "2025-07-18",
-    verificationRecommendationId: 10002,
+    effectVerificationEnabled: true,
   },
   {
-    id: "r4",
+    id: "10003",
     category: "리뷰",
     title: "대기시간 단축 운영 프로세스 개선",
     problem: "'대기시간이 길다' 관련 리뷰 언급이 최근 2주 동안 3배 증가했습니다. 해당 이슈가 지속되면 평균 평점 하락 위험이 있습니다.",
@@ -76,7 +76,7 @@ export const AI_RECOMMENDATIONS: AIRecommendation[] = [
     predictionRange: "부정 리뷰 -8~12%",
     measurementDays: 14,
     executedAt: "2025-07-10",
-    verificationRecommendationId: 10003,
+    effectVerificationEnabled: true,
   },
   {
     id: "r5",
