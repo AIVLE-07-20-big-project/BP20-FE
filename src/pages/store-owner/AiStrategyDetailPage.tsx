@@ -320,7 +320,7 @@ export function AiStrategyDetailPage() {
           </div>
         )}
 
-        {canComplete && (
+        {import.meta.env.DEV && canComplete && (
           <button disabled={submitting} onClick={handleComplete} className="w-full h-11 bg-[#0E9F6E] disabled:opacity-60 text-white text-sm font-bold rounded-2xl hover:bg-[#0B855C] transition-colors flex items-center justify-center gap-2">
             {submitting && <Loader2 className="w-4 h-4 animate-spin" />} 효과 분석 실행
           </button>

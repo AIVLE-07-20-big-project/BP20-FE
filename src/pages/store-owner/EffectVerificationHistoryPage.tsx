@@ -350,18 +350,21 @@ export function EffectVerificationHistoryPage() {
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
           새로고침
         </button>
-        <button
-          type="button"
-          onClick={resetMockData}
-          disabled={loading || resetting}
-          className="flex h-9 items-center gap-1.5 rounded-xl border border-red-200 px-3 text-xs font-bold text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-          {resetting ? "초기화 중" : "Mock 초기화"}
-        </button>
+        {import.meta.env.DEV && (
+          <button
+            type="button"
+            onClick={resetMockData}
+            disabled={loading || resetting}
+            className="flex h-9 items-center gap-1.5 rounded-xl border border-red-200 px-3 text-xs font-bold text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            {resetting ? "초기화 중" : "Mock 초기화"}
+          </button>
+        )}
       </section>
 
-      <section className="mb-5 rounded-2xl border border-border bg-card p-4">
+      {import.meta.env.DEV && (
+        <section className="mb-5 rounded-2xl border border-border bg-card p-4">
         <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
           <div>
             <h2 className="font-bold">검증 시작 가능한 추천</h2>
@@ -422,7 +425,8 @@ export function EffectVerificationHistoryPage() {
             ))}
           </div>
         )}
-      </section>
+        </section>
+      )}
 
       <div className="mb-3 flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
