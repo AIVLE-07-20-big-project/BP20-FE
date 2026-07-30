@@ -122,6 +122,8 @@ const summarizePeriod = (allRows: DetailedDailySales[], selectedRows: DetailedDa
 // (10,000으로 나눠 반올림 + 천단위 콤마)이라 report.매출분석 값들과 표기가 일치한다.
 const formatManwon = (value: number) => `${Math.round(value / 10000).toLocaleString()} 만원`;
 
+const normalizeLocationText = (value: string) => value.replace(/[.·,|/\s]+/g, "").toLowerCase();
+
 export function SalesPage() {
   const [preset, setPreset] = useState("월별");
   const [file, setFile] = useState<File | null>(null);
@@ -173,8 +175,9 @@ export function SalesPage() {
 
   const handleLocationSearch = (value: string) => {
     setLocationSearch(value);
-    const matched = locationOptions.find((area) => area.label === value);
+    const matched = locationOptions.find((area) => normalizeLocationText(area.label) === normalizeLocationText(value));
     if (matched) setTrdarCd(matched.code);
+    else setTrdarCd("");
   };
 
   useEffect(() => {
@@ -197,6 +200,8 @@ export function SalesPage() {
   const handleAnalysis = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!file) { setApiError("CSV 파일을 선택해 주세요."); return; }
+    if (!trdarCd) { setApiError("서울 구·동·상권을 자동완성 목록에서 선택해 주세요."); return; }
+    if (!svcIndutyCd) { setApiError("내 정보에 업종을 먼저 등록해 주세요."); return; }
     if (storeId.trim()) sessionStorage.setItem(AI_STORE_ID_KEY, storeId.trim());
     setRequesting(true);
     setApiError("");
