@@ -1,63 +1,218 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Upload, CheckCircle2, AlertCircle, Edit3, FileText,
-  ChevronRight, Sparkles, TrendingUp, ExternalLink, Info
+  ChevronRight, Sparkles, TrendingUp, ExternalLink, Info, Loader2, Download
 } from "lucide-react";
+import { ApiError } from "@/shared/api/apiClient";
+import { createReceipt, getLedgerReportHtml, getReceipts, parseReceiptImage } from "@/entities/receipt/receipt.api";
+import type {
+  ReceiptItemData,
+  ReceiptParseResult,
+  ReceiptResponse,
+  ReportType,
+} from "@/entities/receipt/receipt.types";
 
-type Step = "inbox" | "uploading" | "ocr" | "review" | "done";
+// TODO: 로그인/매장 선택 기능이 붙으면 실제 storeId로 교체
+const STORE_ID = 1;
 
-const MOCK_OCR = {
-  docType: "영수증",
-  storeName: "CJ프레시웨이",
-  businessNumber: "123-81-XXXXX",
-  date: "2025-07-19",
-  payment: "법인카드",
-  items: [
-    { name: "국산 원두 (1kg)", qty: 5, unitPrice: 18000, total: 90000, confident: true },
-    { name: "우유 1L x12", qty: 3, unitPrice: 28600, total: 85800, confident: true },
-    { name: "딸기잼 5kg", qty: 1, unitPrice: 32000, total: 32000, confident: false },
-  ],
-  subtotal: 207800,
-  vat: 20780,
-  total: 228580,
-  category: "식재료비",
+type Step = "inbox" | "uploading" | "review" | "saving" | "done";
+
+const DOCUMENT_TYPE_LABEL: Record<string, string> = {
+  RECEIPT: "영수증",
+  SIMPLE_RECEIPT: "간이영수증",
+  TAX_INVOICE: "세금계산서",
+  TRANSACTION_STATEMENT: "거래명세서",
+  CARD_SALES_SLIP: "카드매출전표",
+  DELIVERY_SETTLEMENT: "배달 정산서",
+  BANK_TRANSFER: "계좌이체 내역",
+  ONLINE_ORDER: "온라인 주문서",
 };
 
-const HISTORY_ROWS = [
-  { status: "검토 완료", statusColor: "text-[#0E9F6E] bg-[#0E9F6E]/10", date: "07.20", name: "CJ프레시웨이", amount: 228580, category: "식재료비", action: "상세보기" },
-  { status: "중복 의심", statusColor: "text-amber-600 bg-amber-50", date: "07.19", name: "한국전력", amount: 312000, category: "공과금", action: "검토" },
-  { status: "검토 완료", statusColor: "text-[#0E9F6E] bg-[#0E9F6E]/10", date: "07.18", name: "에코팩", amount: 85000, category: "포장재비", action: "상세보기" },
-  { status: "검토 필요", statusColor: "text-[#246BFD] bg-[#246BFD]/10", date: "07.15", name: "파리크라상", amount: 96000, category: "식재료비", action: "검토" },
-  { status: "처리 중", statusColor: "text-muted-foreground bg-muted", date: "07.14", name: "네이버 광고", amount: 150000, category: "광고비", action: "대기" },
-  { status: "검토 완료", statusColor: "text-[#0E9F6E] bg-[#0E9F6E]/10", date: "07.12", name: "GS25 성수점", amount: 44500, category: "소모품비", action: "상세보기" },
-];
+const STATUS_META: Record<ReceiptResponse["status"], { label: string; color: string }> = {
+  CONFIRMED: { label: "검토 완료", color: "text-[#0E9F6E] bg-[#0E9F6E]/10" },
+  NEEDS_REVIEW: { label: "검토 필요", color: "text-[#246BFD] bg-[#246BFD]/10" },
+  DUPLICATE_SUSPECTED: { label: "중복 의심", color: "text-amber-600 bg-amber-50" },
+};
 
 const STEPS_META = [
   { key: "inbox", label: "업로드" },
-  { key: "uploading", label: "이미지 검사" },
-  { key: "ocr", label: "OCR 분석" },
+  { key: "uploading", label: "OCR 분석" },
   { key: "review", label: "검토" },
+  { key: "saving", label: "저장" },
   { key: "done", label: "반영" },
 ] as const;
+
+function formatShortDate(isoDate: string): string {
+  const [, month, day] = isoDate.split("-");
+  return month && day ? `${month}.${day}` : isoDate;
+}
+
+function toEditableForm(result: ReceiptParseResult) {
+  return {
+    documentType: result.documentType,
+    storeName: result.storeName ?? "",
+    businessNumber: result.businessNumber ?? "",
+    transactionDate: result.transactionDate,
+    transactionTime: result.transactionTime ?? "",
+    paymentMethod: result.paymentMethod,
+    category: result.category,
+    items: result.items,
+    supplyAmount: result.supplyAmount,
+    vat: result.vat,
+    taxFreeAmount: result.taxFreeAmount,
+    totalAmount: result.totalAmount,
+  };
+}
+
+type EditableForm = ReturnType<typeof toEditableForm>;
 
 export function LedgerPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>("inbox");
   const [editField, setEditField] = useState<string | null>(null);
-  const [isDuplicate] = useState(true);
-  const [duplicateAcknowledged, setDuplicateAcknowledged] = useState(false);
   const [savingsOpen, setSavingsOpen] = useState(false);
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
 
-  const stepKeys: Step[] = ["inbox", "uploading", "ocr", "review", "done"];
+  const [ocrText, setOcrText] = useState<string[]>([]);
+  const [form, setForm] = useState<EditableForm | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  const [savedReceipt, setSavedReceipt] = useState<ReceiptResponse | null>(null);
 
-  const advance = () => {
-    const idx = stepKeys.indexOf(step);
-    if (idx < stepKeys.length - 1) setStep(stepKeys[idx + 1]);
+  const [history, setHistory] = useState<ReceiptResponse[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  // AI 가계부 리포트 (기간 선택 가능, HTML로 렌더링)
+  const now = new Date();
+  const [reportType, setReportType] = useState<ReportType>("monthly");
+  const [reportYear, setReportYear] = useState(now.getFullYear());
+  const [reportMonth, setReportMonth] = useState(now.getMonth() + 1);
+  const [storeName, setStoreName] = useState("");
+  const [reportHtml, setReportHtml] = useState<string | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [reportIframeHeight, setReportIframeHeight] = useState(600);
+
+  const downloadReport = () => {
+    if (!reportHtml) return;
+    const periodLabel =
+      reportType === "monthly" ? `${reportYear}-${String(reportMonth).padStart(2, "0")}` :
+      reportType === "yearly" ? `${reportYear}` : "전체기간";
+
+    const blob = new Blob([reportHtml], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `AI가계부리포트_${periodLabel}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
+  const generateReport = async () => {
+    setReportLoading(true);
+    setReportError(null);
+    try {
+      const html = await getLedgerReportHtml(STORE_ID, {
+        reportType,
+        year: reportYear,
+        month: reportType === "monthly" ? reportMonth : undefined,
+        storeName: storeName || undefined,
+      });
+      setReportHtml(html);
+    } catch (error) {
+      setReportError(error instanceof ApiError ? error.message : "리포트 생성 중 오류가 발생했습니다.");
+      setReportHtml(null);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const stepKeys: Step[] = ["inbox", "uploading", "review", "saving", "done"];
   const currentStepIdx = stepKeys.indexOf(step);
+
+  const loadHistory = () => {
+    setHistoryLoading(true);
+    getReceipts(STORE_ID)
+      .then(setHistory)
+      .catch(() => setHistory([]))
+      .finally(() => setHistoryLoading(false));
+  };
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  const resetToInbox = () => {
+    setStep("inbox");
+    setOcrText([]);
+    setForm(null);
+    setErrorMessage(null);
+    setDuplicateWarning(null);
+    setSavedReceipt(null);
+  };
+
+  const handleFileSelected = async (file: File) => {
+    setErrorMessage(null);
+    setStep("uploading");
+    try {
+      const parsed = await parseReceiptImage(file);
+      setOcrText(parsed.ocrText);
+      setForm(toEditableForm(parsed.result));
+      setStep("review");
+    } catch (error) {
+      setErrorMessage(error instanceof ApiError ? error.message : "영수증 인식에 실패했습니다. 다시 시도해주세요.");
+      setStep("inbox");
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) void handleFileSelected(file);
+    e.target.value = "";
+  };
+
+  const updateField = <K extends keyof EditableForm>(key: K, value: EditableForm[K]) => {
+    setForm(prev => (prev ? { ...prev, [key]: value } : prev));
+  };
+
+  const submitReceipt = async (force: boolean) => {
+    if (!form) return;
+    setStep("saving");
+    setErrorMessage(null);
+    try {
+      const saved = await createReceipt({
+        storeId: STORE_ID,
+        documentType: form.documentType,
+        storeName: form.storeName || null,
+        businessNumber: form.businessNumber || null,
+        transactionDate: form.transactionDate,
+        transactionTime: form.transactionTime || null,
+        paymentMethod: form.paymentMethod,
+        items: form.items,
+        supplyAmount: form.supplyAmount,
+        vat: form.vat,
+        taxFreeAmount: form.taxFreeAmount,
+        totalAmount: form.totalAmount,
+        category: form.category,
+        force,
+      });
+      setSavedReceipt(saved);
+      setDuplicateWarning(null);
+      setStep("done");
+      loadHistory();
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        setDuplicateWarning(error.message);
+        setStep("review");
+        return;
+      }
+      setErrorMessage(error instanceof ApiError ? error.message : "저장 중 오류가 발생했습니다.");
+      setStep("review");
+    }
+  };
 
   return (
     <div className="h-full overflow-y-auto">
@@ -91,13 +246,24 @@ export function LedgerPage() {
               })}
             </div>
 
+            {errorMessage && (
+              <div className="mb-4 bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-red-700">{errorMessage}</p>
+              </div>
+            )}
+
             {step === "inbox" && (
-              <div
-                onClick={advance}
+              <label
                 onDragOver={e => e.preventDefault()}
-                onDrop={e => { e.preventDefault(); advance(); }}
+                onDrop={e => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) void handleFileSelected(file);
+                }}
                 className="border-2 border-dashed border-border rounded-2xl p-12 flex flex-col items-center gap-4 cursor-pointer hover:border-[#246BFD]/50 hover:bg-[#246BFD]/3 transition-colors"
               >
+                <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleFileInputChange} />
                 <div className="w-14 h-14 rounded-2xl bg-[#246BFD]/10 flex items-center justify-center">
                   <Upload className="w-7 h-7 text-[#246BFD]" />
                 </div>
@@ -106,79 +272,68 @@ export function LedgerPage() {
                   <div className="text-sm text-muted-foreground">파일을 올리면 AI가 품목, 금액, 거래처, 날짜를 자동 분류합니다.</div>
                   <div className="text-xs text-muted-foreground/70 mt-1">JPG, PNG, PDF · 최대 10MB</div>
                 </div>
-                <button
-                  onClick={e => { e.stopPropagation(); advance(); }}
-                  className="flex items-center gap-2 text-sm bg-[#246BFD] text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-[#1D4ED8] transition-colors"
-                >
+                <span className="flex items-center gap-2 text-sm bg-[#246BFD] text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-[#1D4ED8] transition-colors">
                   <Upload className="w-4 h-4" />
                   파일 선택
-                </button>
-              </div>
+                </span>
+              </label>
             )}
 
             {step === "uploading" && (
               <div className="bg-card border border-border rounded-2xl p-8 text-center">
-                <div className="w-10 h-10 border-4 border-[#246BFD]/20 border-t-[#246BFD] rounded-full animate-spin mx-auto mb-4" />
-                <div className="text-sm font-semibold mb-1">이미지 검사 중...</div>
-                <div className="text-xs text-muted-foreground mb-5">해상도, 흐림, 그림자 상태를 확인합니다</div>
-                <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden mb-5">
+                <Loader2 className="w-10 h-10 text-[#246BFD] mx-auto mb-4 animate-spin" />
+                <div className="text-sm font-semibold mb-1">OCR 분석 중...</div>
+                <div className="text-xs text-muted-foreground mb-5">AI가 문서를 읽고 상호명·품목·금액을 추출하고 있습니다</div>
+                <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
                   <div className="h-full bg-[#246BFD] rounded-full w-2/3 animate-pulse" />
                 </div>
-                <button onClick={advance} className="text-xs bg-[#246BFD] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#1D4ED8] transition-colors">다음 (시뮬레이션)</button>
               </div>
             )}
 
-            {step === "ocr" && (
-              <div className="bg-card border border-border rounded-2xl p-8 text-center">
-                <div className="w-12 h-12 rounded-2xl bg-[#8B5CF6]/10 flex items-center justify-center mx-auto mb-4">
-                  <FileText className="w-6 h-6 text-[#8B5CF6]" />
-                </div>
-                <div className="text-sm font-semibold mb-1">OCR 분석 중...</div>
-                <div className="text-xs text-muted-foreground mb-5">AI가 문서를 읽고 항목을 추출합니다</div>
-                <div className="space-y-2 mb-5 text-left max-w-xs mx-auto">
-                  {["텍스트 영역 인식", "품목명 추출", "금액 파싱", "거래처 매칭"].map((t, i) => (
-                    <div key={t} className="flex items-center gap-2 text-xs">
-                      <CheckCircle2 className={`w-3.5 h-3.5 ${i < 3 ? "text-[#0E9F6E]" : "text-muted-foreground animate-pulse"}`} />
-                      <span className={i < 3 ? "text-foreground" : "text-muted-foreground"}>{t}</span>
-                    </div>
-                  ))}
-                </div>
-                <button onClick={advance} className="text-xs bg-[#246BFD] text-white px-4 py-2 rounded-xl font-semibold hover:bg-[#1D4ED8] transition-colors">분석 완료 (시뮬레이션)</button>
-              </div>
-            )}
-
-            {step === "review" && (
+            {step === "review" && form && (
               <div className="space-y-4">
-                {isDuplicate && !duplicateAcknowledged && (
+                {duplicateWarning && (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
                     <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
                       <p className="text-xs font-semibold text-amber-800">중복 거래 감지</p>
-                      <p className="text-xs text-amber-700">7월 10일 등록된 66,000원 영수증과 동일한 거래로 보입니다.</p>
-                      <button onClick={() => setDuplicateAcknowledged(true)} className="text-xs text-amber-700 font-semibold underline mt-1">다른 거래입니다 (확인 후 진행)</button>
+                      <p className="text-xs text-amber-700">{duplicateWarning}</p>
+                      <button onClick={() => void submitReceipt(true)} className="text-xs text-amber-700 font-semibold underline mt-1">
+                        다른 거래입니다 (확인 후 저장)
+                      </button>
                     </div>
                   </div>
                 )}
 
                 <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
                   <h4 className="font-bold text-sm">추출된 정보 검토</h4>
-                  {[
-                    { label: "문서 유형", value: MOCK_OCR.docType, confident: true },
-                    { label: "상호명", value: MOCK_OCR.storeName, confident: true },
-                    { label: "거래일", value: MOCK_OCR.date, confident: true },
-                    { label: "결제수단", value: MOCK_OCR.payment, confident: true },
-                    { label: "분류", value: MOCK_OCR.category, confident: true },
-                  ].map(({ label, value, confident }) => (
-                    <div key={label} className="flex items-center justify-between text-sm">
+
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground w-20">문서 유형</span>
+                    <span className="flex-1 text-foreground">{DOCUMENT_TYPE_LABEL[form.documentType] ?? form.documentType}</span>
+                  </div>
+
+                  {([
+                    { key: "storeName", label: "상호명" },
+                    { key: "transactionDate", label: "거래일" },
+                    { key: "paymentMethod", label: "결제수단" },
+                    { key: "category", label: "분류" },
+                  ] as const).map(({ key, label }) => (
+                    <div key={key} className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground w-20">{label}</span>
                       <div className="flex items-center gap-1.5 flex-1">
-                        {editField === label ? (
-                          <input defaultValue={value} autoFocus className="flex-1 h-7 px-2 text-xs bg-muted rounded-lg border border-[#246BFD]/40 focus:outline-none" onBlur={() => setEditField(null)} />
+                        {editField === key ? (
+                          <input
+                            value={form[key] as string}
+                            autoFocus
+                            onChange={e => updateField(key, e.target.value as EditableForm[typeof key])}
+                            className="flex-1 h-7 px-2 text-xs bg-muted rounded-lg border border-[#246BFD]/40 focus:outline-none"
+                            onBlur={() => setEditField(null)}
+                          />
                         ) : (
-                          <span className={`flex-1 ${!confident ? "text-amber-600 font-semibold" : "text-foreground"}`}>{value}</span>
+                          <span className="flex-1 text-foreground">{(form[key] as string) || "-"}</span>
                         )}
-                        {!confident && <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded font-bold">낮음</span>}
-                        <button onClick={() => setEditField(label)} className="p-1 rounded text-muted-foreground hover:text-foreground">
+                        <button onClick={() => setEditField(key)} className="p-1 rounded text-muted-foreground hover:text-foreground">
                           <Edit3 className="w-3 h-3" />
                         </button>
                       </div>
@@ -187,40 +342,61 @@ export function LedgerPage() {
                 </div>
 
                 <div className="bg-card border border-border rounded-2xl p-4">
-                  <h4 className="font-bold text-sm mb-3">품목</h4>
+                  <h4 className="font-bold text-sm mb-3">품목 ({form.items.length}건)</h4>
                   <div className="space-y-2">
-                    {MOCK_OCR.items.map((item) => (
-                      <div key={item.name} className="flex items-center justify-between text-xs">
-                        <span className={`flex-1 ${!item.confident ? "text-amber-600" : "text-foreground"}`}>{item.name}</span>
-                        <span className="text-muted-foreground mr-4">{item.qty}개 × ₩{item.unitPrice.toLocaleString()}</span>
-                        <span className="font-semibold tabular-nums">₩{item.total.toLocaleString()}</span>
-                        {!item.confident && <span className="ml-1.5 text-[10px] bg-amber-50 text-amber-600 px-1 rounded font-bold">확인요</span>}
+                    {form.items.length === 0 && (
+                      <p className="text-xs text-muted-foreground">인식된 품목이 없습니다. 필요하면 영수증을 다시 촬영해서 업로드해주세요.</p>
+                    )}
+                    {form.items.map((item: ReceiptItemData, i: number) => (
+                      <div key={`${item.itemName}-${i}`} className="flex items-center justify-between text-xs">
+                        <span className="flex-1 text-foreground">{item.itemName}</span>
+                        <span className="text-muted-foreground mr-4">
+                          {item.quantity}{item.unit ?? "개"} × ₩{(item.unitPrice ?? 0).toLocaleString()}
+                        </span>
+                        <span className="font-semibold tabular-nums">₩{item.totalPrice.toLocaleString()}</span>
                       </div>
                     ))}
                   </div>
                   <div className="border-t border-border mt-3 pt-3 space-y-1 text-xs">
-                    <div className="flex justify-between text-muted-foreground"><span>공급가액</span><span className="tabular-nums">₩{MOCK_OCR.subtotal.toLocaleString()}</span></div>
-                    <div className="flex justify-between text-muted-foreground"><span>부가세 (10%)</span><span className="tabular-nums">₩{MOCK_OCR.vat.toLocaleString()}</span></div>
-                    <div className="flex justify-between font-bold text-sm"><span>합계</span><span className="tabular-nums">₩{MOCK_OCR.total.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-muted-foreground"><span>공급가액</span><span className="tabular-nums">₩{(form.supplyAmount ?? 0).toLocaleString()}</span></div>
+                    <div className="flex justify-between text-muted-foreground"><span>부가세</span><span className="tabular-nums">₩{(form.vat ?? 0).toLocaleString()}</span></div>
+                    <div className="flex justify-between font-bold text-sm"><span>합계</span><span className="tabular-nums">₩{form.totalAmount.toLocaleString()}</span></div>
                   </div>
                 </div>
 
+                {ocrText.length > 0 && (
+                  <details className="text-xs text-muted-foreground">
+                    <summary className="cursor-pointer select-none hover:text-foreground">원본 OCR 텍스트 보기</summary>
+                    <div className="mt-2 bg-muted rounded-xl p-3 space-y-0.5">
+                      {ocrText.map((line, i) => <div key={i}>{line}</div>)}
+                    </div>
+                  </details>
+                )}
+
                 <button
-                  onClick={() => { if (!isDuplicate || duplicateAcknowledged) advance(); }}
-                  disabled={isDuplicate && !duplicateAcknowledged}
-                  className="w-full h-11 bg-[#246BFD] text-white text-sm font-bold rounded-2xl hover:bg-[#1D4ED8] transition-colors disabled:opacity-50"
+                  onClick={() => void submitReceipt(false)}
+                  className="w-full h-11 bg-[#246BFD] text-white text-sm font-bold rounded-2xl hover:bg-[#1D4ED8] transition-colors"
                 >
                   검토 완료 · 장부에 반영
                 </button>
               </div>
             )}
 
-            {step === "done" && (
+            {step === "saving" && (
+              <div className="bg-card border border-border rounded-2xl p-8 text-center">
+                <Loader2 className="w-10 h-10 text-[#246BFD] mx-auto mb-4 animate-spin" />
+                <div className="text-sm font-semibold">저장하는 중...</div>
+              </div>
+            )}
+
+            {step === "done" && savedReceipt && (
               <div className="bg-card border border-border rounded-2xl p-10 text-center">
                 <CheckCircle2 className="w-12 h-12 text-[#0E9F6E] mx-auto mb-3" />
                 <h3 className="font-bold text-lg mb-1">장부에 반영되었습니다</h3>
-                <p className="text-sm text-muted-foreground mb-5">₩{MOCK_OCR.total.toLocaleString()}이 식재료비로 분류되었습니다.</p>
-                <button onClick={() => { setStep("inbox"); setDuplicateAcknowledged(false); }} className="text-sm text-[#246BFD] font-semibold hover:underline">
+                <p className="text-sm text-muted-foreground mb-5">
+                  ₩{savedReceipt.totalAmount.toLocaleString()}이 {savedReceipt.category}로 분류되었습니다.
+                </p>
+                <button onClick={resetToInbox} className="text-sm text-[#246BFD] font-semibold hover:underline">
                   새 영수증 등록
                 </button>
               </div>
@@ -245,11 +421,11 @@ export function LedgerPage() {
                     <span className="text-xs font-bold">식재료 원가 상승</span>
                     <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">주의</span>
                   </div>
-                  <p className="text-xs text-muted-foreground">양파 매입 단가가 지난달 평균 대비 18% 상승했습니다.</p>
+                  <p className="text-xs text-muted-foreground">원가 페이지에서 매입 단가 변화를 확인해보세요.</p>
                 </div>
               </div>
               <button
-                onClick={() => navigate("/store/cost?tab=cost&item=양파")}
+                onClick={() => navigate("/store/cost")}
                 className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-[#246BFD] bg-[#246BFD]/8 hover:bg-[#246BFD]/15 py-2 rounded-xl transition-colors"
               >
                 원가 상세보기 <ExternalLink className="w-3 h-3" />
@@ -264,14 +440,13 @@ export function LedgerPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="text-xs font-bold">예산 초과 감지</span>
-                    <span className="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded">초과</span>
+                    <span className="text-xs font-bold">예산/이상지출 확인</span>
                   </div>
-                  <p className="text-xs text-muted-foreground">이번 달 공과금이 예산 대비 12% 초과했습니다.</p>
+                  <p className="text-xs text-muted-foreground">이번 달 예산 초과 여부와 이상 지출을 확인해보세요.</p>
                 </div>
               </div>
               <button
-                onClick={() => navigate("/store/cost?tab=expenses&category=공과금")}
+                onClick={() => navigate("/store/cost")}
                 className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-[#246BFD] bg-[#246BFD]/8 hover:bg-[#246BFD]/15 py-2 rounded-xl transition-colors"
               >
                 지출 내역보기 <ExternalLink className="w-3 h-3" />
@@ -289,59 +464,170 @@ export function LedgerPage() {
                   <Info className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <div className="text-2xl font-black text-[#246BFD] tabular-nums">128,000원</div>
+              <div className="text-2xl font-black text-[#246BFD] tabular-nums">준비 중</div>
               {savingsOpen && (
                 <div className="mt-2 text-[11px] text-muted-foreground bg-white/60 rounded-xl p-2.5 space-y-0.5">
-                  <p>· 대체 공급사 활용 시 식재료비 절감 예상: ~90,000원</p>
-                  <p>· 소모품 일괄 구매 전환 시 절감 예상: ~38,000원</p>
-                  <p className="text-muted-foreground/60 pt-1">※ AI 예측 결과이며 실제 절감액은 다를 수 있습니다.</p>
+                  <p>· 절감액 추정 기능은 원가·매입단가 분석과 함께 준비 중입니다.</p>
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Full-width upload history */}
-        <div className="bg-card border border-border rounded-2xl p-5">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* 업로드 내역 — 왼쪽 1/3 */}
+        <div className="lg:col-span-1 bg-card border border-border rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <h3 className="font-bold">최근 업로드 내역</h3>
-              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full font-semibold">{HISTORY_ROWS.length}건</span>
+              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full font-semibold">{history.length}건</span>
             </div>
-            <button className="text-xs text-[#246BFD] font-semibold hover:underline">전체 보기</button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border">
-                  {["상태", "날짜", "상호명", "총금액", "분류", "작업"].map(h => (
+                  {["상태", "날짜", "상호명", "총금액", "분류"].map(h => (
                     <th key={h} className="text-left text-muted-foreground font-semibold pb-2 pr-4 last:pr-0">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {HISTORY_ROWS.map((row, i) => (
-                  <tr
-                    key={i}
-                    onMouseEnter={() => setHoveredRow(i)}
-                    onMouseLeave={() => setHoveredRow(null)}
-                    className={`border-b border-border last:border-0 transition-colors cursor-pointer ${hoveredRow === i ? "bg-muted/50" : ""}`}
-                  >
-                    <td className="py-3 pr-4">
-                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${row.statusColor}`}>{row.status}</span>
-                    </td>
-                    <td className="py-3 pr-4 text-muted-foreground font-medium">{row.date}</td>
-                    <td className="py-3 pr-4 font-semibold text-foreground">{row.name}</td>
-                    <td className="py-3 pr-4 font-bold tabular-nums">₩{row.amount.toLocaleString()}</td>
-                    <td className="py-3 pr-4 text-muted-foreground">{row.category}</td>
-                    <td className="py-3">
-                      <button className="text-[#246BFD] font-semibold hover:underline">{row.action}</button>
-                    </td>
-                  </tr>
-                ))}
+                {historyLoading && (
+                  <tr><td colSpan={5} className="py-6 text-center text-muted-foreground">불러오는 중...</td></tr>
+                )}
+                {!historyLoading && history.length === 0 && (
+                  <tr><td colSpan={5} className="py-6 text-center text-muted-foreground">아직 등록된 영수증이 없습니다.</td></tr>
+                )}
+                {history.map((row, i) => {
+                  const meta = STATUS_META[row.status];
+                  return (
+                    <tr
+                      key={row.receiptId}
+                      onMouseEnter={() => setHoveredRow(i)}
+                      onMouseLeave={() => setHoveredRow(null)}
+                      className={`border-b border-border last:border-0 transition-colors ${hoveredRow === i ? "bg-muted/50" : ""}`}
+                    >
+                      <td className="py-3 pr-4">
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${meta.color}`}>{meta.label}</span>
+                      </td>
+                      <td className="py-3 pr-4 text-muted-foreground font-medium">{formatShortDate(row.transactionDate)}</td>
+                      <td className="py-3 pr-4 font-semibold text-foreground">{row.vendorName ?? "-"}</td>
+                      <td className="py-3 pr-4 font-bold tabular-nums">₩{row.totalAmount.toLocaleString()}</td>
+                      <td className="py-3 pr-4 text-muted-foreground">{row.category}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+        </div>
+
+        {/* AI 가계부 리포트 — 오른쪽 2/3 (기간 선택 가능, HTML 리포트) */}
+        <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
+            <h3 className="font-bold">AI 가계부 리포트</h3>
+          </div>
+
+          {/* 기간/옵션 선택 */}
+          <div className="flex flex-wrap items-end gap-3 mb-4">
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">기간 단위</label>
+              <select
+                value={reportType}
+                onChange={e => setReportType(e.target.value as ReportType)}
+                className="h-9 px-3 text-sm bg-muted rounded-xl border border-border focus:outline-none"
+              >
+                <option value="monthly">월간</option>
+                <option value="yearly">연간</option>
+                <option value="full">총기간</option>
+              </select>
+            </div>
+
+            {(reportType === "monthly" || reportType === "yearly") && (
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">연도</label>
+                <input
+                  type="number"
+                  value={reportYear}
+                  onChange={e => setReportYear(Number(e.target.value))}
+                  className="h-9 w-24 px-3 text-sm bg-muted rounded-xl border border-border focus:outline-none"
+                />
+              </div>
+            )}
+
+            {reportType === "monthly" && (
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">월</label>
+                <select
+                  value={reportMonth}
+                  onChange={e => setReportMonth(Number(e.target.value))}
+                  className="h-9 px-3 text-sm bg-muted rounded-xl border border-border focus:outline-none"
+                >
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                    <option key={m} value={m}>{m}월</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">매장명 (선택)</label>
+              <input
+                type="text"
+                value={storeName}
+                onChange={e => setStoreName(e.target.value)}
+                placeholder="예: 온기카페"
+                className="h-9 px-3 text-sm bg-muted rounded-xl border border-border focus:outline-none"
+              />
+            </div>
+
+            <button
+              onClick={() => void generateReport()}
+              disabled={reportLoading}
+              className="flex items-center gap-1.5 text-sm bg-[#246BFD] text-white px-4 py-2 h-9 rounded-xl font-semibold hover:bg-[#1D4ED8] disabled:opacity-60 transition-colors"
+            >
+              {reportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              리포트 생성
+            </button>
+
+            <button
+              onClick={downloadReport}
+              disabled={!reportHtml}
+              className="flex items-center gap-1.5 text-sm bg-muted text-foreground px-4 py-2 h-9 rounded-xl font-semibold hover:bg-muted/70 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              다운로드
+            </button>
+          </div>
+
+          {reportError && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2 mb-4">
+              <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-red-700">{reportError}</p>
+            </div>
+          )}
+
+          {!reportHtml && !reportLoading && !reportError && (
+            <p className="text-sm text-muted-foreground">
+              기간을 선택하고 "리포트 생성"을 누르면, 지출·이상탐지·예산·매입단가 등을 종합한 경영 장부 리포트가 아래에 표시됩니다.
+            </p>
+          )}
+
+          {reportHtml && (
+            <iframe
+              title="AI 가계부 리포트"
+              srcDoc={reportHtml}
+              onLoad={e => {
+                const doc = e.currentTarget.contentDocument;
+                if (doc) setReportIframeHeight(doc.documentElement.scrollHeight + 24);
+              }}
+              style={{ height: reportIframeHeight }}
+              className="w-full border border-border rounded-xl"
+            />
+          )}
+        </div>
         </div>
       </div>
     </div>

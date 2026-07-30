@@ -1,19 +1,18 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { User, UserRole } from "../../entities/user/user.types";
+import * as authApi from "../../features/auth/api/authApi";
+import type { SignupPayload } from "../../features/auth/api/authApi";
 import {
   clearAccessToken,
-  getAccessToken,
   getSessionUser,
   saveAccessToken,
   saveSessionUser,
 } from "../../features/auth/model/authSession";
-import * as authApi from "../../features/auth/api/authApi";
-import type { SignupPayload } from "../../features/auth/api/authApi";
+import { DEMO_USERS } from "../../mocks";
 import {
   ApiError,
   AUTH_EXPIRED_EVENT,
 } from "../../shared/api/apiClient";
-import { DEMO_USERS } from "../../mocks";
 
 interface AuthContextType {
   user: User | null;
@@ -37,9 +36,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const demoUser = getSessionUser();
   const [user, setUser] = useState<User | null>(demoUser);
-  const [isInitializing, setIsInitializing] = useState(
-    !demoUser,
-  );
+  const [isInitializing, setIsInitializing] = useState(!demoUser);
   const [isDemo, setIsDemo] = useState(Boolean(demoUser));
 
   useEffect(() => {
@@ -48,11 +45,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (!getAccessToken()) {
-      setIsInitializing(false);
-      return;
-    }
-
+    // 액세스 토큰이 없어도 HttpOnly 리프레시 쿠키가 남아 있을 수 있으므로
+    // 현재 사용자 조회를 시도하고 apiClient의 자동 갱신 흐름에 맡긴다.
     authApi.getMe()
       .then((currentUser) => {
         setUser(currentUser);
@@ -63,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
       })
       .finally(() => setIsInitializing(false));
-  }, []);
+  }, [demoUser]);
 
   useEffect(() => {
     const handleExpiredSession = () => {
@@ -104,7 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       saveSessionUser(null);
-      saveAccessToken(result.token, remember);
+      saveAccessToken(result.token);
       setUser(result.user);
       setIsDemo(false);
       return { ok: true };
@@ -135,7 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const result = await authApi.signup(payload);
       saveSessionUser(null);
-      saveAccessToken(result.token, false);
+      saveAccessToken(result.token);
       setUser(result.user);
       setIsDemo(false);
       return { ok: true, user: result.user };
@@ -150,13 +144,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const switchDemo = (userId: string) => {
-    const u = DEMO_USERS.find((u) => u.id === userId);
-    if (u) {
+    const nextUser = DEMO_USERS.find((candidate) => candidate.id === userId);
+    if (nextUser) {
       if (!isDemo && user) {
         void authApi.logout().catch(() => undefined);
       }
       clearAccessToken();
-      updateDemoUser(u);
+      updateDemoUser(nextUser);
     }
   };
 
@@ -176,7 +170,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
+  return context;
 }
