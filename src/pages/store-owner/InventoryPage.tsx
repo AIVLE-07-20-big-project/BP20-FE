@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
-import { ArrowDown, ArrowUp, AlertTriangle, Check, ChevronDown, ChevronUp, CloudRain, FileSpreadsheet, MapPin, RefreshCw, ShoppingCart, Upload, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { ArrowDown, ArrowUp, AlertTriangle, Check, ChevronDown, ChevronUp, CloudRain, FileSpreadsheet, MapPin, ShoppingCart, Upload, X } from "lucide-react";
 import { PageShell } from "../../shared/components/PageShell";
 import { MetricCard } from "../../shared/components/MetricCard";
 import { DataTable } from "../../shared/components/DataTable";
@@ -17,9 +17,7 @@ import {
   type AutomaticOrderRecommendation,
 } from "../../features/order-recommendation/api/orderRecommendationApi";
 import {
-  getSavedLocation,
-  saveLocation,
-  searchLocations,
+  getStoreLocation,
   type LocationCandidate,
 } from "../../features/location/api/locationApi";
 
@@ -69,11 +67,7 @@ export function InventoryPage() {
   const [csvUploading, setCsvUploading] = useState(false);
   const [csvMessage, setCsvMessage] = useState("");
   const [csvError, setCsvError] = useState("");
-  const [locationQuery, setLocationQuery] = useState("");
-  const [locationResults, setLocationResults] = useState<LocationCandidate[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<LocationCandidate | null>(null);
-  const [locationSearching, setLocationSearching] = useState(false);
-  const [locationError, setLocationError] = useState("");
   const [recommendationSortDirection, setRecommendationSortDirection] = useState<"ASC" | "DESC">("ASC");
   const [orderRequiredOnly, setOrderRequiredOnly] = useState(false);
   const [bulkOrderOpen, setBulkOrderOpen] = useState(false);
@@ -83,6 +77,7 @@ export function InventoryPage() {
   const [completedOrders, setCompletedOrders] = useState<CompletedOrder[]>([]);
   const [completedOrderDetail, setCompletedOrderDetail] = useState<CompletedOrder | null>(null);
   const [orderSelectionMessage, setOrderSelectionMessage] = useState("");
+  const initialRecommendationStarted = useRef(false);
 
   const filters = ["전체", "부족", "품절", "임박", "과잉"];
 
@@ -209,57 +204,21 @@ export function InventoryPage() {
     setInventorySortDirection("ASC");
   };
 
-  const loadAutomaticRecommendation = () => {
-    if (!selectedLocation) {
-      setRecommendationError("날씨를 조회할 위치를 먼저 선택해 주세요.");
+  const loadAutomaticRecommendation = (location: LocationCandidate | null = selectedLocation) => {
+    if (!location) {
+      setRecommendationError("매장 커머스에서 내 매장을 먼저 등록해 주세요.");
       return;
     }
     setRecommendationLoading(true);
     setRecommendationError("");
     setOrderSelectionMessage("");
-    generateAutomaticOrderRecommendation(selectedLocation.latitude, selectedLocation.longitude)
+    generateAutomaticOrderRecommendation(location.latitude, location.longitude)
       .then((result) => {
         setAutomaticResult(result);
         setRecommendationsExpanded(true);
       })
       .catch((error) => setRecommendationError(error instanceof Error ? error.message : "발주 추천을 불러오지 못했습니다."))
       .finally(() => setRecommendationLoading(false));
-  };
-
-  const findLocations = async () => {
-    const query = locationQuery.trim();
-    if (query.length < 2) {
-      setLocationError("위치는 두 글자 이상 입력해 주세요.");
-      return;
-    }
-    setLocationSearching(true);
-    setLocationError("");
-    setLocationResults([]);
-    try {
-      const results = await searchLocations(query);
-      setLocationResults(results);
-      if (results.length === 0) setLocationError("검색 결과가 없습니다. 시·구·동을 함께 입력해 보세요.");
-    } catch (error) {
-      setLocationError(error instanceof Error ? error.message : "위치를 검색하지 못했습니다.");
-    } finally {
-      setLocationSearching(false);
-    }
-  };
-
-  const chooseLocation = (location: LocationCandidate) => {
-    setSelectedLocation(location);
-    setLocationQuery(location.displayName);
-    setLocationResults([]);
-    setLocationError("");
-    setAutomaticResult(null);
-    setRecommendationError("");
-    void saveLocation(location).catch((error) => {
-      setLocationError(
-        error instanceof Error
-          ? error.message
-          : "선택한 위치를 저장하지 못했습니다.",
-      );
-    });
   };
 
   const loadInventoryData = async () => {
@@ -309,18 +268,20 @@ export function InventoryPage() {
   };
 
   useEffect(() => {
+    if (initialRecommendationStarted.current) return;
+    initialRecommendationStarted.current = true;
+
     void loadInventoryData();
-    void getSavedLocation()
+    void getStoreLocation()
       .then((location) => {
-        if (!location) return;
         setSelectedLocation(location);
-        setLocationQuery(location.displayName);
+        loadAutomaticRecommendation(location);
       })
       .catch((error) => {
-        setLocationError(
+        setRecommendationError(
           error instanceof Error
             ? error.message
-            : "저장된 위치를 불러오지 못했습니다.",
+            : "등록된 매장 주소를 불러오지 못했습니다. 매장 커머스에서 내 매장을 먼저 등록해 주세요.",
         );
       });
   }, []);
@@ -335,57 +296,12 @@ export function InventoryPage() {
               날씨 기반 발주 추천
             </div>
             <p className="text-xs font-medium text-muted-foreground mt-1">
-              현재 위치: {selectedLocation?.displayName ?? "선택되지 않음"}
+              매장 위치: {selectedLocation?.displayName ?? "매장 주소 확인 중"}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">선택한 위치의 오늘·내일 날씨와 업로드된 상품·매출·재고 데이터를 함께 분석합니다.</p>
+            <p className="text-xs text-muted-foreground mt-1">등록된 매장 주소의 일주일 날씨와 업로드된 상품·매출·재고 데이터를 자동으로 분석합니다.</p>
           </div>
-          <button
-            type="button"
-            onClick={loadAutomaticRecommendation}
-            disabled={recommendationLoading || !selectedLocation}
-            className="flex items-center gap-2 px-3 h-9 bg-[#246BFD] text-white text-xs font-bold rounded-xl disabled:opacity-60"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${recommendationLoading ? "animate-spin" : ""}`} />
-            {recommendationLoading ? "날씨 분석 중" : automaticResult ? "다시 분석" : "추천 실행"}
-          </button>
-        </div>
-
-        <div className="mt-4">
-          <div className="flex gap-2">
-            <input
-              type="search"
-              value={locationQuery}
-              onChange={(event) => {
-                setLocationQuery(event.target.value);
-                if (selectedLocation && event.target.value !== selectedLocation.displayName) setSelectedLocation(null);
-              }}
-              onKeyDown={(event) => { if (event.key === "Enter") void findLocations(); }}
-              placeholder="예: 대전시 둔산동"
-              className="flex-1 h-9 px-3 text-sm bg-muted rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-[#246BFD]/40"
-            />
-            <button
-              type="button"
-              onClick={() => void findLocations()}
-              disabled={locationSearching}
-              className="px-4 h-9 bg-muted text-sm font-semibold rounded-xl border border-border disabled:opacity-60"
-            >
-              {locationSearching ? "검색 중" : "위치 검색"}
-            </button>
-          </div>
-          {locationError && <div className="mt-2 text-xs text-red-600">{locationError}</div>}
-          {locationResults.length > 0 && (
-            <div className="mt-2 border border-border rounded-xl overflow-hidden">
-              {locationResults.map((location) => (
-                <button
-                  key={`${location.displayName}-${location.latitude}-${location.longitude}`}
-                  type="button"
-                  onClick={() => chooseLocation(location)}
-                  className="w-full text-left px-3 py-2.5 text-sm border-b border-border last:border-0 hover:bg-muted transition-colors"
-                >
-                  {location.displayName}
-                </button>
-              ))}
-            </div>
+          {recommendationLoading && (
+            <span className="text-xs font-semibold text-[#246BFD]">날씨와 재고를 자동 분석하는 중입니다.</span>
           )}
         </div>
 
@@ -836,7 +752,7 @@ export function InventoryPage() {
                     type="number"
                     value={orderQty}
                     min={1}
-                    placeholder={automaticResult ? "추천 수량 없음" : "날씨 기반 추천 실행 후 자동 입력"}
+                    placeholder={automaticResult ? "추천 수량 없음" : "자동 분석 완료 후 추천 수량 입력"}
                     onChange={(e) => setOrderQty(e.target.value === "" ? "" : Number(e.target.value))}
                     className="flex-1 h-10 px-3 text-sm bg-muted rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-[#246BFD]/40"
                   />
