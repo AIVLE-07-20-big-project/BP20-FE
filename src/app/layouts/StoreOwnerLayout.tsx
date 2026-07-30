@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, TrendingUp, Zap, BookOpen, Package,
   Star, Users, ShoppingBag,
   User, Search, ChevronLeft, ChevronRight,
-  Store, Menu, LogOut
+  Store, Menu, LogOut, ClipboardCheck
 } from "lucide-react";
 import { clsx } from "clsx";
 import { commerceApi } from "../../features/commerce/api/commerceApi";
@@ -25,6 +25,7 @@ const STORE_NAV = [
 
 const AI_NAV = [
   { to: "/store/actions", icon: Zap, label: "매출 기반 전략 추천" },
+  { to: "/store/strategy-verifications", icon: ClipboardCheck, label: "전략 검증" },
   { to: "/store/ledger", icon: BookOpen, label: "AI 가계부" },
 ];
 
@@ -45,6 +46,7 @@ export function StoreOwnerLayout() {
   const [storeIdentity, setStoreIdentity] = useState<{ name: string; category: string } | null>(null);
   const { user, isDemo, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     if (isDemo) {
@@ -131,24 +133,76 @@ export function StoreOwnerLayout() {
                 </span>
               </div>
             )}
-            {items.map(({ to, icon: Icon, label }) => (
-              <NavLink
-                key={to}
-                to={to}
-                onClick={() => setMobileOpen(false)}
-                aria-label={label}
-                title={collapsed && !mobile ? label : undefined}
-                className={({ isActive }) => clsx(
-                  "mb-0.5 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-[#246BFD]/20 text-[#93BBFD]"
-                    : "text-white/60 hover:bg-white/5 hover:text-white"
-                )}
-              >
-                <Icon className="h-4 w-4 flex-shrink-0" />
-                {(!collapsed || mobile) && <span className="truncate">{label}</span>}
-              </NavLink>
-            ))}
+            {items.map(({ to, icon: Icon, label }) => {
+              if (to === "/store/strategy-verifications") {
+                return (
+                  <div key={to} className="group relative">
+                    <NavLink
+                      to="/store/strategy-verifications/sales"
+                      onClick={() => setMobileOpen(false)}
+                      aria-label={label}
+                      title={collapsed && !mobile ? label : undefined}
+                      className={() => clsx(
+                        "mb-0.5 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                        location.pathname.startsWith("/store/strategy-verifications")
+                          ? "bg-[#246BFD]/20 text-[#93BBFD]"
+                          : "text-white/60 hover:bg-white/5 hover:text-white"
+                      )}
+                    >
+                      <Icon className="h-4 w-4 flex-shrink-0" />
+                      {(!collapsed || mobile) && <span className="truncate">{label}</span>}
+                      {(!collapsed || mobile) && <ChevronRight className="ml-auto h-3.5 w-3.5" />}
+                    </NavLink>
+
+                    {(!collapsed || mobile) && (
+                      <div className="max-h-0 overflow-hidden pl-7 opacity-0 transition-all duration-200 group-hover:max-h-24 group-hover:opacity-100 group-focus-within:max-h-24 group-focus-within:opacity-100">
+                        <div className="border-l border-white/10 py-1 pl-2">
+                          <NavLink
+                            to="/store/strategy-verifications/sales"
+                            onClick={() => setMobileOpen(false)}
+                            className={({ isActive }) => clsx(
+                              "block rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
+                              isActive ? "bg-[#246BFD]/20 text-[#93BBFD]" : "text-white/60 hover:bg-white/5 hover:text-white"
+                            )}
+                          >
+                            매출형 전략 검증
+                          </NavLink>
+                          <NavLink
+                            to="/store/strategy-verifications/review"
+                            onClick={() => setMobileOpen(false)}
+                            className={({ isActive }) => clsx(
+                              "block rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
+                              isActive ? "bg-[#246BFD]/20 text-[#93BBFD]" : "text-white/60 hover:bg-white/5 hover:text-white"
+                            )}
+                          >
+                            리뷰형 전략 검증
+                          </NavLink>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <NavLink
+                  key={to}
+                  to={to}
+                  onClick={() => setMobileOpen(false)}
+                  aria-label={label}
+                  title={collapsed && !mobile ? label : undefined}
+                  className={({ isActive }) => clsx(
+                    "mb-0.5 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-[#246BFD]/20 text-[#93BBFD]"
+                      : "text-white/60 hover:bg-white/5 hover:text-white"
+                  )}
+                >
+                  <Icon className="h-4 w-4 flex-shrink-0" />
+                  {(!collapsed || mobile) && <span className="truncate">{label}</span>}
+                </NavLink>
+              );
+            })}
           </div>
         ))}
       </nav>
