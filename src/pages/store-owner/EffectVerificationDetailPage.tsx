@@ -219,16 +219,20 @@ export function EffectVerificationDetailPage() {
 
   return (
     <PageShell
-      title="효과 검증 상세"
+      title="전략 검증 상세"
       subtitle={`추천 ID ${recommendationIdParam ?? "—"}의 실행 이후 변화를 확인합니다.`}
       actions={(
         <button
           type="button"
-          onClick={() => navigate("/store/actions/history")}
+          onClick={() => navigate(
+            execution?.recommendation_type === "REVIEW"
+              ? "/store/strategy-verifications/review"
+              : "/store/strategy-verifications/sales"
+          )}
           className="flex items-center gap-1 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-          검증 이력
+          전략 검증
         </button>
       )}
     >
@@ -256,9 +260,11 @@ export function EffectVerificationDetailPage() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs text-muted-foreground">
-                    매장 {execution.store_id} · {execution.recommendation_type === "SALES" ? "매출형" : "리뷰형"}
+                    {execution.recommendation_type === "SALES" ? "매출형 전략 검증" : "리뷰형 전략 검증"}
                   </p>
-                  <h2 className="mt-1 text-lg font-bold">추천 ID {execution.recommendation_id}</h2>
+                  <h2 className="mt-1 text-lg font-bold">
+                    {execution.thread_id ? `분석 ${execution.thread_id}` : `추천 ${execution.recommendation_id}`}
+                  </h2>
                 </div>
                 {(() => {
                   const status = STATUS_VIEW[execution.status];
