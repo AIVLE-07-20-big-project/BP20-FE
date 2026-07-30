@@ -104,7 +104,7 @@ export function ReviewsPage() {
         <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
         <div>
           <p className="text-sm font-semibold text-red-800">'대기시간이 길다' 관련 언급이 최근 2주 동안 3배 증가했습니다.</p>
-          <p className="text-xs text-red-600 mt-0.5">해당 이슈가 지속될 경우 평균 평점 0.3~0.5 하락이 예상됩니다. AI 전략 추천에서 개선 전략을 확인하세요.</p>
+          <p className="text-xs text-red-600 mt-0.5">해당 이슈가 지속될 경우 평균 평점 0.3~0.5 하락이 예상됩니다. 매출 기반 전략 추천에서 개선 전략을 확인하세요.</p>
         </div>
       </div>
 

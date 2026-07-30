@@ -2,13 +2,14 @@ import type {
   AiAnalysisJob,
   AiAnalysisResult,
   AiRecommendationDecision,
+  AiRecommendationExecutionPeriod,
   AiRecommendationRun,
   CreateAnalysisInput,
 } from "../../../entities/ai-analysis/ai-analysis.types";
-import { apiRequest } from "../../../shared/api/http";
+import { apiRequest } from "../../../shared/api/apiClient";
 
 // AI 서비스가 202 + job_id로 응답한다(비동기 분석) — 완료 여부는 getAnalysisJobStatus로 폴링한다.
-export function createAnalysis(input: CreateAnalysisInput, accessToken: string) {
+export function createAnalysis(input: CreateAnalysisInput) {
   const form = new FormData();
   form.append("file", input.file);
   if (input.trdarCd) form.append("trdar_cd", input.trdarCd);
@@ -19,30 +20,21 @@ export function createAnalysis(input: CreateAnalysisInput, accessToken: string) 
   return apiRequest<AiAnalysisJob>("/api/ai/analyses", {
     method: "POST",
     body: form,
-  }, accessToken);
+  });
 }
 
-export function getAnalysisJobStatus(jobId: string, accessToken: string) {
-  return apiRequest<AiAnalysisJob>(
-    `/api/ai/jobs/${encodeURIComponent(jobId)}`,
-    { method: "GET" },
-    accessToken,
-  );
+export function getAnalysisJobStatus(jobId: string) {
+  return apiRequest<AiAnalysisJob>(`/api/ai/jobs/${encodeURIComponent(jobId)}`, { method: "GET" });
 }
 
-export function getAnalysis(analysisId: string, accessToken: string) {
-  return apiRequest<AiAnalysisResult>(
-    `/api/ai/analyses/${encodeURIComponent(analysisId)}`,
-    { method: "GET" },
-    accessToken,
-  );
+export function getAnalysis(analysisId: string) {
+  return apiRequest<AiAnalysisResult>(`/api/ai/analyses/${encodeURIComponent(analysisId)}`, { method: "GET" });
 }
 
 // completed/failed까지 일정 간격으로 폴링한다. intervalMs·timeoutMs로 속도·상한을 조절하고,
 // onUpdate로 매 폴링마다의 중간 상태(queued/running)를 호출부에 알려 진행 표시에 쓸 수 있게 한다.
 export async function pollAnalysisJob(
   jobId: string,
-  accessToken: string,
   {
     intervalMs = 2000,
     timeoutMs = 120000,
@@ -51,7 +43,7 @@ export async function pollAnalysisJob(
 ): Promise<AiAnalysisJob> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
-    const job = await getAnalysisJobStatus(jobId, accessToken);
+    const job = await getAnalysisJobStatus(jobId);
     onUpdate?.(job);
     if (job.status === "completed" || job.status === "failed") return job;
     if (Date.now() >= deadline) {
@@ -61,31 +53,42 @@ export async function pollAnalysisJob(
   }
 }
 
-export function createRecommendation(analysisId: string, accessToken: string) {
+export function createRecommendation(analysisId: string) {
   return apiRequest<AiRecommendationRun>(
     `/api/ai/analyses/${encodeURIComponent(analysisId)}/recommendations`,
     { method: "POST" },
-    accessToken,
   );
 }
 
-export function getRecommendations(accessToken: string, storeId?: string) {
+export function getRecommendations(storeId?: string) {
   const query = storeId ? `?store_id=${encodeURIComponent(storeId)}` : "";
-  return apiRequest<AiRecommendationRun[]>(
-    `/api/ai/recommendations${query}`,
-    { method: "GET" },
-    accessToken,
-  );
+  return apiRequest<AiRecommendationRun[]>(`/api/ai/recommendations${query}`, { method: "GET" });
 }
 
 export function resumeRecommendation(
   threadId: string,
   decision: AiRecommendationDecision,
-  accessToken: string,
+  selectedAction?: string,
+  executionPeriod?: AiRecommendationExecutionPeriod,
 ) {
   return apiRequest<AiRecommendationRun>(
     `/api/ai/agent-runs/${encodeURIComponent(threadId)}/resume`,
-    { method: "POST", body: JSON.stringify({ decision }) },
-    accessToken,
+    {
+      method: "POST",
+      body: JSON.stringify(
+        // Spring Boot 현재 프록시는 modification_plan으로 FastAPI에 전달한다.
+        // FE에서는 의미를 selectedAction으로 관리하되 기존 BE와 호환되는 키를 사용한다.
+        {
+          decision,
+          ...(selectedAction ? { modification_plan: selectedAction } : {}),
+          ...(executionPeriod?.execution_started_at
+            ? {
+                execution_started_at: executionPeriod.execution_started_at,
+                execution_ended_at: executionPeriod.execution_ended_at,
+              }
+            : {}),
+        },
+      ),
+    },
   );
 }
