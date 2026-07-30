@@ -8,7 +8,7 @@ import { PageShell } from "../../shared/components/PageShell";
 import { MetricCard } from "../../shared/components/MetricCard";
 import { WEEKLY_SALES, HOURLY_DATA } from "../../mocks";
 import { createAnalysis, getAnalysis, pollAnalysisJob } from "../../features/ai-analysis/api/aiAnalysisApi";
-import { ApiError } from "../../shared/api/http";
+import { ApiError } from "../../shared/api/apiClient";
 import type {
   AiAnalysisJobStatus,
   AiAnalysisResult,
@@ -20,9 +20,21 @@ import type {
 // 각 인덱스가 곧 currentStepIndex와 비교하는 단계 번호다(0=업로드, 1=대기열, 2=처리 중).
 const PROGRESS_STEPS = ["업로드", "대기열 등록", "분석 처리 중"];
 
-const AI_ACCESS_TOKEN_KEY = "bp20:ai-access-token";
 const AI_ANALYSIS_ID_KEY = "bp20:ai-analysis-id";
+const AI_ANALYSIS_OPTIONS_KEY = "bp20:ai-analysis-options";
 const AI_STORE_ID_KEY = "bp20:ai-store-id";
+
+// 새로고침해도 방금 완료한 매출 분석이 사라지지 않도록, 세션에 저장해 둔 가장 최근
+// analysisId를 첫 렌더 때 다시 불러온다(AiStrategyPage/DashboardPage와 같은 방식).
+function latestAnalysisIdFromSession(): string {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(AI_ANALYSIS_OPTIONS_KEY) ?? "[]");
+    if (Array.isArray(saved) && saved[0]?.id) return saved[0].id;
+  } catch {
+    // 오래된 세션 값은 아래 fallback으로 처리한다.
+  }
+  return sessionStorage.getItem(AI_ANALYSIS_ID_KEY) ?? "";
+}
 
 const DATE_PRESETS = ["월별", "분기"];
 
@@ -110,7 +122,6 @@ const formatManwon = (value: number) => `${Math.round(value / 10000).toLocaleStr
 
 export function SalesPage() {
   const [preset, setPreset] = useState("월별");
-  const [accessToken, setAccessToken] = useState(() => sessionStorage.getItem(AI_ACCESS_TOKEN_KEY) ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [storeId, setStoreId] = useState(() => sessionStorage.getItem(AI_STORE_ID_KEY) ?? "");
   const [trdarCd, setTrdarCd] = useState("");
@@ -122,6 +133,7 @@ export function SalesPage() {
   const [statusMessage, setStatusMessage] = useState("");
   const [jobStatus, setJobStatus] = useState<AiAnalysisJobStatus | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [restoring, setRestoring] = useState(false);
   const elapsedTimerRef = useRef<number | null>(null);
 
   // 언마운트 시 타이머가 남아있으면 정리한다.
@@ -129,12 +141,20 @@ export function SalesPage() {
     if (elapsedTimerRef.current !== null) window.clearInterval(elapsedTimerRef.current);
   }, []);
 
+  // 새로고침 직후에도 마지막으로 완료한 매출 분석을 다시 불러와 화면을 유지한다.
+  useEffect(() => {
+    const analysisId = latestAnalysisIdFromSession();
+    if (!analysisId) return;
+    setRestoring(true);
+    getAnalysis(analysisId)
+      .then(setAnalysis)
+      .catch(() => undefined)
+      .finally(() => setRestoring(false));
+  }, []);
+
   const handleAnalysis = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!accessToken.trim()) { setApiError("Swagger 로그인으로 발급받은 JWT를 입력해 주세요."); return; }
     if (!file) { setApiError("CSV 파일을 선택해 주세요."); return; }
-    const token = accessToken.trim();
-    sessionStorage.setItem(AI_ACCESS_TOKEN_KEY, token);
     if (storeId.trim()) sessionStorage.setItem(AI_STORE_ID_KEY, storeId.trim());
     setRequesting(true);
     setApiError("");
@@ -149,11 +169,11 @@ export function SalesPage() {
         trdarCd: trdarCd || undefined,
         svcIndutyCd: svcIndutyCd || undefined,
         yyquCd: yyquCd ? Number(yyquCd) : undefined,
-      }, token);
+      });
       setJobStatus(job.status);
 
       setStatusMessage("분석 처리 중... (완료까지 몇 초~몇십 초 걸릴 수 있습니다)");
-      const finishedJob = await pollAnalysisJob(job.job_id, token, {
+      const finishedJob = await pollAnalysisJob(job.job_id, {
         onUpdate: (update) => setJobStatus(update.status),
       });
       if (finishedJob.status === "failed" || !finishedJob.analysis_id) {
@@ -161,9 +181,25 @@ export function SalesPage() {
         return;
       }
 
-      const result = await getAnalysis(finishedJob.analysis_id, token);
+      const result = await getAnalysis(finishedJob.analysis_id);
       setAnalysis(result);
       sessionStorage.setItem(AI_ANALYSIS_ID_KEY, result.analysis_id);
+      const target = (result.diagnosis?.["대상"] ?? {}) as Record<string, unknown>;
+      const label = [
+        result.store_id ? `매장 ${result.store_id}` : null,
+        target["상권명"], target["업종명"], target["기준분기"],
+      ]
+        .filter(Boolean).join(" · ") || "최근 매출 분석";
+      let previous: Array<{ id: string; label: string }> = [];
+      try {
+        previous = JSON.parse(sessionStorage.getItem(AI_ANALYSIS_OPTIONS_KEY) ?? "[]");
+      } catch {
+        previous = [];
+      }
+      sessionStorage.setItem(
+        AI_ANALYSIS_OPTIONS_KEY,
+        JSON.stringify([{ id: result.analysis_id, label }, ...previous.filter((item) => item.id !== result.analysis_id)].slice(0, 10)),
+      );
     } catch (error) {
       if (error instanceof ApiError && error.status === 404 && !trdarCd && !svcIndutyCd) {
         setApiError("최초 업로드는 상권 코드와 업종 코드를 함께 입력해야 합니다. 이후부터는 파일만 올려도 자동으로 채워집니다.");
@@ -186,6 +222,14 @@ export function SalesPage() {
   const report = analysis?.report;
   const detailed = analysis?.detailed_analysis;
   const rootCause = detailed?.rootCauseAnalysis;
+  const eventAnalysis = detailed?.eventAnalysis;
+  const salesBreakdown = detailed?.salesBreakdown;
+  const categoryRows = salesBreakdown?.dimensions?.product_category ?? [];
+  const channelRows = salesBreakdown?.dimensions?.sales_channel ?? [];
+  const breakdownSections: Array<[string, typeof categoryRows]> = [
+    ["상품 카테고리", categoryRows],
+    ["판매 채널", channelRows],
+  ];
   const summary = report?.["간단분석 정보요약"];
   const salesAnalysis = report?.매출분석;
   const trend = report?.추이?.매출액;
@@ -301,13 +345,6 @@ export function SalesPage() {
           <h3 className="font-bold">매출 CSV 분석 연동</h3>
         </div>
         <input
-          type="password"
-          value={accessToken}
-          onChange={(event) => setAccessToken(event.target.value)}
-          placeholder="임시 JWT accessToken (로그인 연동 후 제거 예정)"
-          className="w-full h-10 px-3 mb-3 text-sm bg-muted rounded-xl border border-border"
-        />
-        <input
           value={storeId}
           onChange={(event) => setStoreId(event.target.value)}
           placeholder="매장 ID (여러 매장을 구분하려면 입력)"
@@ -359,8 +396,13 @@ export function SalesPage() {
             </div>
           </div>
         )}
+        {restoring && (
+          <p className="mt-3 text-xs text-muted-foreground flex items-center gap-1.5">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> 최근 매출 분석을 불러오는 중...
+          </p>
+        )}
         {apiError && <p className="mt-3 text-xs text-red-600">{apiError}</p>}
-        {analysis && <p className="mt-3 text-xs text-[#0E9F6E] font-semibold">분석 완료 · ID {analysis.analysis_id}</p>}
+        {analysis && !restoring && <p className="mt-3 text-xs text-[#0E9F6E] font-semibold">분석 완료</p>}
       </form>
 
       {/* Date presets */}
@@ -530,6 +572,75 @@ export function SalesPage() {
         </div>
       </div>
 
+      {/* POS 상세 매출 분해 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-5">
+          <h3 className="font-bold mb-1">상품·채널별 상세 매출</h3>
+          <p className="text-xs text-muted-foreground mb-4">업로드 POS 기준 · 매출 비중과 거래 건수</p>
+          {categoryRows.length || channelRows.length ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {breakdownSections.map(([title, rows]) => (
+                <div key={String(title)}>
+                  <p className="text-xs font-semibold mb-2">{title}</p>
+                  <div className="space-y-2">
+                    {rows.slice(0, 5).map((row) => (
+                      <div key={row.value} className="flex items-center gap-2 text-xs">
+                        <span className="w-24 truncate text-muted-foreground">{row.value}</span>
+                        <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                          <div className="h-full rounded-full bg-[#246BFD]" style={{ width: `${Math.min(100, row.revenueSharePct)}%` }} />
+                        </div>
+                        <span className="w-20 text-right font-semibold">{row.revenueSharePct.toFixed(1)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : <p className="text-sm text-muted-foreground">분석을 실행하면 상품·채널별 매출 구성을 보여드립니다.</p>}
+        </div>
+        <div className="bg-card border border-border rounded-2xl p-5">
+          <h3 className="font-bold mb-1">행사 노출 분석</h3>
+          <p className="text-xs text-muted-foreground mb-4">인근 행사 데이터 기준 · 참고용 연관성</p>
+          {eventAnalysis?.available ? (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl bg-muted/60 p-3"><p className="text-[11px] text-muted-foreground">주변 행사 수</p><p className="font-bold">{eventAnalysis.eventCount ?? "-"}건</p></div>
+                <div className="rounded-xl bg-muted/60 p-3"><p className="text-[11px] text-muted-foreground">행사 일수</p><p className="font-bold">{eventAnalysis.eventDays ?? "-"}일</p></div>
+              </div>
+              <p>행사 노출일 평균 매출 <b>{eventAnalysis.averageDailyRevenueExposed == null ? "-" : formatManwon(eventAnalysis.averageDailyRevenueExposed)}</b></p>
+              <p>비노출일 대비 <b>{eventAnalysis.exposedVsUnexposedRevenuePct == null ? "비교 불가" : `${eventAnalysis.exposedVsUnexposedRevenuePct > 0 ? "+" : ""}${eventAnalysis.exposedVsUnexposedRevenuePct.toFixed(1)}%`}</b></p>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">{eventAnalysis.interpretation}</p>
+            </div>
+          ) : <p className="text-sm text-muted-foreground">POS 기간과 일치하는 행사 데이터가 없습니다.</p>}
+        </div>
+      </div>
+
+      {salesBreakdown && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          {([
+            { key: "daypart", title: "시간대 구간별 매출", rows: salesBreakdown.daypart ?? [], color: "#246BFD" },
+            { key: "weekday", title: "요일별 매출", rows: salesBreakdown.weekday ?? [], color: "#8B5CF6" },
+          ] as const).map(({ key, title, rows, color }) => (
+            <div key={key} className="bg-card border border-border rounded-2xl p-5">
+              <h3 className="font-bold mb-3">{title}</h3>
+              {rows.length ? (
+                <div className="h-44">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={rows}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#DDE3EC" vertical={false} />
+                      <XAxis dataKey="value" tick={{ fontSize: 11, fill: "#667085" }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: "#667085" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 10000).toFixed(0)}만`} />
+                      <Tooltip formatter={(v: number, _n, item) => [`${formatManwon(v)} · ${item.payload.revenueSharePct.toFixed(1)}%`, "매출"]} />
+                      <Bar dataKey="revenue" fill={color} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : <p className="text-sm text-muted-foreground">데이터 없음</p>}
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         {/* Foot traffic — by time of day */}
         <div className="bg-card border border-border rounded-2xl p-5">
@@ -630,13 +741,13 @@ export function SalesPage() {
               <div className="space-y-3">
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-1">분기별 상권 분석</p>
-                  <p className="text-sm text-foreground leading-relaxed">
+                  <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
                     {quarterlyInsight || "이번 분기 상권 데이터가 부족해 상권 분석 해설을 생성하지 못했습니다."}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-1">월별 상세 원인 분석</p>
-                  <p className="text-sm text-foreground leading-relaxed">
+                  <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
                     {monthlyInsight || "POS 상세 분석 데이터가 부족해 월별 원인 분석을 생성하지 못했습니다."}
                   </p>
                 </div>

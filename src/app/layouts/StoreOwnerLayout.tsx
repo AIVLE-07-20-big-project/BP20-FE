@@ -24,7 +24,7 @@ const STORE_NAV = [
 ];
 
 const AI_NAV = [
-  { to: "/store/actions", icon: Zap, label: "AI 전략 추천" },
+  { to: "/store/actions", icon: Zap, label: "매출 기반 전략 추천" },
   { to: "/store/ledger", icon: BookOpen, label: "AI 가계부" },
 ];
 

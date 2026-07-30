@@ -308,7 +308,7 @@ export function EffectVerificationHistoryPage() {
           className="flex items-center gap-1 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-          AI 전략 추천
+          매출 기반 전략 추천
         </button>
       )}
     >
@@ -402,7 +402,7 @@ export function EffectVerificationHistoryPage() {
           <div className="rounded-xl bg-muted/40 p-5 text-center">
             <p className="text-sm font-semibold">현재 실행 가능한 추천이 없습니다.</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              AI 전략 추천에서 추천 승인과 리포트 생성을 먼저 완료해 주세요.
+              매출 기반 전략 추천에서 추천 승인과 리포트 생성을 먼저 완료해 주세요.
             </p>
           </div>
         ) : (
@@ -417,7 +417,6 @@ export function EffectVerificationHistoryPage() {
                   <p className="mt-1 text-xs text-muted-foreground">
                     매장 {candidate.store_id} · {candidate.recommendation_type === "REVIEW" ? "리뷰형" : "매출형"}
                     {candidate.target_aspect ? ` · 대상 ${candidate.target_aspect}` : ""}
-                    {" · "}실행 ID {candidate.thread_id}
                   </p>
                 </div>
                 <button
