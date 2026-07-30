@@ -2,6 +2,7 @@ import type {
   AiAnalysisJob,
   AiAnalysisResult,
   AiRecommendationDecision,
+  AiRecommendationExecutionPeriod,
   AiRecommendationRun,
   CreateAnalysisInput,
 } from "../../../entities/ai-analysis/ai-analysis.types";
@@ -68,6 +69,7 @@ export function resumeRecommendation(
   threadId: string,
   decision: AiRecommendationDecision,
   selectedAction?: string,
+  executionPeriod?: AiRecommendationExecutionPeriod,
 ) {
   return apiRequest<AiRecommendationRun>(
     `/api/ai/agent-runs/${encodeURIComponent(threadId)}/resume`,
@@ -76,7 +78,16 @@ export function resumeRecommendation(
       body: JSON.stringify(
         // Spring Boot 현재 프록시는 modification_plan으로 FastAPI에 전달한다.
         // FE에서는 의미를 selectedAction으로 관리하되 기존 BE와 호환되는 키를 사용한다.
-        selectedAction ? { decision, modification_plan: selectedAction } : { decision },
+        {
+          decision,
+          ...(selectedAction ? { modification_plan: selectedAction } : {}),
+          ...(executionPeriod?.execution_started_at
+            ? {
+                execution_started_at: executionPeriod.execution_started_at,
+                execution_ended_at: executionPeriod.execution_ended_at,
+              }
+            : {}),
+        },
       ),
     },
   );

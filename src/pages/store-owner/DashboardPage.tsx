@@ -126,13 +126,6 @@ const REVIEW_ASPECTS = [
 
 const DONUT_DATA = REVIEW_ASPECTS.map(a => ({ name: a.label, value: a.pct, color: a.color }));
 
-const ORDER_RECS = [
-  { item: "샌드위치", reason: "비 오는 날 수요 보정 +10%", action: "45개 준비 필요", color: "bg-[#246BFD]/5 border-[#246BFD]/15", tag: "수요 예측", tagColor: "text-[#246BFD] bg-[#246BFD]/10" },
-  { item: "양파", reason: "폐기 위험 — 재고 과잉", action: "내일 마감 할인 추천", color: "bg-red-50/80 border-red-200/60", tag: "폐기 위험", tagColor: "text-red-600 bg-red-50" },
-  { item: "닭가슴살", reason: "주말 수요 예측 +25%", action: "30개 추가 발주", color: "bg-amber-50/80 border-amber-200/60", tag: "발주 필요", tagColor: "text-amber-600 bg-amber-50" },
-  { item: "아이스 아메리카노", reason: "기온 상승 대응", action: "원두 2배 준비 권장", color: "bg-[#8B5CF6]/5 border-[#8B5CF6]/15", tag: "기온 대응", tagColor: "text-[#7C3AED] bg-[#8B5CF6]/10" },
-];
-
 const SPARKLINE_DATA: Record<string, { v: number }[]> = {
   sales: [{ v: 980 }, { v: 1050 }, { v: 990 }, { v: 1120 }, { v: 1080 }, { v: 1247 }],
   orders: [{ v: 72 }, { v: 80 }, { v: 68 }, { v: 91 }, { v: 84 }, { v: 87 }],
@@ -149,7 +142,7 @@ const KPI_CARDS = [
 
 const CHAT_SUGGESTIONS = [
   "오늘 매출이 지난주보다 낮은 이유는?",
-  "어떤 AI 전략 추천을 먼저 실행할까요?",
+  "어떤 매출 기반 전략 추천을 먼저 실행할까요?",
   "이번 주 재고 주문이 필요한 항목은?",
   "오늘 쿠폰 발송을 추천하는 이유는?",
 ];
@@ -207,12 +200,12 @@ export function DashboardPage() {
   const executed = hasRealRecommendations
     ? recommendationRuns.filter(isCompletedRun).length
     : AI_RECOMMENDATIONS.filter(r => r.status === "효과 확인").length;
-  const measuring = hasRealRecommendations
-    ? recommendationRuns.filter(isMeasuringRun).length
-    : AI_RECOMMENDATIONS.filter(r => r.status === "측정 중").length;
+  const running = hasRealRecommendations
+    ? recommendationRuns.filter(isRunningRun).length
+    : AI_RECOMMENDATIONS.filter(r => r.status === "실행 예정").length;
   const pending = hasRealRecommendations
-    ? recommendationRuns.filter((run) => isRunningRun(run) || Boolean(run.대기중_승인)).length
-    : AI_RECOMMENDATIONS.length - executed - measuring;
+    ? recommendationRuns.filter((run) => Boolean(run.대기중_승인)).length
+    : AI_RECOMMENDATIONS.length - executed - running;
 
   const allDailySales = analysis?.detailed_analysis?.dailySales ?? [];
   const latestDay = allDailySales.length ? allDailySales[allDailySales.length - 1] : null;
@@ -296,14 +289,14 @@ export function DashboardPage() {
             </h2>
             <p className="text-sm text-white/75 mb-4">
               {analysis
-                ? (quarterlyInsight || rootCause?.narrative || "AI 전략 추천에서 데이터 기반 실행 방안을 확인할 수 있습니다.")
+                ? (quarterlyInsight || rootCause?.narrative || "매출 분석에서 데이터 기반 인사이트를 확인할 수 있습니다.")
                 : "배달 주문 증가가 성장을 견인했습니다. 금요일 14~17시 재방문 쿠폰 실행을 추천합니다."}
             </p>
             <button
-              onClick={() => navigate("/store/actions")}
+              onClick={() => navigate("/store/sales")}
               className="inline-flex items-center gap-1.5 bg-white text-[#7C3AED] text-sm font-bold px-4 py-2 rounded-xl hover:bg-white/90 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
             >
-              AI 추천 바로가기 <ArrowRight className="w-3.5 h-3.5" />
+              매출 분석 바로가기 <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -522,50 +515,18 @@ export function DashboardPage() {
             </div>
           </div>
 
-          {/* AI order recommendations */}
-          <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="flex items-center gap-1.5">
-                <h3 className="font-bold">AI 발주 및 밑작업 추천</h3>
-                <span className="text-[10px] font-bold text-[#8B5CF6] bg-[#8B5CF6]/10 px-1.5 py-0.5 rounded">AI 분석</span>
-              </div>
-            </div>
-            <div className="space-y-2">
-              {ORDER_RECS.map((rec) => (
-                <button
-                  key={rec.item}
-                  onClick={() => navigate("/store/actions")}
-                  className={`w-full flex items-center gap-3 border rounded-xl px-4 py-3 hover:opacity-90 transition-opacity text-left ${rec.color}`}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-sm font-bold">{rec.item}</span>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${rec.tagColor}`}>{rec.tag}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">{rec.reason}</span>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <span className="text-xs font-bold text-foreground">{rec.action}</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                </button>
-              ))}
-            </div>
-            <p className="text-[11px] text-muted-foreground/60 mt-3">※ AI 예측 결과이며 실제 수요는 다를 수 있습니다.</p>
-          </div>
-
           {/* AI action stats */}
           <div className="bg-card border border-border rounded-2xl p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold">AI 추천 현황</h3>
-              <button onClick={() => navigate("/store/actions")} className="text-xs text-[#246BFD] font-semibold hover:underline flex items-center gap-0.5">
+              <button onClick={() => navigate("/store/recommendations/history")} className="text-xs text-[#246BFD] font-semibold hover:underline flex items-center gap-0.5">
                 전체 보기 <ArrowRight className="w-3 h-3" />
               </button>
             </div>
             <div className="grid grid-cols-3 gap-2 mb-4">
               {[
                 { label: "실행 완료", value: executed, color: "text-[#0E9F6E]", bg: "bg-[#0E9F6E]/10" },
-                { label: "측정 중", value: measuring, color: "text-[#246BFD]", bg: "bg-[#246BFD]/10" },
+                { label: "실행 중", value: running, color: "text-[#246BFD]", bg: "bg-[#246BFD]/10" },
                 { label: "추천됨", value: pending, color: "text-[#D97706]", bg: "bg-amber-50" },
               ].map((s) => (
                 <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>

@@ -236,7 +236,7 @@ export function AiStrategyDetailPage() {
     <div className="h-full overflow-y-auto">
       <div className="max-w-3xl mx-auto px-6 py-6">
         <button onClick={() => navigate("/store/actions")} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors">
-          <ChevronLeft className="w-4 h-4" /> AI 전략 추천으로 돌아가기
+          <ChevronLeft className="w-4 h-4" /> 매출 기반 전략 추천으로 돌아가기
         </button>
 
         <div className="flex items-start gap-3 mb-6">

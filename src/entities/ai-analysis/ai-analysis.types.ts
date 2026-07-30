@@ -147,7 +147,14 @@ export interface AiRecommendationRun {
   store_id?: string | null;
   created_at?: string;
   updated_at?: string;
+  execution_started_at?: string | null;
+  execution_ended_at?: string | null;
   [key: string]: unknown;
 }
 
 export type AiRecommendationDecision = "approve" | "edit" | "reject";
+
+export interface AiRecommendationExecutionPeriod {
+  execution_started_at?: string;
+  execution_ended_at?: string;
+}

@@ -1,33 +1,31 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowUpDown, Archive, ChevronRight, Sparkles, CheckCircle2,
-  Play, Eye, Pause, Search, Filter, X, AlertCircle, Clock,
+  ChevronRight, Sparkles, CheckCircle2,
+  X, AlertCircle, Clock,
   TrendingUp, Package, Star, Users, DollarSign, BarChart3,
   Calendar, Info, Loader2
 } from "lucide-react";
 import { PageShell } from "../../shared/components/PageShell";
-import { AI_RECOMMENDATIONS } from "../../mocks";
 import type { AIRecommendation } from "../../entities/recommendation/recommendation.types";
 import type { AiRecommendationDecision, AiRecommendationRun, AiStrategyAction } from "../../entities/ai-analysis/ai-analysis.types";
-import { createRecommendation, getRecommendations, resumeRecommendation } from "../../features/ai-analysis/api/aiAnalysisApi";
+import { createRecommendation, resumeRecommendation } from "../../features/ai-analysis/api/aiAnalysisApi";
 
 const AI_ANALYSIS_ID_KEY = "bp20:ai-analysis-id";
 const AI_ANALYSIS_OPTIONS_KEY = "bp20:ai-analysis-options";
 
-const CATEGORIES = ["전체", "매출", "재고", "리뷰", "고객", "원가"];
-const SORT_OPTIONS = ["우선순위순", "예상 효과순", "마감 임박순", "최신순"];
 const RECOMMENDATION_PROGRESS_STEPS = ["요청 접수", "AI 전략 분석", "추천 결과 생성"];
-
-type ExecStatus = "실행 완료" | "실행 중" | "효과 확인" | "보류";
 type AnalysisOption = { id: string; label: string };
 
-const EXEC_SUMMARY: { key: ExecStatus; label: string; icon: typeof CheckCircle2; bg: string; iconColor: string; textColor: string; desc: string }[] = [
-  { key: "실행 완료", label: "실행 완료", icon: CheckCircle2, bg: "bg-[#0E9F6E]/8 border-[#0E9F6E]/20", iconColor: "text-[#0E9F6E]", textColor: "text-[#0E9F6E]", desc: "결과 확정됨" },
-  { key: "실행 중", label: "실행 중", icon: Play, bg: "bg-[#246BFD]/8 border-[#246BFD]/20", iconColor: "text-[#246BFD]", textColor: "text-[#246BFD]", desc: "현재 진행" },
-  { key: "효과 확인", label: "효과 확인", icon: Eye, bg: "bg-[#8B5CF6]/8 border-[#8B5CF6]/20", iconColor: "text-[#8B5CF6]", textColor: "text-[#8B5CF6]", desc: "성과 측정 중" },
-  { key: "보류", label: "보류", icon: Pause, bg: "bg-muted border-border", iconColor: "text-muted-foreground", textColor: "text-muted-foreground", desc: "점주 보류" },
-];
+function dateInputValue(value?: string | null) {
+  return value ? value.slice(0, 10) : "";
+}
+
+function executionPeriodLabel(run: AiRecommendationRun) {
+  const start = dateInputValue(run.execution_started_at);
+  const end = dateInputValue(run.execution_ended_at);
+  return start && end ? `${start} ~ ${end}` : "승인 시점부터 30일 예정";
+}
 
 const NEW_RECS = [
   {
@@ -326,13 +324,7 @@ function Section({ title, icon: Icon, children }: { title: string; icon: typeof 
 
 export function AiStrategyPage() {
   const navigate = useNavigate();
-  const [filterStatus, setFilterStatus] = useState<ExecStatus | null>(null);
-  const [category, setCategory] = useState("전체");
-  const [storeFilter, setStoreFilter] = useState("전체");
-  const [sort, setSort] = useState("우선순위순");
-  const [search, setSearch] = useState("");
   const [drawerRec, setDrawerRec] = useState<typeof NEW_RECS[0] | null>(null);
-  const [viewMode, setViewMode] = useState<"current" | "history">("current");
   const [analysisOptions, setAnalysisOptions] = useState<AnalysisOption[]>(() => {
     try {
       const saved = JSON.parse(sessionStorage.getItem(AI_ANALYSIS_OPTIONS_KEY) ?? "[]");
@@ -353,19 +345,9 @@ export function AiStrategyPage() {
     return sessionStorage.getItem(AI_ANALYSIS_ID_KEY) ?? "";
   });
   const [recommendationRun, setRecommendationRun] = useState<AiRecommendationRun | null>(null);
-  const [recommendationRuns, setRecommendationRuns] = useState<AiRecommendationRun[]>([]);
   const [recommendationLoading, setRecommendationLoading] = useState(false);
   const [recommendationStage, setRecommendationStage] = useState(0);
   const [recommendationError, setRecommendationError] = useState("");
-
-  useEffect(() => {
-    getRecommendations()
-      .then(setRecommendationRuns)
-      .catch((error) => setRecommendationError(
-        error instanceof Error ? error.message : "추천 이력을 불러오지 못했습니다.",
-      ));
-  }, []);
-
   const requestRecommendation = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!analysisId) {
@@ -379,8 +361,6 @@ export function AiStrategyPage() {
     try {
       const result = await createRecommendation(analysisId.trim());
       setRecommendationRun(result);
-      setRecommendationRuns((current) => [result, ...current.filter((item) => item.thread_id !== result.thread_id)]);
-      setViewMode("current");
     } catch (error) {
       setRecommendationError(error instanceof Error ? error.message : "전략 추천 요청에 실패했습니다.");
     } finally {
@@ -401,9 +381,6 @@ export function AiStrategyPage() {
         selectedAction,
       );
       setRecommendationRun(result);
-      setRecommendationRuns((current) => current.map((item) => (
-        item.thread_id === result.thread_id ? result : item
-      )));
     } catch (error) {
       setRecommendationError(error instanceof Error ? error.message : "추천 처리에 실패했습니다.");
     } finally {
@@ -412,75 +389,12 @@ export function AiStrategyPage() {
     }
   };
 
-  const stores = Array.from(new Set(
-    recommendationRuns.map((run) => run.store_id).filter((storeId): storeId is string => Boolean(storeId)),
-  ));
-
-  const filteredRuns = recommendationRuns.filter((run) => {
-    if (category !== "전체" && category !== "매출") return false;
-    if (storeFilter !== "전체" && run.store_id !== storeFilter) return false;
-    const title = run.selected_action?.방안 ?? "추천 가능한 전략 없음";
-    if (search && !title.includes(search)) return false;
-    if (filterStatus) {
-      const status: ExecStatus | null = run.final_report
-        ? "실행 완료"
-        : run.상태.includes("효과")
-          ? "효과 확인"
-          : run.상태.includes("반려") || run.상태.includes("종료")
-            ? "보류"
-            : run.대기중_승인
-              ? null
-              : "실행 중";
-      if (status !== filterStatus) return false;
-    }
-    return true;
-  });
-
-  const filteredNew = filterStatus
-    ? []
-    : NEW_RECS.filter(r => {
-        if (category !== "전체" && r.category !== category) return false;
-        if (search && !r.title.includes(search)) return false;
-        return true;
-      });
-
-  const resultCount = filteredRuns.length;
-  const isRejected = (run: AiRecommendationRun) => run.상태.includes("반려") || run.상태.includes("종료");
-  const isCompleted = (run: AiRecommendationRun) => Boolean(run.final_report);
-  const isMeasuring = (run: AiRecommendationRun) => run.상태.includes("효과");
-  const isRunning = (run: AiRecommendationRun) => Boolean(
-    !run.대기중_승인 && !isCompleted(run) && !isRejected(run) && !isMeasuring(run),
-  );
-  const executionCounts: Record<ExecStatus, number> = {
-    "실행 완료": recommendationRuns.filter(isCompleted).length,
-    "실행 중": recommendationRuns.filter(isRunning).length + (recommendationLoading ? 1 : 0),
-    "효과 확인": recommendationRuns.filter(isMeasuring).length,
-    "보류": recommendationRuns.filter(isRejected).length,
-  };
-
   return (
     <PageShell
-      title="AI 전략 추천"
+      title="매출 기반 전략 추천"
       subtitle="매출, 재고, 원가, 리뷰 데이터를 분석한 전략을 검토하고 실행 효과를 관리합니다."
       freshness="오늘 09:42 기준"
-      actions={
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate("/store/actions/history")}
-            className="text-xs text-muted-foreground font-semibold flex items-center gap-1 hover:text-foreground transition-colors"
-          >
-            <Eye className="w-3.5 h-3.5" /> 효과 검증 이력
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode((mode) => (mode === "history" ? "current" : "history"))}
-            className="text-xs text-muted-foreground font-semibold flex items-center gap-1 hover:text-foreground transition-colors"
-          >
-            <Archive className="w-3.5 h-3.5" /> {viewMode === "history" ? "현재 결과 보기" : "추천 이력"}
-          </button>
-        </div>
-      }
+      actions={null}
     >
       <form onSubmit={requestRecommendation} className="bg-card border border-border rounded-2xl p-5 mb-5">
         <div className="flex items-center gap-2 mb-4">
@@ -558,6 +472,10 @@ export function AiStrategyPage() {
             </div>
           </div>
 
+          <div className="mt-3 p-3 bg-muted/40 border border-border rounded-xl text-xs text-muted-foreground">
+            추천 승인 시 승인일을 시작일로 하여 30일 동안 적용됩니다.
+          </div>
+
           <CandidateChips
             actions={recommendationRun.candidate_actions ?? []}
             selected={recommendationRun.selected_action?.방안}
@@ -568,7 +486,6 @@ export function AiStrategyPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
             <EffectSummaryCard scm={recommendationRun.scm_result} />
-            <PolicyCheckCard ope={recommendationRun.ope_result} />
           </div>
 
           <EvidenceSection rag={recommendationRun.rag_evidence} />
@@ -586,149 +503,9 @@ export function AiStrategyPage() {
 
           <FinalReportSection report={recommendationRun.final_report} />
 
-          <div className="text-[10px] text-muted-foreground mt-3 break-all">실행 ID: {recommendationRun.thread_id}</div>
+          <div className="text-xs text-muted-foreground mt-3">적용 기간: <span className="font-semibold text-foreground">{executionPeriodLabel(recommendationRun)}</span></div>
+
         </div>
-      )}
-
-      {/* AI 추천 현황 summary — 이력 토글과 무관하게 항상 표시 */}
-      <div className="bg-card border border-border rounded-2xl p-5 mb-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
-          <h3 className="font-bold">AI 추천 현황</h3>
-        </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {EXEC_SUMMARY.map(s => {
-            const Icon = s.icon;
-            const isActive = filterStatus === s.key;
-            return (
-              <button
-                key={s.key}
-                onClick={() => setFilterStatus(isActive ? null : s.key)}
-                className={`border rounded-2xl p-4 text-left transition-all hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#246BFD]/30 ${s.bg} ${isActive ? "ring-2 ring-[#246BFD]/40 shadow-sm" : ""}`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <Icon className={`w-4 h-4 ${s.iconColor}`} />
-                  {isActive && <span className="text-[10px] font-bold text-[#246BFD] bg-[#246BFD]/10 px-1.5 py-0.5 rounded">필터 중</span>}
-                </div>
-                <div className={`text-2xl font-black tabular-nums ${s.textColor}`}>{executionCounts[s.key]}</div>
-                <div className="text-xs font-bold mt-0.5">{s.label}</div>
-                <div className="text-[11px] text-muted-foreground">{s.desc}</div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {viewMode === "history" && (
-        <>
-          {/* Controls */}
-          <div className="flex items-center gap-2 mb-4 flex-wrap">
-            <div className="relative flex-1 min-w-44">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="추천 제목 검색"
-                className="w-full h-8 pl-8 pr-3 text-xs bg-card border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#246BFD]/30"
-              />
-            </div>
-            <div className="flex gap-1 flex-wrap">
-              {CATEGORIES.map(c => (
-                <button
-                  key={c}
-                  onClick={() => setCategory(c)}
-                  className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-colors ${
-                    category === c
-                      ? "bg-[#246BFD]/10 text-[#246BFD] border border-[#246BFD]/20"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-            {stores.length > 0 && (
-              <div className="flex items-center gap-1 flex-wrap">
-                <span className="text-[10px] text-muted-foreground">매장</span>
-                {["전체", ...stores].map(s => (
-                  <button
-                    key={s}
-                    onClick={() => setStoreFilter(s)}
-                    className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-colors ${
-                      storeFilter === s
-                        ? "bg-[#8B5CF6]/10 text-[#8B5CF6] border border-[#8B5CF6]/20"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="flex items-center gap-1 ml-auto">
-              <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-              <select
-                value={sort}
-                onChange={e => setSort(e.target.value)}
-                className="text-xs bg-transparent text-muted-foreground focus:outline-none cursor-pointer"
-              >
-                {SORT_OPTIONS.map(o => <option key={o}>{o}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {filterStatus && (
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-xs text-muted-foreground">필터:</span>
-              <span className="flex items-center gap-1 text-xs font-semibold text-[#246BFD] bg-[#246BFD]/10 border border-[#246BFD]/20 px-2 py-0.5 rounded-full">
-                {filterStatus}
-                <button onClick={() => setFilterStatus(null)}><X className="w-3 h-3" /></button>
-              </span>
-            </div>
-          )}
-
-          <div className="flex items-center gap-1.5 mb-3">
-            <span className="text-xs text-muted-foreground">결과</span>
-            <span className="text-xs font-bold text-foreground">{resultCount}건</span>
-            {search && <span className="text-xs text-muted-foreground">· "{search}" 검색 중</span>}
-          </div>
-
-          {/* Persisted AI recommendations */}
-          {filteredRuns.length === 0 ? (
-            <div className="bg-card border border-border rounded-2xl p-12 text-center">
-              <Sparkles className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">저장된 실제 AI 추천이 없습니다.</p>
-              {(filterStatus || category !== "전체" || storeFilter !== "전체" || search) && (
-                <button onClick={() => { setFilterStatus(null); setCategory("전체"); setStoreFilter("전체"); setSearch(""); }} className="mt-2 text-xs text-[#246BFD] font-semibold hover:underline">
-                  필터 초기화
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-              {filteredRuns.map((run) => (
-                <button
-                  key={run.thread_id}
-                  onClick={() => setRecommendationRun(run)}
-                  className="bg-card border border-border rounded-2xl p-4 text-left hover:border-[#246BFD]/40 hover:shadow-sm transition-all"
-                >
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#246BFD]/10 text-[#246BFD]">실제 AI 추천</span>
-                      <span className="text-[10px] text-muted-foreground">매출</span>
-                      {run.store_id && <span className="text-[10px] text-muted-foreground">· {run.store_id}</span>}
-                    </div>
-                    <span className="text-[10px] font-semibold text-muted-foreground">{run.상태}</span>
-                  </div>
-                  <h4 className="font-bold text-sm mb-1">{run.selected_action?.방안 ?? "추천 가능한 전략 없음"}</h4>
-                  <p className="text-xs text-muted-foreground mb-3">진단 유형: {run.문제유형 ?? "확인 불가"}</p>
-                  <div className="text-xs text-muted-foreground">후보: {run.candidate_actions?.map((item) => item.방안).join(", ") || "없음"}</div>
-                  <div className="text-[10px] text-muted-foreground mt-2 break-all">{run.created_at ?? run.thread_id}</div>
-                </button>
-              ))}
-            </div>
-          )}
-        </>
       )}
 
       {drawerRec && (
