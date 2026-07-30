@@ -79,15 +79,32 @@ export default function ReviewKeyword() {
                                     />
                                 </div>
                             </div>
-                            <div className="text-right flex-shrink-0">
+                            <div className="text-right flex-shrink-0 flex flex-col items-end">
                                 <div className="text-sm font-bold tabular-nums">{t.count}건</div>
                                 <div
+                                    className={`text-xs font-semibold ${
+                                        t.changeRate > 0
+                                            ? "text-red-500"
+                                            : t.changeRate < 0
+                                            ? "text-blue-500"
+                                            : "text-muted-foreground"
+                                    }`}
+                                >
+                                    {t.changeRate === null ? (
+                                    <span className="text-xs text-green-600 rounded font-bold">• 신규</span>
+                                    ) : (
+                                    <div className={`text-xs font-semibold ${t.changeRate > 0 ? "text-red-500" : "text-blue-500"}`}>
+                                        {t.changeRate > 0 ? `+${t.changeRate}%` : `${t.changeRate}%`}
+                                    </div>
+                                    )}
+                                </div>
+                                {/* <div
                                     className={`text-xs font-semibold ${
                                         isNegative ? "text-red-500" : "text-blue-500"
                                     }`}
                                 >
                                     {t.sentiment}
-                                </div>
+                                </div> */}
                             </div>
                         </div>
                     );

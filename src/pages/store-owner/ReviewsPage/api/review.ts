@@ -23,6 +23,7 @@ export interface ReviewKeywords {
     sentiment: string;
     keyword: string;
     count: number;
+    changeRate: number;
     analyzedAt: string;
 }
 
@@ -67,7 +68,7 @@ export const getAspectStat = async (storeId: number = 1) => {
 
 export const getReviewKeywords = async (storeId: number = 1) => {
     const response = await axios.get<ReviewKeywords[]>(
-        `${BASE_URL}/api/v3/store/${storeId}/reviews/keywords`,
+        `${BASE_URL}/api/v3/stores/${storeId}/reviews/keywords`,
         {
             headers: {
                 Authorization: bearerToken,
