@@ -23,6 +23,19 @@ export function createAnalysis(input: CreateAnalysisInput) {
   });
 }
 
+export interface LocationArea { code: string; name: string; region_code: string; region_name: string; }
+export interface LocationDistrict { code: string; name: string; areas: LocationArea[]; }
+
+export function getLocations() {
+  return apiRequest<{ regions: LocationDistrict[] }>("/api/ai/locations", { method: "GET" });
+}
+
+export interface IndustryOption { code: string; name: string; }
+
+export function getIndustries() {
+  return apiRequest<{ industries: IndustryOption[] }>("/api/ai/industries", { method: "GET" });
+}
+
 export function getAnalysisJobStatus(jobId: string) {
   return apiRequest<AiAnalysisJob>(`/api/ai/jobs/${encodeURIComponent(jobId)}`, { method: "GET" });
 }

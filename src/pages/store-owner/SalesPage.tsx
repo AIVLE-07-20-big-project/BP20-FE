@@ -7,7 +7,9 @@ import {
 import { PageShell } from "../../shared/components/PageShell";
 import { MetricCard } from "../../shared/components/MetricCard";
 import { WEEKLY_SALES, HOURLY_DATA } from "../../mocks";
-import { createAnalysis, getAnalysis, pollAnalysisJob } from "../../features/ai-analysis/api/aiAnalysisApi";
+import { createAnalysis, getAnalysis, getIndustries, getLocations, pollAnalysisJob } from "../../features/ai-analysis/api/aiAnalysisApi";
+import type { IndustryOption, LocationDistrict } from "../../features/ai-analysis/api/aiAnalysisApi";
+import { commerceApi } from "../../features/commerce/api/commerceApi";
 import { ApiError } from "../../shared/api/apiClient";
 import type {
   AiAnalysisJobStatus,
@@ -125,8 +127,11 @@ export function SalesPage() {
   const [file, setFile] = useState<File | null>(null);
   const [storeId, setStoreId] = useState(() => sessionStorage.getItem(AI_STORE_ID_KEY) ?? "");
   const [trdarCd, setTrdarCd] = useState("");
+  const [locations, setLocations] = useState<LocationDistrict[]>([]);
+  const [locationSearch, setLocationSearch] = useState("");
   const [svcIndutyCd, setSvcIndutyCd] = useState("");
-  const [yyquCd, setYyquCd] = useState("");
+  const [industryName, setIndustryName] = useState("");
+  const [industries, setIndustries] = useState<IndustryOption[]>([]);
   const [analysis, setAnalysis] = useState<AiAnalysisResult | null>(null);
   const [requesting, setRequesting] = useState(false);
   const [apiError, setApiError] = useState("");
@@ -152,6 +157,43 @@ export function SalesPage() {
       .finally(() => setRestoring(false));
   }, []);
 
+  useEffect(() => {
+    getLocations().then((result) => setLocations(result.regions)).catch(() => undefined);
+    getIndustries().then((result) => setIndustries(result.industries)).catch(() => undefined);
+    commerceApi.getStore().then((store) => setIndustryName(store.category)).catch(() => undefined);
+  }, []);
+
+  const locationOptions = useMemo(
+    () => locations.flatMap((district) => district.areas.map((area) => ({
+      ...area,
+      label: `${district.name} · ${area.region_name} · ${area.name}`,
+    }))),
+    [locations],
+  );
+
+  const handleLocationSearch = (value: string) => {
+    setLocationSearch(value);
+    const matched = locationOptions.find((area) => area.label === value);
+    if (matched) setTrdarCd(matched.code);
+  };
+
+  useEffect(() => {
+    if (!industryName || industries.length === 0) return;
+    const normalized = industryName.replace(/[·\s]/g, "");
+    const matched = industries.find((industry) => {
+      const name = industry.name.replace(/[·\s]/g, "");
+      if (normalized.includes("카페") || normalized.includes("커피")) return name.includes("커피");
+      if (normalized.includes("베이커리") || normalized.includes("제과")) return name.includes("제과");
+      if (normalized.includes("한식")) return name.includes("한식");
+      if (normalized.includes("중식")) return name.includes("중식");
+      if (normalized.includes("일식")) return name.includes("일식");
+      if (normalized.includes("양식")) return name.includes("양식");
+      if (normalized.includes("분식")) return name.includes("분식");
+      return name === normalized || name.includes(normalized) || normalized.includes(name);
+    });
+    if (matched) setSvcIndutyCd(matched.code);
+  }, [industryName, industries]);
+
   const handleAnalysis = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!file) { setApiError("CSV 파일을 선택해 주세요."); return; }
@@ -168,7 +210,6 @@ export function SalesPage() {
         storeId: storeId.trim() || undefined,
         trdarCd: trdarCd || undefined,
         svcIndutyCd: svcIndutyCd || undefined,
-        yyquCd: yyquCd ? Number(yyquCd) : undefined,
       });
       setJobStatus(job.status);
 
@@ -202,7 +243,7 @@ export function SalesPage() {
       );
     } catch (error) {
       if (error instanceof ApiError && error.status === 404 && !trdarCd && !svcIndutyCd) {
-        setApiError("최초 업로드는 상권 코드와 업종 코드를 함께 입력해야 합니다. 이후부터는 파일만 올려도 자동으로 채워집니다.");
+        setApiError("내 정보에 등록된 업종과 서울 지역·상권을 확인해 주세요. 이후부터는 파일만 올려도 자동으로 채워집니다.");
       } else {
         setApiError(error instanceof Error ? error.message : "분석 요청에 실패했습니다.");
       }
@@ -352,12 +393,19 @@ export function SalesPage() {
         />
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <input type="file" accept=".csv,text/csv" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="text-xs bg-muted rounded-xl p-2" />
-          <input value={trdarCd} onChange={(event) => setTrdarCd(event.target.value)} placeholder="상권 코드 (최초 1회만)" className="h-10 px-3 text-sm bg-muted rounded-xl border border-border" />
-          <input value={svcIndutyCd} onChange={(event) => setSvcIndutyCd(event.target.value)} placeholder="업종 코드 (최초 1회만)" className="h-10 px-3 text-sm bg-muted rounded-xl border border-border" />
-          <input value={yyquCd} onChange={(event) => setYyquCd(event.target.value)} placeholder="분기 코드 (선택)" inputMode="numeric" className="h-10 px-3 text-sm bg-muted rounded-xl border border-border" />
+          <input
+            value={locationSearch}
+            onChange={(event) => handleLocationSearch(event.target.value)}
+            list="seoul-location-options"
+            placeholder="서울 구·동·상권 검색"
+            className="h-10 px-3 text-sm bg-muted rounded-xl border border-border"
+          />
+          <datalist id="seoul-location-options">
+            {locationOptions.map((area) => <option key={area.code} value={area.label} />)}
+          </datalist>
         </div>
         <p className="text-[11px] text-muted-foreground mt-2">
-          상권/업종 코드는 최초 업로드 때 한 번만 입력하면 이후에는 저장된 값으로 자동 채워집니다.
+          지역은 상권 코드로 자동 변환되고, 업종 코드는 내 정보에 등록된 업종을 기준으로 자동 반영됩니다.
         </p>
         <div className="flex items-center gap-3 mt-4">
           <button disabled={requesting} className="px-4 py-2 bg-[#246BFD] text-white text-sm font-bold rounded-xl disabled:opacity-60 flex items-center gap-2">
