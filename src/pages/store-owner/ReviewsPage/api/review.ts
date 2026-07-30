@@ -17,6 +17,15 @@ export interface AspectStat {
     negative: number;
 }
 
+export interface ReviewKeywords {
+    reviewKeywordId: number;
+    aspect: string;
+    sentiment: string;
+    keyword: string;
+    count: number;
+    analyzedAt: string;
+}
+
 const bearerToken = localStorage.getItem('accessToken');
 
 export const getStoreReviews = async (storeId: number = 1) => {
@@ -46,6 +55,19 @@ export const analyzeRequest = async (storeId: number = 1) => {
 export const getAspectStat = async (storeId: number = 1) => {
     const response = await axios.get<AspectStat[]>(
         `${BASE_URL}/api/v3/stores/${storeId}/aspect-stat`,
+        {
+            headers: {
+                Authorization: bearerToken,
+            },
+        }
+    );
+
+    return response.data;
+}
+
+export const getReviewKeywords = async (storeId: number = 1) => {
+    const response = await axios.get<ReviewKeywords[]>(
+        `${BASE_URL}/api/v3/store/${storeId}/reviews/keywords`,
         {
             headers: {
                 Authorization: bearerToken,

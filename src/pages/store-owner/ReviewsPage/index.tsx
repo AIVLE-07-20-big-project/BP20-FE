@@ -5,6 +5,7 @@ import { PageShell } from "../../../shared/components/PageShell";
 import ReviewList from "./components/ReviewList";
 import { analyzeRequest, AspectStat, getAspectStat, getStoreReviews } from "./api/review";
 import AspectBarChart from "./components/AspectBarChart";
+import ReviewKeyword from "./components/ReviewKeyword";
 
 const ASPECT_DATA = [
   { aspect: "맛", score: 4.7, prev: 4.6 },
@@ -178,7 +179,7 @@ export function ReviewsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         {/* Radar chart */}
-        <div className="bg-card border border-border rounded-2xl p-5">
+        <div className="bg-card bg-gray-200 border border-border rounded-2xl p-5">
           <h3 className="font-bold mb-4">속성별 평점</h3>
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
@@ -198,7 +199,7 @@ export function ReviewsPage() {
         </div>
 
         {/* Trend chart */}
-        <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-5">
+        <div className="lg:col-span-2 bg-gray-200 bg-card border border-border rounded-2xl p-5">
           <h3 className="font-bold mb-1">리뷰 추이</h3>
           <p className="text-xs text-muted-foreground mb-4">최근 5주</p>
           <div className="h-52">
@@ -245,31 +246,7 @@ export function ReviewsPage() {
 
       {/* Topic clusters */}
       <div className="bg-card border border-border rounded-2xl p-5 mb-4">
-        <h3 className="font-bold mb-4">주요 언급 토픽</h3>
-        <div className="space-y-2.5">
-          {TOPIC_CLUSTERS.map((t) => (
-            <div key={t.name} className="flex items-center gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-sm font-medium truncate">{t.name}</span>
-                  {t.urgent && <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />}
-                </div>
-                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${t.urgent ? "bg-red-400" : "bg-[#246BFD]"}`}
-                    style={{ width: `${Math.min(100, (t.count / 150) * 100)}%` }}
-                  />
-                </div>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <div className="text-sm font-bold tabular-nums">{t.count}건</div>
-                <div className={`text-xs font-semibold ${t.change > 20 ? "text-red-500" : "text-muted-foreground"}`}>
-                  {t.change > 0 ? `+${t.change}%` : `${t.change}%`}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <ReviewKeyword />
       </div>
 
       {/* Recent reviews */}
@@ -304,26 +281,9 @@ export function ReviewsPage() {
           isLoading={reviewLoading}
           error={reviewError}
         />
-        {/* <div className="space-y-3">
-          {(showEvidence ? REVIEW_DATA : REVIEW_DATA.slice(0, 3)).map((r) => (
-            <div key={r.id} className="pb-3 border-b border-border last:border-0 last:pb-0">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="flex gap-0.5">
-                  {[1,2,3,4,5].map((s) => (
-                    <Star key={s} className={`w-3 h-3 ${s <= r.rating ? "text-amber-400 fill-amber-400" : "text-muted-foreground"}`} />
-                  ))}
-                </div>
-                <span className="text-xs text-muted-foreground">{r.source}</span>
-                <span className="text-xs text-muted-foreground ml-auto">{r.date}</span>
-              </div>
-              <p className="text-xs text-foreground leading-relaxed">{r.content}</p>
-            </div>
-          ))}
-        </div> */}
       </div>
 
-      {/* AI improvement recommendations */}
-      <div className="bg-card border border-border rounded-2xl p-5">
+      <div className="bg-card bg-gray-200 border border-border rounded-2xl p-5">
         <div className="flex items-center gap-2 mb-4">
           <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
           <h3 className="font-bold">AI 개선 우선순위</h3>
