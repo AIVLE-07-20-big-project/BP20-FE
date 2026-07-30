@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Zap, Package, Star, TrendingDown, AlertCircle, ArrowRight,
-  CloudRain, CheckCircle2, Clock, BarChart3,
+  CloudRain, Clock, BarChart3,
   ChevronRight, Sparkles, Bot, X, Send, Flame
 } from "lucide-react";
 import {
@@ -12,6 +12,10 @@ import {
 import { MetricCard } from "../../shared/components/MetricCard";
 import { useAuth } from "../../app/providers/AuthProvider";
 import { AI_RECOMMENDATIONS, WEEKLY_SALES } from "../../mocks";
+import type { InventoryItem } from "../../entities/inventory/inventory.types";
+import { getUploadedInventories } from "../../features/inventory/api/inventoryApi";
+import { getStoreLocation } from "../../features/location/api/locationApi";
+import { getCurrentWeather, type CurrentWeather } from "../../features/weather/api/weatherApi";
 import { getAnalysis, getRecommendations } from "../../features/ai-analysis/api/aiAnalysisApi";
 import type { AiAnalysisResult, AiRecommendationRun, DetailedDailySales } from "../../entities/ai-analysis/ai-analysis.types";
 
@@ -88,8 +92,8 @@ const BRIEFING_ACTIONS = [
     rowBg: "bg-amber-50/80 border-amber-200/60",
     category: "재고",
     categoryBadge: "text-amber-700 bg-amber-100",
-    title: "아이스 아메리카노 원두 2박스 발주",
-    detail: "내일 16시 품절 예상",
+    title: "발주 필요 품목",
+    detail: "품절 예상 정보",
     detailColor: "text-amber-600",
     badge: "신뢰도 94%",
   },
@@ -100,10 +104,10 @@ const BRIEFING_ACTIONS = [
     iconBg: "bg-sky-100",
     iconColor: "text-sky-600",
     rowBg: "bg-sky-50/60 border-sky-200/50",
-    category: "수요 예측",
+    category: "매출 예측",
     categoryBadge: "text-sky-700 bg-sky-100",
-    title: "샌드위치 밑작업 18개 준비",
-    detail: "비 예보 — 배달 수요 +15% 예상",
+    title: "날씨 예보에 따른 매출 예측",
+    detail: "날씨 변화에 따른 채널별 매출 변동 예측",
     detailColor: "text-sky-600",
     badge: "날씨 보정",
   },
@@ -172,11 +176,101 @@ export function DashboardPage() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMsg, setChatMsg] = useState("");
   const [chatLog, setChatLog] = useState<{ role: "user" | "ai"; text: string }[]>([]);
+  const [inventories, setInventories] = useState<InventoryItem[]>([]);
+  const [weather, setWeather] = useState<CurrentWeather | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const [analysis, setAnalysis] = useState<AiAnalysisResult | null>(null);
   const [recommendationRuns, setRecommendationRuns] = useState<AiRecommendationRun[]>([]);
 
   const isDashboard = location.pathname === "/store" || location.pathname === "/store/";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void getUploadedInventories()
+      .then((items) => {
+        if (!cancelled) setInventories(items);
+      })
+      .catch(() => {
+        if (!cancelled) setInventories([]);
+      });
+
+    void getStoreLocation()
+      .then((storeLocation) => {
+        return getCurrentWeather(storeLocation.latitude, storeLocation.longitude);
+      })
+      .then((currentWeather) => {
+        if (!cancelled && currentWeather) setWeather(currentWeather);
+      })
+      .catch(() => {
+        if (!cancelled) setWeather(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const lowestLowStockItem = useMemo(() => inventories
+    .filter((item) => item.status === "부족")
+    .sort((a, b) => a.stock - b.stock)[0], [inventories]);
+
+  const weatherCondition = weather?.precipitationType && weather.precipitationType !== "없음"
+    ? weather.precipitationType
+    : weather?.sky;
+
+  const weatherSalesImpact = (() => {
+    if (weatherCondition?.includes("눈")) return { store: -35, delivery: 20 };
+    if (weatherCondition?.includes("비") || weatherCondition?.includes("소나기")) return { store: -30, delivery: 15 };
+    if (weatherCondition === "흐림" || weatherCondition === "구름많음") return { store: -10, delivery: 5 };
+    if (weatherCondition === "맑음") return { store: 8, delivery: -3 };
+    return null;
+  })();
+
+  const briefingActions = BRIEFING_ACTIONS.map((action) => {
+    if (action.category === "재고") {
+      if (!lowestLowStockItem) {
+        return { ...action, title: "부족 상태의 재고가 없습니다", detail: "현재 등록된 재고 기준" };
+      }
+      const orderQuantity = lowestLowStockItem.reorderQty && lowestLowStockItem.reorderQty > 0
+        ? lowestLowStockItem.reorderQty
+        : lowestLowStockItem.stock;
+      return {
+        ...action,
+        title: `${lowestLowStockItem.name} ${orderQuantity}${lowestLowStockItem.unit} 발주`,
+        detail: lowestLowStockItem.expectedDepletion && lowestLowStockItem.expectedDepletion !== "-"
+          ? `${lowestLowStockItem.expectedDepletion} 품절 예상`
+          : "품절 예상 정보 없음",
+      };
+    }
+    if (action.category === "매출 예측" && weatherSalesImpact && weatherCondition) {
+      const storeText = weatherSalesImpact.store >= 0
+        ? `매장 매출 +${weatherSalesImpact.store}% 예상`
+        : `매장 매출 ${Math.abs(weatherSalesImpact.store)}% 감소 예상`;
+      const deliveryText = weatherSalesImpact.delivery >= 0
+        ? `배달 매출 +${weatherSalesImpact.delivery}% 예상`
+        : `배달 매출 ${Math.abs(weatherSalesImpact.delivery)}% 감소 예상`;
+      return { ...action, title: `${weatherCondition} 예보 - ${storeText}, ${deliveryText}` };
+    }
+    return action;
+  });
+
+  const briefingDetailPath = (category: string) => {
+    if (category === "재고") return "/store/inventory";
+    if (category === "매출 예측") return "/store/sales";
+    return "/store/actions";
+  };
+
+  const todayLabel = new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  }).format(new Date());
+
+  const currentWeatherLabel = weatherCondition
+    ? `${weatherCondition}${weather?.temperature == null ? "" : ` · ${weather.temperature.toFixed(1)}°C`}`
+    : "날씨 정보를 불러오는 중";
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -257,8 +351,8 @@ export function DashboardPage() {
           <div>
             <h1 className="text-2xl font-bold">{greeting()}, {user?.name || "김민지"} 점주님</h1>
             <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-              <span>2025년 7월 20일 월요일</span>
-              <span className="flex items-center gap-1"><CloudRain className="w-3.5 h-3.5 text-[#38BDF8]" /> 비 · 최고 27°C</span>
+              <span>{todayLabel}</span>
+              <span className="flex items-center gap-1"><CloudRain className="w-3.5 h-3.5 text-[#38BDF8]" /> {currentWeatherLabel}</span>
             </div>
           </div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-card border border-border rounded-xl px-3 py-1.5">
@@ -313,7 +407,7 @@ export function DashboardPage() {
           <p className="text-[11px] text-muted-foreground mb-4 pl-8">AI 인사이트를 바탕으로 오늘 우선 확인하고 실행할 작업입니다.</p>
 
           <div className="space-y-2.5">
-            {BRIEFING_ACTIONS.map((action) => {
+            {briefingActions.map((action) => {
               const Icon = action.icon;
               const state = actionStates[action.id];
               return (
@@ -331,12 +425,10 @@ export function DashboardPage() {
                   </div>
                   {!state && (
                     <div className="flex gap-1.5 flex-shrink-0">
-                      <button onClick={() => navigate("/store/actions/" + action.id)} className="text-[11px] text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted transition-colors">자세히</button>
-                      <button onClick={() => setActionStates(s => ({ ...s, [action.id]: "executed" }))} className="text-[11px] bg-[#246BFD] text-white px-2.5 py-1 rounded-lg hover:bg-[#1D4ED8] transition-colors font-semibold">실행</button>
+                      <button onClick={() => navigate(briefingDetailPath(action.category))} className="text-[11px] text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted transition-colors">자세히</button>
                       <button onClick={() => setActionStates(s => ({ ...s, [action.id]: "later" }))} className="text-[11px] text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted transition-colors">나중에</button>
                     </div>
                   )}
-                  {state === "executed" && <CheckCircle2 className="w-5 h-5 text-[#0E9F6E] flex-shrink-0" />}
                   {state === "later" && <Clock className="w-5 h-5 text-muted-foreground flex-shrink-0" />}
                 </div>
               );

@@ -15,6 +15,10 @@ export function getSavedLocation() {
   return apiRequest<LocationCandidate | null>("/api/locations/saved");
 }
 
+export function getStoreLocation() {
+  return apiRequest<LocationCandidate>("/api/locations/store");
+}
+
 export function saveLocation(location: LocationCandidate) {
   return apiRequest<LocationCandidate>("/api/locations/saved", {
     method: "PUT",
