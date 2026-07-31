@@ -315,7 +315,6 @@ export function EffectVerificationDetailPage() {
   return (
     <PageShell
       title="전략 검증 상세"
-      subtitle={`추천 ID ${recommendationIdParam ?? "—"}의 실행 이후 변화를 확인합니다.`}
       actions={(
         <button
           type="button"
