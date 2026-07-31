@@ -38,6 +38,8 @@ const DEMO_STORE: Store = {
   updatedAt: "2026-07-24T09:00:00",
 };
 
+const DEMO_STORE_STORAGE_KEY = "bp20:demo-store";
+
 const EMPTY_FORM: UpdateStorePayload = {
   name: "",
   category: "",
@@ -60,7 +62,7 @@ export function StoreProfileSection({ isDemo }: { isDemo: boolean }) {
     setError("");
 
     if (isDemo) {
-      setStore(DEMO_STORE);
+      setStore(loadDemoStore());
       setLoading(false);
       return;
     }
@@ -112,6 +114,9 @@ export function StoreProfileSection({ isDemo }: { isDemo: boolean }) {
       const updated = isDemo
         ? { ...store, ...form, updatedAt: new Date().toISOString() }
         : await commerceApi.updateStore(form);
+      if (isDemo) {
+        window.localStorage.setItem(DEMO_STORE_STORAGE_KEY, JSON.stringify(updated));
+      }
       setStore(updated);
       setNotice("매장 정보가 수정되었습니다.");
       setOpen(false);
@@ -251,6 +256,18 @@ export function StoreProfileSection({ isDemo }: { isDemo: boolean }) {
       </OperationModal>
     </>
   );
+}
+
+function loadDemoStore(): Store {
+  const savedStore = window.localStorage.getItem(DEMO_STORE_STORAGE_KEY);
+  if (!savedStore) return DEMO_STORE;
+
+  try {
+    return { ...DEMO_STORE, ...JSON.parse(savedStore) } as Store;
+  } catch {
+    window.localStorage.removeItem(DEMO_STORE_STORAGE_KEY);
+    return DEMO_STORE;
+  }
 }
 
 function StoreField({
