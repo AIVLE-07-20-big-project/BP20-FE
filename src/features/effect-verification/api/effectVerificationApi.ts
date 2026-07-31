@@ -194,6 +194,20 @@ export function completeMockVerification(recommendationId: string) {
   );
 }
 
+export function completeVerificationFromAnalysis(
+  threadId: string,
+  afterAnalysisId: string,
+) {
+  return request<EffectVerificationResult>(
+    `/api/effect-verifications/executions/by-thread/${encodeURIComponent(threadId)}/complete-from-analysis`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ after_analysis_id: afterAnalysisId }),
+    },
+  );
+}
+
 export function retryEffectVerification(recommendationId: string) {
   return request<VerificationExecution>(
     `/api/effect-verifications/executions/${encodeURIComponent(recommendationId)}/retry`,
