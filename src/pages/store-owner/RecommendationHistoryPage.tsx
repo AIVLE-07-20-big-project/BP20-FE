@@ -122,7 +122,6 @@ export function RecommendationHistoryPage() {
               <div className="mb-2 flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <span className="rounded-full bg-[#246BFD]/10 px-2 py-0.5 text-[10px] font-bold text-[#246BFD]">매출 기반 추천</span>
-                  {run.store_id && <span className="text-[10px] text-muted-foreground">매장 {run.store_id}</span>}
                 </div>
                 <span className={`text-[10px] font-semibold ${
                   isRejected(run) ? "text-red-600" : statusLabel(run) === "실행 완료" ? "text-[#0E9F6E]" : "text-[#246BFD]"
