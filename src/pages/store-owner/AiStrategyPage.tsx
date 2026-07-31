@@ -349,6 +349,12 @@ export function AiStrategyPage() {
   const [recommendationLoading, setRecommendationLoading] = useState(false);
   const [recommendationStage, setRecommendationStage] = useState(0);
   const [recommendationError, setRecommendationError] = useState("");
+  const [executionStartedAt, setExecutionStartedAt] = useState(() => new Date().toISOString().slice(0, 10));
+  const [executionEndedAt, setExecutionEndedAt] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 30);
+    return date.toISOString().slice(0, 10);
+  });
   const requestRecommendation = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!analysisId) {
@@ -372,6 +378,10 @@ export function AiStrategyPage() {
 
   const decideRecommendation = async (decision: AiRecommendationDecision, selectedAction?: string) => {
     if (!recommendationRun) return;
+    if (decision === "approve" && (!executionStartedAt || !executionEndedAt || executionEndedAt < executionStartedAt)) {
+      setRecommendationError("적용 시작일과 종료일을 올바르게 입력해 주세요.");
+      return;
+    }
     setRecommendationLoading(true);
     setRecommendationStage(1);
     setRecommendationError("");
@@ -380,12 +390,20 @@ export function AiStrategyPage() {
         recommendationRun.thread_id,
         decision,
         selectedAction,
+        decision === "approve"
+          ? {
+              execution_started_at: `${executionStartedAt}T00:00:00`,
+              execution_ended_at: `${executionEndedAt}T00:00:00`,
+            }
+          : undefined,
       );
       setRecommendationRun(result);
       if (decision === "approve" && result.approval_status === "approved") {
         await startRecommendationExecution({
           thread_id: result.thread_id,
           recommendation_type: "SALES",
+          execution_started_at: `${executionStartedAt}T00:00:00`,
+          execution_ended_at: `${executionEndedAt}T00:00:00`,
         });
       }
     } catch (error) {
@@ -472,9 +490,6 @@ export function AiStrategyPage() {
               )}
             </div>
             <div className="flex flex-col items-end gap-1 flex-shrink-0">
-              {recommendationRun.store_id && (
-                <span className="text-xs text-muted-foreground">매장: {recommendationRun.store_id}</span>
-              )}
               <span className="text-xs px-2 py-1 rounded-lg bg-[#246BFD]/10 text-[#246BFD] font-semibold whitespace-nowrap">{recommendationRun.상태}</span>
             </div>
           </div>
@@ -507,6 +522,19 @@ export function AiStrategyPage() {
               <button type="button" disabled={recommendationLoading} onClick={() => decideRecommendation("reject")} className="px-4 py-2 border border-border text-xs font-bold rounded-xl disabled:opacity-60">추천 반려</button>
             </div>
           )}
+
+          <div className="mt-4 rounded-xl border border-[#246BFD]/20 bg-[#246BFD]/5 p-4">
+            <p className="text-xs font-bold">추천 적용 기간 설정</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">승인하기 전에 직접 적용 시작일과 종료일을 선택할 수 있습니다.</p>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <label className="text-xs text-muted-foreground">시작일
+                <input type="date" value={executionStartedAt} onChange={(event) => setExecutionStartedAt(event.target.value)} className="mt-1 h-9 w-full rounded-lg border border-border bg-card px-2 text-xs text-foreground" />
+              </label>
+              <label className="text-xs text-muted-foreground">종료일
+                <input type="date" value={executionEndedAt} min={executionStartedAt} onChange={(event) => setExecutionEndedAt(event.target.value)} className="mt-1 h-9 w-full rounded-lg border border-border bg-card px-2 text-xs text-foreground" />
+              </label>
+            </div>
+          </div>
 
           <FinalReportSection report={recommendationRun.final_report} />
 
