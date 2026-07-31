@@ -56,6 +56,10 @@ function getRemainingDays(dueAt: string) {
   return difference <= 0 ? 0 : Math.ceil(difference / 86_400_000);
 }
 
+function actionNameOf(execution: VerificationExecution) {
+  return execution.selected_action?.방안 ?? execution.selected_action?.action ?? null;
+}
+
 function HistoryCard({
   execution,
   onOpen,
@@ -79,16 +83,14 @@ function HistoryCard({
         }
       }}
       className="group cursor-pointer rounded-2xl border border-border bg-card p-4 transition-all hover:border-[#246BFD]/40 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#246BFD]/30"
-      aria-label={`추천 ID ${execution.recommendation_id} 효과 검증 상세보기`}
+      aria-label={`${actionNameOf(execution) ?? "추천 방안"} 효과 검증 상세보기`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
-            <span>실행 ID {execution.recommendation_id}</span>
-            <span aria-hidden="true">·</span>
             <span>{execution.recommendation_type === "SALES" ? "매출형" : "리뷰형"}</span>
           </div>
-          <h3 className="font-bold">전략 {execution.recommendation_id}</h3>
+          <h3 className="font-bold">{actionNameOf(execution) ?? "추천 방안 확인 불가"}</h3>
         </div>
         <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-bold ${status.className}`}>
           <StatusIcon className="h-3.5 w-3.5" aria-hidden="true" />
