@@ -67,7 +67,6 @@ export interface DetailedSalesAnalysis {
 
 export interface AiAnalysisResult {
   analysis_id: string;
-  store_id?: string | null;
   report: AiSalesReport;
   diagnosis?: Record<string, unknown>;
   detailed_analysis?: DetailedSalesAnalysis;
@@ -121,7 +120,6 @@ export interface CreateAnalysisInput {
   trdarCd?: string;
   svcIndutyCd?: string;
   yyquCd?: number;
-  storeId?: string;
 }
 
 export interface AiStrategyAction {
@@ -144,7 +142,6 @@ export interface AiRecommendationRun {
   warnings?: string[];
   final_report?: Record<string, unknown> | null;
   analysis_id?: string;
-  store_id?: string | null;
   created_at?: string;
   updated_at?: string;
   execution_started_at?: string | null;
