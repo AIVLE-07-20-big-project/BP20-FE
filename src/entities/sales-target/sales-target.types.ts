@@ -1,7 +1,7 @@
 export type PipelineStatus = "후보" | "연락 예정" | "접촉" | "미팅" | "전환" | "보류" | "제외";
 
 export interface SalesTargetBusiness {
-  id: string;
+  id: number;
   name: string;
   industry: string;
   region: string;
