@@ -15,7 +15,6 @@ export function createAnalysis(input: CreateAnalysisInput) {
   if (input.trdarCd) form.append("trdar_cd", input.trdarCd);
   if (input.svcIndutyCd) form.append("svc_induty_cd", input.svcIndutyCd);
   if (input.yyquCd !== undefined) form.append("yyqu_cd", String(input.yyquCd));
-  if (input.storeId) form.append("store_id", input.storeId);
 
   return apiRequest<AiAnalysisJob>("/api/ai/analyses", {
     method: "POST",
@@ -73,9 +72,8 @@ export function createRecommendation(analysisId: string) {
   );
 }
 
-export function getRecommendations(storeId?: string) {
-  const query = storeId ? `?store_id=${encodeURIComponent(storeId)}` : "";
-  return apiRequest<AiRecommendationRun[]>(`/api/ai/recommendations${query}`, { method: "GET" });
+export function getRecommendations() {
+  return apiRequest<AiRecommendationRun[]>("/api/ai/recommendations", { method: "GET" });
 }
 
 export function resumeRecommendation(
