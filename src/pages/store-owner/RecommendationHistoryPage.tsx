@@ -42,6 +42,7 @@ export function RecommendationHistoryPage() {
   const [error, setError] = useState("");
   const [approvingThreadId, setApprovingThreadId] = useState<string | null>(null);
   const [confirmRun, setConfirmRun] = useState<AiRecommendationRun | null>(null);
+  const [reportRun, setReportRun] = useState<AiRecommendationRun | null>(null);
   const [category, setCategory] = useState("전체");
 
   useEffect(() => {
@@ -114,9 +115,14 @@ export function RecommendationHistoryPage() {
           {filteredRuns.map((run) => (
             <article
               key={run.thread_id}
-              onClick={() => (isRejected(run) || run.대기중_승인) && setConfirmRun(run)}
+              onClick={() => {
+                if (isRejected(run) || run.대기중_승인) setConfirmRun(run);
+                else if (run.final_report) setReportRun(run);
+              }}
               className={`rounded-2xl border border-border bg-card p-4 ${
-                isRejected(run) || run.대기중_승인 ? "cursor-pointer transition-shadow hover:shadow-md" : ""
+                isRejected(run) || run.대기중_승인 || run.final_report
+                  ? "cursor-pointer transition-shadow hover:shadow-md"
+                  : ""
               }`}
             >
               <div className="mb-2 flex items-start justify-between gap-3">
@@ -132,7 +138,12 @@ export function RecommendationHistoryPage() {
               <div className="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
                 <Calendar className="h-3.5 w-3.5" /> 적용 기간: {periodLabel(run)}
               </div>
-              <div className="mt-2 text-[10px] text-muted-foreground">{run.created_at ?? run.thread_id}</div>
+              <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
+                <span>{run.created_at ?? run.thread_id}</span>
+                {run.final_report && !run.대기중_승인 && !isRejected(run) && (
+                  <span className="font-bold text-[#246BFD]">리포트 보기 →</span>
+                )}
+              </div>
             </article>
           ))}
           </div>
@@ -153,6 +164,39 @@ export function RecommendationHistoryPage() {
                 className="rounded-xl bg-[#246BFD] px-4 py-2 text-xs font-bold text-white disabled:opacity-60"
               >
                 {approvingThreadId ? "승인 처리 중..." : "선택 및 승인"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {reportRun && reportRun.final_report && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setReportRun(null)}>
+          <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold">{reportRun.selected_action?.방안 ?? "추천 방안"} 리포트</h3>
+                <p className="mt-1 text-xs text-muted-foreground">{statusLabel(reportRun)} · 적용 기간: {periodLabel(reportRun)}</p>
+              </div>
+              {!reportRun.final_report["error"] && (
+                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                  reportRun.final_report["verified"] ? "bg-[#0E9F6E]/10 text-[#0E9F6E]" : "bg-amber-50 text-amber-600"
+                }`}>
+                  {reportRun.final_report["verified"] ? "수치 검증됨" : "수치 재확인 필요"}
+                </span>
+              )}
+            </div>
+            {reportRun.final_report["error"] ? (
+              <p className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-600">
+                {String(reportRun.final_report["error"])}
+              </p>
+            ) : (
+              <p className="mt-4 max-h-[60vh] overflow-y-auto whitespace-pre-wrap rounded-xl bg-muted p-4 text-sm leading-relaxed text-foreground">
+                {String(reportRun.final_report["report"] ?? "리포트 내용이 비어 있습니다.")}
+              </p>
+            )}
+            <div className="mt-5 flex justify-end">
+              <button type="button" onClick={() => setReportRun(null)} className="rounded-xl border border-border px-4 py-2 text-xs font-bold">
+                닫기
               </button>
             </div>
           </div>
