@@ -24,7 +24,6 @@ const PROGRESS_STEPS = ["업로드", "대기열 등록", "분석 처리 중"];
 
 const AI_ANALYSIS_ID_KEY = "bp20:ai-analysis-id";
 const AI_ANALYSIS_OPTIONS_KEY = "bp20:ai-analysis-options";
-const AI_STORE_ID_KEY = "bp20:ai-store-id";
 
 // 새로고침해도 방금 완료한 매출 분석이 사라지지 않도록, 세션에 저장해 둔 가장 최근
 // analysisId를 첫 렌더 때 다시 불러온다(AiStrategyPage/DashboardPage와 같은 방식).
@@ -127,7 +126,6 @@ const normalizeLocationText = (value: string) => value.replace(/[.·,|/\s]+/g, "
 export function SalesPage() {
   const [preset, setPreset] = useState("월별");
   const [file, setFile] = useState<File | null>(null);
-  const [storeId, setStoreId] = useState(() => sessionStorage.getItem(AI_STORE_ID_KEY) ?? "");
   const [trdarCd, setTrdarCd] = useState("");
   const [locations, setLocations] = useState<LocationDistrict[]>([]);
   const [locationSearch, setLocationSearch] = useState("");
@@ -202,7 +200,6 @@ export function SalesPage() {
     if (!file) { setApiError("CSV 파일을 선택해 주세요."); return; }
     if (!trdarCd) { setApiError("서울 구·동·상권을 자동완성 목록에서 선택해 주세요."); return; }
     if (!svcIndutyCd) { setApiError("내 정보에 업종을 먼저 등록해 주세요."); return; }
-    if (storeId.trim()) sessionStorage.setItem(AI_STORE_ID_KEY, storeId.trim());
     setRequesting(true);
     setApiError("");
     setJobStatus(null);
@@ -212,7 +209,6 @@ export function SalesPage() {
       setStatusMessage("분석 요청 중...");
       const job = await createAnalysis({
         file,
-        storeId: storeId.trim() || undefined,
         trdarCd: trdarCd || undefined,
         svcIndutyCd: svcIndutyCd || undefined,
       });
@@ -232,7 +228,6 @@ export function SalesPage() {
       sessionStorage.setItem(AI_ANALYSIS_ID_KEY, result.analysis_id);
       const target = (result.diagnosis?.["대상"] ?? {}) as Record<string, unknown>;
       const label = [
-        result.store_id ? `매장 ${result.store_id}` : null,
         target["상권명"], target["업종명"], target["기준분기"],
       ]
         .filter(Boolean).join(" · ") || "최근 매출 분석";
@@ -333,12 +328,12 @@ export function SalesPage() {
   const trafficAgeData = analysis ? ratioChartData(report?.유동인구_구성?.연령대별, "age") : [];
   const trafficGenderData = analysis ? ratioChartData(report?.유동인구_구성?.성별, "gender") : [];
   const periodLabel = preset === "월별" ? "이번 달" : "이번 분기";
-  // 분기 단위 상권 분석(report)과 월 단위 POS 상세 원인 분석(rootCause)은 서로 다른
-  // 데이터 기준이라 하나로 합치지 않고 따로 보여준다.
-  const quarterlyInsight = report?.["분석결과 해설"] ?? null;
-  const monthlyInsight = [rootCause?.headline, rootCause?.narrative]
-    .filter((value): value is string => Boolean(value))
-    .join(" ") || null;
+  const aiSummary = report?.["AI분석"] as {
+    제목?: string;
+    headline?: string;
+    summary?: string;
+    sections?: Record<string, string>;
+  } | undefined;
   const topCategory = rootCause?.topCategory;
   const metrics = analysis && selectedDailySales.length ? [
     {
@@ -390,12 +385,6 @@ export function SalesPage() {
           <Upload className="w-4 h-4 text-[#246BFD]" />
           <h3 className="font-bold">매출 CSV 분석 연동</h3>
         </div>
-        <input
-          value={storeId}
-          onChange={(event) => setStoreId(event.target.value)}
-          placeholder="매장 ID (여러 매장을 구분하려면 입력)"
-          className="w-full h-10 px-3 mb-3 text-sm bg-muted rounded-xl border border-border"
-        />
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <input type="file" accept=".csv,text/csv" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="text-xs bg-muted rounded-xl p-2" />
           <input
@@ -790,24 +779,17 @@ export function SalesPage() {
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xs font-bold text-[#246BFD] bg-[#246BFD]/10 px-1.5 py-0.5 rounded">AI 분석</span>
             </div>
-            {quarterlyInsight || monthlyInsight ? (
+            {aiSummary?.summary ? (
               <div className="space-y-3">
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-1">분기별 상권 분석</p>
-                  <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
-                    {quarterlyInsight || "이번 분기 상권 데이터가 부족해 상권 분석 해설을 생성하지 못했습니다."}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-1">월별 상세 원인 분석</p>
-                  <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
-                    {monthlyInsight || "POS 상세 분석 데이터가 부족해 월별 원인 분석을 생성하지 못했습니다."}
-                  </p>
-                </div>
+                <p className="text-base font-bold text-foreground">{aiSummary.제목 ?? "매출 원인 상세분석"}</p>
+                {aiSummary.headline && (
+                  <p className="text-sm font-semibold text-foreground">{aiSummary.headline}</p>
+                )}
+                <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{aiSummary.summary}</p>
               </div>
             ) : (
               <p className="text-sm text-foreground leading-relaxed">
-                분석을 실행하면 분기별 상권 분석과 월별 상세 POS 원인 분석을 함께 보여드립니다.
+                분석을 실행하면 매출 원인 상세분석을 보여드립니다.
               </p>
             )}
             <p className="text-[11px] text-muted-foreground/60 mt-2">※ AI 분석은 참고용이며 인과관계를 보장하지 않습니다.</p>
