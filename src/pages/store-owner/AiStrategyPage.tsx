@@ -10,6 +10,7 @@ import { PageShell } from "../../shared/components/PageShell";
 import type { AIRecommendation } from "../../entities/recommendation/recommendation.types";
 import type { AiRecommendationDecision, AiRecommendationRun, AiStrategyAction } from "../../entities/ai-analysis/ai-analysis.types";
 import { createRecommendation, resumeRecommendation } from "../../features/ai-analysis/api/aiAnalysisApi";
+import { startRecommendationExecution } from "../../features/effect-verification/api/effectVerificationApi";
 
 const AI_ANALYSIS_ID_KEY = "bp20:ai-analysis-id";
 const AI_ANALYSIS_OPTIONS_KEY = "bp20:ai-analysis-options";
@@ -381,6 +382,12 @@ export function AiStrategyPage() {
         selectedAction,
       );
       setRecommendationRun(result);
+      if (decision === "approve" && result.approval_status === "approved") {
+        await startRecommendationExecution({
+          thread_id: result.thread_id,
+          recommendation_type: "SALES",
+        });
+      }
     } catch (error) {
       setRecommendationError(error instanceof Error ? error.message : "추천 처리에 실패했습니다.");
     } finally {
