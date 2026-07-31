@@ -6,6 +6,7 @@ export default function ReviewKeyword() {
 
     const [reviewKeywords, setReviewKeywords] = useState<ReviewKeywords[]>([]);
 
+    const [reviewKeywordView, setReviewKeywordView] = useState<string | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<boolean>(false);
     
@@ -66,7 +67,7 @@ export default function ReviewKeyword() {
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
                                     <span className="text-sm font-medium truncate">{t.keyword}</span>
-                                    {isNegative && (
+                                    {isNegative && (t.changeRate > 199) && (
                                         <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
                                     )}
                                 </div>
@@ -91,7 +92,7 @@ export default function ReviewKeyword() {
                                     }`}
                                 >
                                     {t.changeRate === null ? (
-                                    <span className="text-xs text-green-600 rounded font-bold">• 신규</span>
+                                    <span className="text-xs text-[10px] text-green-600 rounded font-bold">• NEW</span>
                                     ) : (
                                     <div className={`text-xs font-semibold ${t.changeRate > 0 ? "text-red-500" : "text-blue-500"}`}>
                                         {t.changeRate > 0 ? `+${t.changeRate}%` : `${t.changeRate}%`}

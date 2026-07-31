@@ -199,7 +199,7 @@ export function ReviewsPage() {
         </div>
 
         {/* Trend chart */}
-        <div className="lg:col-span-2 bg-gray-200 bg-card border border-border rounded-2xl p-5">
+        <div className="bg-gray-200 bg-card border border-border rounded-2xl p-5">
           <h3 className="font-bold mb-1">리뷰 추이</h3>
           <p className="text-xs text-muted-foreground mb-4">최근 5주</p>
           <div className="h-52">
@@ -222,7 +222,7 @@ export function ReviewsPage() {
             </ResponsiveContainer>
           </div>
         </div>
-        <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-100">
+        <div className="p-6 bg-white lg:col-span-1 rounded-xl shadow-sm border border-gray-100">
           <h3 className="text-lg font-bold text-gray-800 mb-2">리뷰 속성 통계</h3>
           <p className="text-xs text-muted-foreground mb-4">
             손님들의 리뷰에서 언급된 5가지 속성 분포입니다.
