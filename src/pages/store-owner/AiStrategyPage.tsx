@@ -349,6 +349,31 @@ export function AiStrategyPage() {
   const [recommendationLoading, setRecommendationLoading] = useState(false);
   const [recommendationStage, setRecommendationStage] = useState(0);
   const [recommendationError, setRecommendationError] = useState("");
+  const [verificationStarted, setVerificationStarted] = useState(false);
+  const [verificationRetryThreadId, setVerificationRetryThreadId] = useState<string | null>(null);
+
+  const startSalesEffectMeasurement = async (threadId: string) => {
+    try {
+      await startRecommendationExecution({
+        thread_id: threadId,
+        recommendation_type: "SALES",
+      });
+      setVerificationStarted(true);
+      setVerificationRetryThreadId(null);
+      setRecommendationError("");
+      return true;
+    } catch (error) {
+      setVerificationStarted(false);
+      setVerificationRetryThreadId(threadId);
+      setRecommendationError(
+        error instanceof Error
+          ? `전략 실행은 완료됐지만 효과 측정을 시작하지 못했습니다. ${error.message}`
+          : "전략 실행은 완료됐지만 효과 측정을 시작하지 못했습니다.",
+      );
+      return false;
+    }
+  };
+
   const requestRecommendation = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!analysisId) {
@@ -359,6 +384,8 @@ export function AiStrategyPage() {
     setRecommendationLoading(true);
     setRecommendationStage(1);
     setRecommendationError("");
+    setVerificationStarted(false);
+    setVerificationRetryThreadId(null);
     try {
       const result = await createRecommendation(analysisId.trim());
       setRecommendationRun(result);
@@ -383,16 +410,24 @@ export function AiStrategyPage() {
       );
       setRecommendationRun(result);
       if (decision === "approve" && result.approval_status === "approved") {
-        await startRecommendationExecution({
-          thread_id: result.thread_id,
-          recommendation_type: "SALES",
-        });
+        await startSalesEffectMeasurement(result.thread_id);
       }
     } catch (error) {
       setRecommendationError(error instanceof Error ? error.message : "추천 처리에 실패했습니다.");
     } finally {
       setRecommendationLoading(false);
       setRecommendationStage(0);
+    }
+  };
+
+  const retrySalesEffectMeasurement = async () => {
+    if (!verificationRetryThreadId) return;
+    setRecommendationLoading(true);
+    setRecommendationError("");
+    try {
+      await startSalesEffectMeasurement(verificationRetryThreadId);
+    } finally {
+      setRecommendationLoading(false);
     }
   };
 
@@ -503,12 +538,34 @@ export function AiStrategyPage() {
 
           {recommendationRun.대기중_승인 && (
             <div className="flex gap-2 mt-4">
-              <button type="button" disabled={recommendationLoading} onClick={() => decideRecommendation("approve")} className="px-4 py-2 bg-[#0E9F6E] text-white text-xs font-bold rounded-xl disabled:opacity-60">추천 승인 및 리포트 생성</button>
+              <button type="button" disabled={recommendationLoading} onClick={() => decideRecommendation("approve")} className="px-4 py-2 bg-[#0E9F6E] text-white text-xs font-bold rounded-xl disabled:opacity-60">전략 실행 및 효과 측정 시작</button>
               <button type="button" disabled={recommendationLoading} onClick={() => decideRecommendation("reject")} className="px-4 py-2 border border-border text-xs font-bold rounded-xl disabled:opacity-60">추천 반려</button>
             </div>
           )}
 
           <FinalReportSection report={recommendationRun.final_report} />
+
+          {verificationStarted && (
+            <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-700">
+              전략 실행이 완료되어 30일 효과 측정이 자동으로 시작되었습니다.
+            </div>
+          )}
+
+          {verificationRetryThreadId && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3">
+              <span className="text-xs text-red-700">
+                전략은 실행됐지만 효과 측정 연결에 실패했습니다.
+              </span>
+              <button
+                type="button"
+                disabled={recommendationLoading}
+                onClick={retrySalesEffectMeasurement}
+                className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-700 disabled:opacity-60"
+              >
+                연결 다시 시도
+              </button>
+            </div>
+          )}
 
           <div className="text-xs text-muted-foreground mt-3">적용 기간: <span className="font-semibold text-foreground">{executionPeriodLabel(recommendationRun)}</span></div>
 
