@@ -62,6 +62,7 @@ export interface VerificationExecution {
   decision_id: string | null;
   recommendation_type: RecommendationType;
   status: VerificationStatus;
+  selected_action?: { 방안?: string; action?: string; axis?: string | null } | null;
   executed_at: string;
   verification_due_at: string;
   verified_at: string | null;
@@ -89,6 +90,8 @@ export interface StartRecommendationExecutionInput {
   thread_id: string;
   recommendation_type?: RecommendationType;
   target_aspect?: string | null;
+  execution_started_at?: string;
+  execution_ended_at?: string;
 }
 
 export interface VerificationMetricResult {
