@@ -355,6 +355,9 @@ export function AiStrategyPage() {
     date.setDate(date.getDate() + 30);
     return date.toISOString().slice(0, 10);
   });
+  const recommendedActions = recommendationRun?.recommended_actions?.length
+    ? recommendationRun.recommended_actions
+    : (recommendationRun?.candidate_actions ?? []).slice(0, 2);
   const requestRecommendation = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!analysisId) {
@@ -484,7 +487,16 @@ export function AiStrategyPage() {
           <div className="flex items-start justify-between gap-3 mb-3">
             <div>
               <div className="text-xs font-semibold text-[#246BFD] mb-1">실제 AI 추천 결과</div>
-              <h3 className="text-xl font-black">{recommendationRun.selected_action?.방안 ?? "추천 가능한 전략 없음"}</h3>
+              <h3 className="text-xl font-black">
+                {recommendedActions.length === 1
+                  ? recommendedActions[0].방안
+                  : `AI 추천 방안 ${recommendedActions.length}개`}
+              </h3>
+              {recommendedActions.length > 1 && recommendationRun.selected_action?.방안 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  기본 추천: <span className="font-semibold text-foreground">{recommendationRun.selected_action.방안}</span>
+                </p>
+              )}
               {recommendationRun.문제유형 && (
                 <p className="text-xs text-muted-foreground mt-0.5">진단 유형: {recommendationRun.문제유형}</p>
               )}
@@ -499,7 +511,7 @@ export function AiStrategyPage() {
           </div>
 
           <CandidateChips
-            actions={recommendationRun.candidate_actions ?? []}
+            actions={recommendedActions}
             selected={recommendationRun.selected_action?.방안}
             candidateStatus={recommendationRun.candidate_status}
             selectable={Boolean(recommendationRun.대기중_승인) && !recommendationLoading}
@@ -584,12 +596,16 @@ interface CandidateChipsProps {
 function CandidateChips({ actions, selected, candidateStatus, selectable, onSelect }: CandidateChipsProps) {
   if (actions.length <= 1) return null;
   return (
-    <div className="flex flex-wrap items-center gap-1.5 mb-1">
-      <span className="text-xs text-muted-foreground mr-0.5">후보 방안:</span>
+    <div className="mt-4 mb-1">
+      <span className="block text-xs font-semibold text-muted-foreground mb-2">추천 후보 2개 중 하나를 선택하세요:</span>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
       {actions.map((action) => {
         const isSelected = action.방안 === selected;
         const isBlocked = candidateStatus?.[action.방안] === "blocked";
         const canPick = Boolean(selectable) && !isSelected && !isBlocked && Boolean(onSelect);
+        const score = action.policy_score && typeof action.policy_score === "object"
+          ? (action.policy_score as Record<string, unknown>).expected_reward
+          : undefined;
         return (
           <button
             key={action.방안}
@@ -597,9 +613,9 @@ function CandidateChips({ actions, selected, candidateStatus, selectable, onSele
             disabled={!canPick}
             onClick={() => onSelect?.(action.방안)}
             title={isBlocked ? "안전성 검사에서 차단된 방안입니다." : undefined}
-            className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+            className={`text-left rounded-xl border p-3 transition-colors ${
               isSelected
-                ? "bg-[#246BFD]/10 text-[#246BFD] border-[#246BFD]/20 font-bold"
+                ? "bg-[#246BFD]/10 text-[#246BFD] border-[#246BFD]/40 font-bold"
                 : isBlocked
                   ? "text-muted-foreground/50 border-border cursor-not-allowed"
                   : canPick
@@ -607,10 +623,19 @@ function CandidateChips({ actions, selected, candidateStatus, selectable, onSele
                     : "text-muted-foreground border-border cursor-default"
             }`}
           >
-            {action.방안}
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <span className="text-[10px] font-bold">{typeof action.recommendation_rank === "number" ? `${action.recommendation_rank}순위 추천` : "추천 후보"}</span>
+              {isSelected && <span className="text-[10px]">현재 선택됨</span>}
+            </div>
+            <div className="text-sm font-bold text-foreground">{action.방안}</div>
+            <div className="flex items-center gap-2 mt-1.5 text-[10px] text-muted-foreground">
+              {action.axis && <span>{String(action.axis)}</span>}
+              {typeof score === "number" && <span>정책 점수 {score.toFixed(3)}</span>}
+            </div>
           </button>
         );
       })}
+      </div>
     </div>
   );
 }

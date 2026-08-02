@@ -146,6 +146,20 @@ function buildNarrative(actionName: string | null, metrics: VerificationMetricRe
   return sentences.join(" ");
 }
 
+function ReportBox({ title, text, tone }: { title: string; text: string; tone: "positive" | "negative" | "neutral" }) {
+  const toneClass = {
+    positive: "border-emerald-100 bg-emerald-50 text-emerald-800",
+    negative: "border-amber-100 bg-amber-50 text-amber-800",
+    neutral: "border-border bg-muted/40 text-foreground",
+  }[tone];
+  return (
+    <div className={`rounded-xl border p-3 ${toneClass}`}>
+      <p className="text-xs font-bold">{title}</p>
+      <p className="mt-1.5 text-xs leading-relaxed">{text}</p>
+    </div>
+  );
+}
+
 function ResultSection({ result, actionName }: { result: EffectVerificationResult; actionName: string | null }) {
   const allMetrics = result.metric_results ?? [];
   const relevantNames = result.recommendation_type === "SALES" && actionName && ACTION_AXIS[actionName]
@@ -180,7 +194,23 @@ function ResultSection({ result, actionName }: { result: EffectVerificationResul
         )}
       </div>
 
-      {narrative && (
+      {result.strategy_report ? (
+        <div className="mt-4">
+          <p className="rounded-xl bg-muted/40 p-3 text-sm font-semibold leading-relaxed text-foreground">
+            {result.strategy_report.headline}
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <ReportBox title="핵심 성과" text={result.strategy_report.sections.performance} tone="neutral" />
+            <ReportBox title="긍정적 변화" text={result.strategy_report.sections.positiveChanges} tone="positive" />
+            <ReportBox title="보완이 필요한 지표" text={result.strategy_report.sections.negativeChanges} tone="negative" />
+            <ReportBox
+              title="종합 평가"
+              text={`${result.strategy_report.sections.interpretation} ${result.strategy_report.sections.nextAction}`}
+              tone="neutral"
+            />
+          </div>
+        </div>
+      ) : narrative && (
         <p className="mt-4 rounded-xl bg-muted/40 p-3 text-sm leading-relaxed text-foreground">
           {narrative}
         </p>

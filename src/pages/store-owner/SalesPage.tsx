@@ -131,6 +131,7 @@ export function SalesPage() {
   const [locationSearch, setLocationSearch] = useState("");
   const [svcIndutyCd, setSvcIndutyCd] = useState("");
   const [industryName, setIndustryName] = useState("");
+  const [storeId, setStoreId] = useState<number | undefined>(undefined);
   const [industries, setIndustries] = useState<IndustryOption[]>([]);
   const [analysis, setAnalysis] = useState<AiAnalysisResult | null>(null);
   const [requesting, setRequesting] = useState(false);
@@ -160,7 +161,10 @@ export function SalesPage() {
   useEffect(() => {
     getLocations().then((result) => setLocations(result.regions)).catch(() => undefined);
     getIndustries().then((result) => setIndustries(result.industries)).catch(() => undefined);
-    commerceApi.getStore().then((store) => setIndustryName(store.category)).catch(() => undefined);
+    commerceApi.getStore().then((store) => {
+      setIndustryName(store.category);
+      setStoreId(store.id);
+    }).catch(() => undefined);
   }, []);
 
   const locationOptions = useMemo(
@@ -211,6 +215,7 @@ export function SalesPage() {
         file,
         trdarCd: trdarCd || undefined,
         svcIndutyCd: svcIndutyCd || undefined,
+        storeId,
       });
       setJobStatus(job.status);
 

@@ -15,6 +15,7 @@ export function createAnalysis(input: CreateAnalysisInput) {
   if (input.trdarCd) form.append("trdar_cd", input.trdarCd);
   if (input.svcIndutyCd) form.append("svc_induty_cd", input.svcIndutyCd);
   if (input.yyquCd !== undefined) form.append("yyqu_cd", String(input.yyquCd));
+  if (input.storeId !== undefined) form.append("store_id", String(input.storeId));
 
   return apiRequest<AiAnalysisJob>("/api/ai/analyses", {
     method: "POST",

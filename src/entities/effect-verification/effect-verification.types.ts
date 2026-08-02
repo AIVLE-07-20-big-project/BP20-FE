@@ -103,6 +103,20 @@ export interface VerificationMetricResult {
   improved: boolean | null;
 }
 
+export interface StrategyReportSections {
+  performance: string;
+  positiveChanges: string;
+  negativeChanges: string;
+  interpretation: string;
+  nextAction: string;
+}
+
+export interface StrategyReport {
+  headline: string;
+  summary: string;
+  sections: StrategyReportSections;
+}
+
 export interface EffectVerificationResult {
   store_id: number;
   recommendation_id: string;
@@ -111,5 +125,6 @@ export interface EffectVerificationResult {
   verdict: "EFFECTIVE" | "PARTIALLY_EFFECTIVE" | "NOT_EFFECTIVE" | "INCONCLUSIVE" | "INEFFECTIVE";
   metric_results: VerificationMetricResult[] | null;
   summary: string | null;
+  strategy_report?: StrategyReport | null;
   verified_date?: string;
 }
