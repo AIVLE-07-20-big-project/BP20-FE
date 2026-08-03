@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useOutletContext } from "react-router-dom";
 import {
   ArrowRight,
   Ban,
@@ -19,6 +19,7 @@ import {
   Store as StoreIcon,
 } from "lucide-react";
 import { useAuth } from "../../app/providers/AuthProvider";
+import type { StoreOwnerLayoutContext } from "../../app/layouts/StoreOwnerLayout";
 import type {
   Coupon,
   CouponStatus,
@@ -239,6 +240,7 @@ const COUPON_STATUS_LABEL: Record<CouponStatus, string> = {
 
 export function CommercePage() {
   const { isDemo } = useAuth();
+  const { updateStoreIdentity } = useOutletContext<StoreOwnerLayoutContext>();
   const [activeTab, setActiveTab] = useState<CommerceTab>("products");
   const [modal, setModal] = useState<CommerceModal>(null);
   const [store, setStore] = useState<Store | null>(null);
@@ -423,6 +425,10 @@ export function CommercePage() {
             })
           : await commerceApi.createStore(storeForm);
       setStore(saved);
+      updateStoreIdentity({
+        name: saved.name,
+        category: saved.category,
+      });
     }, store ? "매장 정보가 수정되었습니다." : "매장이 등록되었습니다.", (message) => {
       setModalError(toModalErrorMessage(message));
     });
