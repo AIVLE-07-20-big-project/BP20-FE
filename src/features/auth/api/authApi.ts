@@ -34,10 +34,14 @@ function toUser(response: AuthUserResponse): User {
   };
 }
 
-export async function login(email: string, password: string) {
+export async function login(
+  email: string,
+  password: string,
+  rememberMe: boolean,
+) {
   const response = await apiRequest<AuthResponse>("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, rememberMe }),
   });
   return {
     token: response.accessToken,
@@ -58,6 +62,12 @@ export async function signup(payload: SignupPayload) {
 
 export async function getMe() {
   return toUser(await apiRequest<AuthUserResponse>("/api/auth/me"));
+}
+
+export async function logout() {
+  await apiRequest<void>("/api/auth/logout", {
+    method: "POST",
+  });
 }
 
 /**
