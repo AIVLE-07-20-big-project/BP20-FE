@@ -100,10 +100,10 @@ function ItemEditor({ items, onChange }: { items: ReceiptItemData[]; onChange: (
           <input aria-label={`${index + 1}번 수량`} type="number" min={1} value={item.quantity}
             onChange={e => updateItem(index, { quantity: numberValue(e.target.value) })}
             className="col-span-3 sm:col-span-1 h-8 px-2 text-xs bg-background border border-border rounded-lg" />
-          <input aria-label={`${index + 1}번 단가`} type="number" min={0} value={item.unitPrice ?? 0}
+          <input aria-label={`${index + 1}번 단가`} type="number" value={item.unitPrice ?? 0}
             onChange={e => updateItem(index, { unitPrice: numberValue(e.target.value) })}
             className="col-span-4 sm:col-span-2 h-8 px-2 text-xs bg-background border border-border rounded-lg" />
-          <input aria-label={`${index + 1}번 금액`} type="number" min={0} value={item.totalPrice}
+          <input aria-label={`${index + 1}번 금액`} type="number" value={item.totalPrice}
             onChange={e => updateItem(index, { totalPrice: numberValue(e.target.value) })}
             className="col-span-4 sm:col-span-2 h-8 px-2 text-xs bg-background border border-border rounded-lg" />
           <button aria-label={`${index + 1}번 품목 삭제`} onClick={() => onChange(items.filter((_, i) => i !== index))}
