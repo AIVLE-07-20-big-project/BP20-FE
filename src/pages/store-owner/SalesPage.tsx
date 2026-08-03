@@ -129,6 +129,8 @@ export function SalesPage() {
   const [trdarCd, setTrdarCd] = useState("");
   const [locations, setLocations] = useState<LocationDistrict[]>([]);
   const [locationSearch, setLocationSearch] = useState("");
+  const [locationFocused, setLocationFocused] = useState(false);
+  const [locationLoadError, setLocationLoadError] = useState("");
   const [svcIndutyCd, setSvcIndutyCd] = useState("");
   const [industryName, setIndustryName] = useState("");
   const [storeId, setStoreId] = useState<number | undefined>(undefined);
@@ -159,7 +161,14 @@ export function SalesPage() {
   }, []);
 
   useEffect(() => {
-    getLocations().then((result) => setLocations(result.regions)).catch(() => undefined);
+    getLocations()
+      .then((result) => {
+        setLocations(result.regions);
+        setLocationLoadError("");
+      })
+      .catch((error) => {
+        setLocationLoadError(error instanceof Error ? error.message : "서울 지역 목록을 불러오지 못했습니다.");
+      });
     getIndustries().then((result) => setIndustries(result.industries)).catch(() => undefined);
     commerceApi.getStore().then((store) => {
       setIndustryName(store.category);
@@ -175,11 +184,25 @@ export function SalesPage() {
     [locations],
   );
 
+  const filteredLocationOptions = useMemo(() => {
+    const query = normalizeLocationText(locationSearch);
+    if (!query) return locationOptions.slice(0, 30);
+    return locationOptions
+      .filter((area) => normalizeLocationText(area.label).includes(query))
+      .slice(0, 30);
+  }, [locationOptions, locationSearch]);
+
   const handleLocationSearch = (value: string) => {
     setLocationSearch(value);
     const matched = locationOptions.find((area) => normalizeLocationText(area.label) === normalizeLocationText(value));
     if (matched) setTrdarCd(matched.code);
     else setTrdarCd("");
+  };
+
+  const selectLocation = (area: (typeof locationOptions)[number]) => {
+    setLocationSearch(area.label);
+    setTrdarCd(area.code);
+    setLocationFocused(false);
   };
 
   useEffect(() => {
@@ -392,20 +415,37 @@ export function SalesPage() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <input type="file" accept=".csv,text/csv" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="text-xs bg-muted rounded-xl p-2" />
-          <input
-            value={locationSearch}
-            onChange={(event) => handleLocationSearch(event.target.value)}
-            list="seoul-location-options"
-            placeholder="서울 구·동·상권 검색"
-            className="h-10 px-3 text-sm bg-muted rounded-xl border border-border"
-          />
-          <datalist id="seoul-location-options">
-            {locationOptions.map((area) => <option key={area.code} value={area.label} />)}
-          </datalist>
+          <div className="relative">
+            <input
+              value={locationSearch}
+              onChange={(event) => handleLocationSearch(event.target.value)}
+              onFocus={() => setLocationFocused(true)}
+              onBlur={() => window.setTimeout(() => setLocationFocused(false), 150)}
+              placeholder="서울 구·동·상권 검색"
+              className="h-10 w-full px-3 text-sm bg-muted rounded-xl border border-border"
+              autoComplete="off"
+            />
+            {locationFocused && filteredLocationOptions.length > 0 && (
+              <div className="absolute z-20 top-11 left-0 right-0 max-h-56 overflow-y-auto rounded-xl border border-border bg-card shadow-lg">
+                {filteredLocationOptions.map((area) => (
+                  <button
+                    key={area.code}
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => selectLocation(area)}
+                    className="block w-full px-3 py-2 text-left text-xs hover:bg-muted"
+                  >
+                    {area.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <p className="text-[11px] text-muted-foreground mt-2">
-          지역은 상권 코드로 자동 변환되고, 업종 코드는 내 정보에 등록된 업종을 기준으로 자동 반영됩니다.
+          구·동·상권명을 일부만 입력해 검색한 뒤 목록을 선택하면 상권 코드로 자동 변환됩니다.
         </p>
+        {locationLoadError && <p className="text-[11px] text-red-600 mt-1">지역 목록: {locationLoadError}</p>}
         <div className="flex items-center gap-3 mt-4">
           <button disabled={requesting} className="px-4 py-2 bg-[#246BFD] text-white text-sm font-bold rounded-xl disabled:opacity-60 flex items-center gap-2">
             {requesting && <Loader2 className="w-4 h-4 animate-spin" />}
