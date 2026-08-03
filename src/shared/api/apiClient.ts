@@ -43,6 +43,9 @@ const AUTH_REFRESH_EXCLUDED_PATHS = new Set([
   REFRESH_PATH,
   "/api/auth/logout",
 ]);
+const CREDENTIAL_CONFIRMATION_ERROR_CODES = new Set([
+  "UNAUTHORIZED_INVALID_PASSWORD",
+]);
 
 let refreshPromise: Promise<string | null> | null = null;
 
@@ -104,6 +107,7 @@ async function executeRequest(
   if (
     response.status !== 401
     || AUTH_REFRESH_EXCLUDED_PATHS.has(path)
+    || await isCredentialConfirmationError(response)
   ) {
     return response;
   }
@@ -118,6 +122,16 @@ async function executeRequest(
   clearAccessToken();
   window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
   return response;
+}
+
+async function isCredentialConfirmationError(response: Response): Promise<boolean> {
+  if (response.status !== 401) return false;
+
+  const errorBody = await response.clone().json().catch(() => null) as ApiErrorPayload | null;
+  return Boolean(
+    errorBody?.code
+    && CREDENTIAL_CONFIRMATION_ERROR_CODES.has(errorBody.code),
+  );
 }
 
 async function throwForErrorResponse(response: Response): Promise<never> {
