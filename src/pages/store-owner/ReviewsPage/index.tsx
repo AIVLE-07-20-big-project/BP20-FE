@@ -6,6 +6,7 @@ import ReviewList from "./components/ReviewList";
 import { analyzeRequest, AspectStat, getAspectStat, getStoreReviews } from "./api/review";
 import AspectBarChart from "./components/AspectBarChart";
 import ReviewKeyword from "./components/ReviewKeyword";
+import AIRecommendation from "./components/AIRecommendation";
 
 const ASPECT_DATA = [
   { aspect: "맛", score: 4.7, prev: 4.6 },
@@ -283,31 +284,12 @@ export function ReviewsPage() {
         />
       </div>
 
-      <div className="bg-card bg-gray-200 border border-border rounded-2xl p-5">
+      <div className="bg-card border border-border rounded-2xl p-5">
         <div className="flex items-center gap-2 mb-4">
           <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
           <h3 className="font-bold">AI 개선 우선순위</h3>
         </div>
-        <div className="space-y-3">
-          {[
-            { issue: "대기시간 단축", impact: "높음", urgency: "긴급", action: "주문 처리 프로세스 개선", expected: "부정 리뷰 -8~12%, 재방문 +5~8%" },
-            { issue: "가격 납득도 개선", impact: "중간", urgency: "보통", action: "고품질 원재료 스토리 커뮤니케이션", expected: "가격 평점 +0.3~0.5" },
-          ].map((r) => (
-            <div key={r.issue} className="flex items-start gap-3 bg-muted/50 rounded-xl p-3">
-              <div className="w-7 h-7 rounded-lg bg-[#246BFD]/10 flex items-center justify-center flex-shrink-0">
-                <TrendingUp className="w-3.5 h-3.5 text-[#246BFD]" />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-sm font-semibold">{r.issue}</span>
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${r.urgency === "긴급" ? "bg-red-50 text-red-600" : "bg-muted text-muted-foreground"}`}>{r.urgency}</span>
-                </div>
-                <p className="text-xs text-muted-foreground">권장: {r.action}</p>
-                <p className="text-xs text-[#0E9F6E] mt-0.5">예상 효과: {r.expected}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+        <AIRecommendation />
         <p className="text-[11px] text-muted-foreground/60 mt-3">※ AI 추정치이며 실제 효과는 다를 수 있습니다.</p>
       </div>
     </PageShell>

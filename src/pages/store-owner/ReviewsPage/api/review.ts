@@ -27,6 +27,25 @@ export interface ReviewKeywords {
     analyzedAt: string;
 }
 
+export interface ActionItem {
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  aspect: string;
+  keyword: string;
+  trendSummary: string;
+  problemCause: string;
+  actionPlan: string;
+  expectedOutcome: string;
+  executedAt: string | null;
+}
+
+export interface Recommendations {
+    recommendationId: number;
+    storeId: number;
+    executiveSummary: string;
+    actionItems: ActionItem[];
+    createdAt: string;
+}
+
 const bearerToken = localStorage.getItem('accessToken');
 
 export const getStoreReviews = async (storeId: number = 1) => {
@@ -78,3 +97,30 @@ export const getReviewKeywords = async (storeId: number = 1) => {
 
     return response.data;
 }
+
+export const getRecommendations = async (storeId: number = 1) => {
+    const response = await axios.get<Recommendations>(
+        `${BASE_URL}/api/v3/stores/${storeId}/recommendations/latest`,
+        {
+            headers: {
+                Authorization: bearerToken,
+            },
+        }
+    );
+
+    return response.data;
+}
+
+export const patchCompleteActionItem = async (recommendationId: number, keyword: string) => {
+  const response = await axios.patch(
+    `${BASE_URL}/api/v3/stores/recommendations/${recommendationId}/action-items/complete`,
+    null,
+    {
+      params: { keyword },
+      headers: {
+        Authorization: bearerToken,
+      },
+    }
+  );
+  return response.data;
+};
