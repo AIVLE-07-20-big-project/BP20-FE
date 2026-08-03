@@ -19,11 +19,24 @@ import type {
 } from "../../entities/effect-verification/effect-verification.types";
 import {
   EffectVerificationApiError,
+  completeVerificationFromAnalysis,
   getVerificationExecution,
   getVerificationResult,
   retryEffectVerification,
 } from "../../features/effect-verification/api/effectVerificationApi";
 import { PageShell } from "../../shared/components/PageShell";
+
+const AI_ANALYSIS_OPTIONS_KEY = "bp20:ai-analysis-options";
+
+function readCachedAnalysisOptions(): { id: string; label: string }[] {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(AI_ANALYSIS_OPTIONS_KEY) ?? "[]");
+    if (Array.isArray(saved)) return saved;
+  } catch {
+    // 캐시가 없거나 손상된 경우 빈 목록으로 처리한다.
+  }
+  return [];
+}
 
 const STATUS_VIEW: Record<VerificationStatus, {
   label: string;
@@ -54,6 +67,36 @@ const METRIC_LABELS: Record<string, string> = {
   sales: "매출",
 };
 
+// AI 서비스 action_rules.ACTION_TO_AXIS와 동일한 매핑 — 방안 성격에 안 맞는 지표(예: SNS
+// 캠페인인데 쿠폰 사용률)를 걸러내는 표시 전용 용도라 여기서만 복제해 둔다.
+const ACTION_AXIS: Record<string, string> = {
+  "즉시할인": "discount_coupon",
+  "쿠폰발행": "discount_coupon",
+  "타임세일": "discount_coupon",
+  "세트메뉴 도입": "set_bundle",
+  "사이드메뉴 추가": "set_bundle",
+  "배달채널 확대": "delivery",
+  "매장 리뉴얼": "store_menu_location",
+  "신메뉴 출시": "store_menu_location",
+  "웰컴 프로모션": "customer_acquisition",
+  "리뷰 관리 캠페인": "customer_acquisition",
+  "브랜드 SNS 캠페인": "customer_acquisition",
+  "지역 제휴 마케팅": "customer_acquisition",
+};
+
+const COMMON_SALES_METRICS = ["target_sales", "total_sales", "visit_count", "average_order_value", "revisit_rate"];
+const AXIS_EXTRA_METRICS: Record<string, string[]> = {
+  discount_coupon: ["coupon_usage_rate"],
+  set_bundle: [],
+  delivery: [],
+  store_menu_location: [],
+  customer_acquisition: ["new_customer_count", "dormant_customer_return_count"],
+};
+
+function actionNameOf(execution: VerificationExecution | null): string | null {
+  return execution?.selected_action?.방안 ?? execution?.selected_action?.action ?? null;
+}
+
 const MONEY_METRICS = new Set(["target_sales", "total_sales", "average_order_value", "sales"]);
 const RATE_METRICS = new Set([
   "revisit_rate",
@@ -82,34 +125,98 @@ function getErrorMessage(error: unknown) {
   return "효과 검증 상세 정보를 불러오지 못했습니다.";
 }
 
-function ResultSection({ result }: { result: EffectVerificationResult }) {
-  const metrics = result.metric_results ?? [];
-  const verdict = {
-    EFFECTIVE: { label: "효과 있음", style: "border-emerald-200 bg-emerald-50 text-emerald-700" },
-    PARTIALLY_EFFECTIVE: { label: "일부 효과", style: "border-amber-200 bg-amber-50 text-amber-700" },
-    INCONCLUSIVE: { label: "판단 보류", style: "border-amber-200 bg-amber-50 text-amber-700" },
-    INEFFECTIVE: { label: "효과 미확인", style: "border-red-200 bg-red-50 text-red-700" },
-    NOT_EFFECTIVE: { label: "효과 미확인", style: "border-red-200 bg-red-50 text-red-700" },
-  }[result.verdict];
+function buildNarrative(actionName: string | null, metrics: VerificationMetricResult[]): string | null {
+  const target = metrics.find((metric) => metric.metric_name === "target_sales");
+  const total = metrics.find((metric) => metric.metric_name === "total_sales");
+  if (!target && !total) return null;
+
+  const sentences: string[] = [];
+  const subject = actionName ? `"${actionName}" 실행 후` : "이 방안을 실행한 후";
+
+  if (target?.change_rate != null) {
+    sentences.push(`${subject} 추천 대상 시간대 매출이 ${formatMetricValue(target, target.before_value)}에서 ${formatMetricValue(target, target.after_value)}로 ${target.change_rate >= 0 ? "+" : ""}${target.change_rate}% ${target.change_rate >= 0 ? "상승" : "하락"}했습니다.`);
+  }
+  if (total?.change_rate != null) {
+    sentences.push(`같은 기간 전체 매출은 ${total.change_rate >= 0 ? "+" : ""}${total.change_rate}% 변화했습니다.`);
+  }
+  if (target?.change_rate != null && total?.change_rate != null) {
+    const adjusted = Math.round((target.change_rate - total.change_rate) * 100) / 100;
+    sentences.push(`전체 매출 변화를 제외하면, 이 방안이 겨냥한 시간대만 놓고 봤을 때의 추가 개선 폭은 약 ${adjusted >= 0 ? "+" : ""}${adjusted}%p로 볼 수 있습니다.`);
+  }
+  return sentences.join(" ");
+}
+
+function ReportBox({ title, text, tone }: { title: string; text: string; tone: "positive" | "negative" | "neutral" }) {
+  const toneClass = {
+    positive: "border-emerald-100 bg-emerald-50 text-emerald-800",
+    negative: "border-amber-100 bg-amber-50 text-amber-800",
+    neutral: "border-border bg-muted/40 text-foreground",
+  }[tone];
+  return (
+    <div className={`rounded-xl border p-3 ${toneClass}`}>
+      <p className="text-xs font-bold">{title}</p>
+      <p className="mt-1.5 text-xs leading-relaxed">{text}</p>
+    </div>
+  );
+}
+
+function ResultSection({ result, actionName }: { result: EffectVerificationResult; actionName: string | null }) {
+  const allMetrics = result.metric_results ?? [];
+  const relevantNames = result.recommendation_type === "SALES" && actionName && ACTION_AXIS[actionName]
+    ? new Set([...COMMON_SALES_METRICS, ...(AXIS_EXTRA_METRICS[ACTION_AXIS[actionName]] ?? [])])
+    : null;
+  const metrics = relevantNames ? allMetrics.filter((metric) => relevantNames.has(metric.metric_name)) : allMetrics;
+  const headline = metrics.find((metric) => metric.metric_name === "target_sales")
+    ?? metrics.find((metric) => metric.metric_name === "total_sales")
+    ?? metrics.find((metric) => metric.metric_name === "sales");
+  const headlineUp = headline?.change_value != null && headline.change_value >= 0;
+  const narrative = result.recommendation_type === "SALES" ? buildNarrative(actionName, metrics) : null;
 
   return (
-    <section className={`rounded-2xl border p-5 ${verdict.style}`}>
+    <section className="rounded-2xl border border-border bg-card p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-bold">효과 검증 결과</p>
-          <p className="mt-1 text-xs opacity-75">{formatDate(result.verified_date)} 기준 · {verdict.label}</p>
+          <p className="text-sm font-bold">매출 변화</p>
+          <p className="mt-1 text-xs text-muted-foreground">{formatDate(result.verified_date)} 기준</p>
         </div>
-        <p className="text-3xl font-black tabular-nums">
-          {result.effect_score == null ? "—" : result.effect_score}
-          {result.effect_score != null && <span className="ml-0.5 text-sm">점</span>}
-        </p>
+        {headline && (
+          <div className="text-right">
+            <p className={`text-3xl font-black tabular-nums ${headlineUp ? "text-emerald-600" : "text-red-600"}`}>
+              {headline.change_value != null
+                ? `${headline.change_value >= 0 ? "+" : ""}${Math.round(headline.change_value).toLocaleString("ko-KR")}원`
+                : "—"}
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {formatMetricValue(headline, headline.before_value)} → {formatMetricValue(headline, headline.after_value)}
+              {headline.change_rate != null && ` (${headline.change_rate >= 0 ? "+" : ""}${headline.change_rate}%)`}
+            </p>
+          </div>
+        )}
       </div>
 
-      <p className="mt-4 rounded-xl bg-white/60 p-3 text-sm leading-relaxed text-foreground">
-        {result.summary || "아직 제공된 분석 설명이 없습니다."}
-      </p>
+      {result.strategy_report ? (
+        <div className="mt-4">
+          <p className="rounded-xl bg-muted/40 p-3 text-sm font-semibold leading-relaxed text-foreground">
+            {result.strategy_report.headline}
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <ReportBox title="핵심 성과" text={result.strategy_report.sections.performance} tone="neutral" />
+            <ReportBox title="긍정적 변화" text={result.strategy_report.sections.positiveChanges} tone="positive" />
+            <ReportBox title="보완이 필요한 지표" text={result.strategy_report.sections.negativeChanges} tone="negative" />
+            <ReportBox
+              title="종합 평가"
+              text={`${result.strategy_report.sections.interpretation} ${result.strategy_report.sections.nextAction}`}
+              tone="neutral"
+            />
+          </div>
+        </div>
+      ) : narrative && (
+        <p className="mt-4 rounded-xl bg-muted/40 p-3 text-sm leading-relaxed text-foreground">
+          {narrative}
+        </p>
+      )}
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-black/5 bg-white/70">
+      <div className="mt-4 overflow-hidden rounded-xl border border-border bg-muted/40">
         <div className="grid grid-cols-[1.4fr_1fr_1fr_0.8fr] gap-2 px-3 py-2 text-[11px] font-bold text-muted-foreground">
           <span>평가 지표</span>
           <span className="text-right">실행 전</span>
@@ -117,13 +224,13 @@ function ResultSection({ result }: { result: EffectVerificationResult }) {
           <span className="text-right">변화</span>
         </div>
         {metrics.length === 0 ? (
-          <p className="border-t border-black/5 px-3 py-8 text-center text-xs text-muted-foreground">
+          <p className="border-t border-border px-3 py-8 text-center text-xs text-muted-foreground">
             표시할 세부 지표가 없습니다.
           </p>
         ) : metrics.map((metric, index) => (
           <div
             key={`${metric.metric_name}-${index}`}
-            className="grid grid-cols-[1.4fr_1fr_1fr_0.8fr] items-center gap-2 border-t border-black/5 px-3 py-2.5 text-xs text-foreground"
+            className="grid grid-cols-[1.4fr_1fr_1fr_0.8fr] items-center gap-2 border-t border-border px-3 py-2.5 text-xs text-foreground"
           >
             <span className="font-semibold">{METRIC_LABELS[metric.metric_name] ?? metric.metric_name}</span>
             <span className="text-right text-muted-foreground">{formatMetricValue(metric, metric.before_value)}</span>
@@ -155,6 +262,10 @@ export function EffectVerificationDetailPage() {
   const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [afterAnalysisId, setAfterAnalysisId] = useState("");
+  const [completing, setCompleting] = useState(false);
+  const [completeError, setCompleteError] = useState("");
+  const analysisOptions = useMemo(() => readCachedAnalysisOptions(), []);
 
   useEffect(() => {
     let active = true;
@@ -203,6 +314,20 @@ export function EffectVerificationDetailPage() {
     ? Math.max(0, Math.ceil((new Date(execution.verification_due_at).getTime() - Date.now()) / 86_400_000))
     : 0;
 
+  const completeFromAnalysis = async () => {
+    if (!execution?.thread_id || !afterAnalysisId || completing) return;
+    setCompleting(true);
+    setCompleteError("");
+    try {
+      await completeVerificationFromAnalysis(execution.thread_id, afterAnalysisId);
+      setReloadKey((key) => key + 1);
+    } catch (nextError) {
+      setCompleteError(getErrorMessage(nextError));
+    } finally {
+      setCompleting(false);
+    }
+  };
+
   const retryVerification = async () => {
     if (!recommendationId || retrying) return;
     setRetrying(true);
@@ -220,7 +345,6 @@ export function EffectVerificationDetailPage() {
   return (
     <PageShell
       title="전략 검증 상세"
-      subtitle={`추천 ID ${recommendationIdParam ?? "—"}의 실행 이후 변화를 확인합니다.`}
       actions={(
         <button
           type="button"
@@ -263,7 +387,7 @@ export function EffectVerificationDetailPage() {
                     {execution.recommendation_type === "SALES" ? "매출형 전략 검증" : "리뷰형 전략 검증"}
                   </p>
                   <h2 className="mt-1 text-lg font-bold">
-                    {execution.thread_id ? `분석 ${execution.thread_id}` : `추천 ${execution.recommendation_id}`}
+                    {actionNameOf(execution) ?? (execution.thread_id ? `분석 ${execution.thread_id}` : `추천 ${execution.recommendation_id}`)}
                   </h2>
                 </div>
                 {(() => {
@@ -278,11 +402,10 @@ export function EffectVerificationDetailPage() {
                 })()}
               </div>
 
-              <dl className="mt-5 grid grid-cols-2 gap-4 text-xs md:grid-cols-4">
+              <dl className="mt-5 grid grid-cols-3 gap-4 text-xs">
                 <div><dt className="text-muted-foreground">실행일</dt><dd className="mt-1 font-semibold">{formatDate(execution.executed_at)}</dd></div>
                 <div><dt className="text-muted-foreground">측정 완료 예정일</dt><dd className="mt-1 font-semibold">{formatDate(execution.verification_due_at)}</dd></div>
                 <div><dt className="text-muted-foreground">검증 완료일</dt><dd className="mt-1 font-semibold">{formatDate(execution.verified_at)}</dd></div>
-                <div><dt className="text-muted-foreground">분석 시도</dt><dd className="mt-1 font-semibold">{execution.attempt_count}회</dd></div>
               </dl>
 
               {execution.status === "COLLECTING" && (
@@ -294,6 +417,39 @@ export function EffectVerificationDetailPage() {
                   <div className="mt-2 h-2 overflow-hidden rounded-full bg-violet-100">
                     <div className="h-full rounded-full bg-violet-500" style={{ width: `${progress}%` }} />
                   </div>
+                </div>
+              )}
+
+              {execution.recommendation_type === "SALES"
+                && execution.thread_id
+                && execution.status !== "VERIFIED" && (
+                <div className="mt-5 rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+                  <p className="text-xs font-bold text-emerald-800">실제 효과 확인 (매출 분석 기반)</p>
+                  <p className="mt-1 text-[11px] text-emerald-700">
+                    적용 후 매출 분석을 선택하면 측정 기간을 기다리지 않고 바로 8개 지표 전체를 실제값으로 확인합니다.
+                  </p>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <select
+                      value={afterAnalysisId}
+                      onChange={(event) => setAfterAnalysisId(event.target.value)}
+                      disabled={analysisOptions.length === 0 || completing}
+                      className="h-9 flex-1 rounded-lg border border-border bg-card px-3 text-xs"
+                    >
+                      <option value="">적용 후 매출 분석 선택</option>
+                      {analysisOptions.map((option) => (
+                        <option key={option.id} value={option.id}>{option.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={completing || !afterAnalysisId}
+                      onClick={completeFromAnalysis}
+                      className="h-9 rounded-xl bg-emerald-600 px-4 text-xs font-bold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {completing ? "확인 중..." : "실제 효과 확인"}
+                    </button>
+                  </div>
+                  {completeError && <p className="mt-2 text-xs text-red-600">{completeError}</p>}
                 </div>
               )}
 
@@ -318,7 +474,7 @@ export function EffectVerificationDetailPage() {
           )}
 
           {result ? (
-            <ResultSection result={result} />
+            <ResultSection result={result} actionName={actionNameOf(execution)} />
           ) : (
             <section className="rounded-2xl border border-border bg-card p-8 text-center">
               <Clock3 className="mx-auto mb-2 h-7 w-7 text-muted-foreground/50" aria-hidden="true" />

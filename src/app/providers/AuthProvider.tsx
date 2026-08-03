@@ -12,7 +12,6 @@ import { DEMO_USERS } from "../../mocks";
 import {
   ApiError,
   AUTH_EXPIRED_EVENT,
-  getAccessToken,
 } from "../../shared/api/apiClient";
 
 interface AuthContextType {
@@ -41,11 +40,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isDemo, setIsDemo] = useState(Boolean(demoUser));
 
   useEffect(() => {
-    if (demoUser || !getAccessToken()) {
+    if (demoUser) {
       setIsInitializing(false);
       return;
     }
 
+    // 액세스 토큰이 없어도 HttpOnly 리프레시 쿠키가 남아 있을 수 있으므로
+    // 현재 사용자 조회를 시도하고 apiClient의 자동 갱신 흐름에 맡긴다.
     authApi.getMe()
       .then((currentUser) => {
         setUser(currentUser);
@@ -82,14 +83,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     role: UserRole,
     remember: boolean,
   ): Promise<{ ok: boolean; error?: string }> => {
-    void remember;
-
     try {
-      const result = await authApi.login(email.trim(), password);
+      const result = await authApi.login(email.trim(), password, remember);
       const roleMatches = result.user.role === role
         || (result.user.role === "SUPER_ADMIN" && role === "ADMIN");
 
       if (!roleMatches) {
+        await authApi.logout().catch(() => undefined);
         clearAccessToken();
         return {
           ok: false,
@@ -105,14 +105,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       return {
         ok: false,
-        error: error instanceof ApiError ? error.message : "로그인에 실패했습니다.",
+        error: error instanceof ApiError
+          ? error.message
+          : "로그인에 실패했습니다.",
       };
     }
   };
 
   const logout = async () => {
-    clearAccessToken();
-    updateDemoUser(null);
+    try {
+      if (!isDemo) {
+        await authApi.logout();
+      }
+    } finally {
+      clearAccessToken();
+      updateDemoUser(null);
+    }
   };
 
   const signup = async (
@@ -128,7 +136,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       return {
         ok: false,
-        error: error instanceof ApiError ? error.message : "회원가입에 실패했습니다.",
+        error: error instanceof ApiError
+          ? error.message
+          : "회원가입에 실패했습니다.",
       };
     }
   };
@@ -136,6 +146,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const switchDemo = (userId: string) => {
     const nextUser = DEMO_USERS.find((candidate) => candidate.id === userId);
     if (nextUser) {
+      if (!isDemo && user) {
+        void authApi.logout().catch(() => undefined);
+      }
       clearAccessToken();
       updateDemoUser(nextUser);
     }
@@ -157,7 +170,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
+  return context;
 }

@@ -7,7 +7,9 @@ import {
 import { PageShell } from "../../shared/components/PageShell";
 import { MetricCard } from "../../shared/components/MetricCard";
 import { WEEKLY_SALES, HOURLY_DATA } from "../../mocks";
-import { createAnalysis, getAnalysis, pollAnalysisJob } from "../../features/ai-analysis/api/aiAnalysisApi";
+import { createAnalysis, getAnalysis, getIndustries, getLocations, pollAnalysisJob } from "../../features/ai-analysis/api/aiAnalysisApi";
+import type { IndustryOption, LocationDistrict } from "../../features/ai-analysis/api/aiAnalysisApi";
+import { commerceApi } from "../../features/commerce/api/commerceApi";
 import { ApiError } from "../../shared/api/apiClient";
 import type {
   AiAnalysisJobStatus,
@@ -22,7 +24,6 @@ const PROGRESS_STEPS = ["업로드", "대기열 등록", "분석 처리 중"];
 
 const AI_ANALYSIS_ID_KEY = "bp20:ai-analysis-id";
 const AI_ANALYSIS_OPTIONS_KEY = "bp20:ai-analysis-options";
-const AI_STORE_ID_KEY = "bp20:ai-store-id";
 
 // 새로고침해도 방금 완료한 매출 분석이 사라지지 않도록, 세션에 저장해 둔 가장 최근
 // analysisId를 첫 렌더 때 다시 불러온다(AiStrategyPage/DashboardPage와 같은 방식).
@@ -120,13 +121,20 @@ const summarizePeriod = (allRows: DetailedDailySales[], selectedRows: DetailedDa
 // (10,000으로 나눠 반올림 + 천단위 콤마)이라 report.매출분석 값들과 표기가 일치한다.
 const formatManwon = (value: number) => `${Math.round(value / 10000).toLocaleString()} 만원`;
 
+const normalizeLocationText = (value: string) => value.replace(/[.·,|/\s]+/g, "").toLowerCase();
+
 export function SalesPage() {
   const [preset, setPreset] = useState("월별");
   const [file, setFile] = useState<File | null>(null);
-  const [storeId, setStoreId] = useState(() => sessionStorage.getItem(AI_STORE_ID_KEY) ?? "");
   const [trdarCd, setTrdarCd] = useState("");
+  const [locations, setLocations] = useState<LocationDistrict[]>([]);
+  const [locationSearch, setLocationSearch] = useState("");
+  const [locationFocused, setLocationFocused] = useState(false);
+  const [locationLoadError, setLocationLoadError] = useState("");
   const [svcIndutyCd, setSvcIndutyCd] = useState("");
-  const [yyquCd, setYyquCd] = useState("");
+  const [industryName, setIndustryName] = useState("");
+  const [storeId, setStoreId] = useState<number | undefined>(undefined);
+  const [industries, setIndustries] = useState<IndustryOption[]>([]);
   const [analysis, setAnalysis] = useState<AiAnalysisResult | null>(null);
   const [requesting, setRequesting] = useState(false);
   const [apiError, setApiError] = useState("");
@@ -152,10 +160,73 @@ export function SalesPage() {
       .finally(() => setRestoring(false));
   }, []);
 
+  useEffect(() => {
+    getLocations()
+      .then((result) => {
+        setLocations(result.regions);
+        setLocationLoadError("");
+      })
+      .catch((error) => {
+        setLocationLoadError(error instanceof Error ? error.message : "서울 지역 목록을 불러오지 못했습니다.");
+      });
+    getIndustries().then((result) => setIndustries(result.industries)).catch(() => undefined);
+    commerceApi.getStore().then((store) => {
+      setIndustryName(store.category);
+      setStoreId(store.id);
+    }).catch(() => undefined);
+  }, []);
+
+  const locationOptions = useMemo(
+    () => locations.flatMap((district) => district.areas.map((area) => ({
+      ...area,
+      label: `${district.name} · ${area.region_name} · ${area.name}`,
+    }))),
+    [locations],
+  );
+
+  const filteredLocationOptions = useMemo(() => {
+    const query = normalizeLocationText(locationSearch);
+    if (!query) return locationOptions.slice(0, 30);
+    return locationOptions
+      .filter((area) => normalizeLocationText(area.label).includes(query))
+      .slice(0, 30);
+  }, [locationOptions, locationSearch]);
+
+  const handleLocationSearch = (value: string) => {
+    setLocationSearch(value);
+    const matched = locationOptions.find((area) => normalizeLocationText(area.label) === normalizeLocationText(value));
+    if (matched) setTrdarCd(matched.code);
+    else setTrdarCd("");
+  };
+
+  const selectLocation = (area: (typeof locationOptions)[number]) => {
+    setLocationSearch(area.label);
+    setTrdarCd(area.code);
+    setLocationFocused(false);
+  };
+
+  useEffect(() => {
+    if (!industryName || industries.length === 0) return;
+    const normalized = industryName.replace(/[·\s]/g, "");
+    const matched = industries.find((industry) => {
+      const name = industry.name.replace(/[·\s]/g, "");
+      if (normalized.includes("카페") || normalized.includes("커피")) return name.includes("커피");
+      if (normalized.includes("베이커리") || normalized.includes("제과")) return name.includes("제과");
+      if (normalized.includes("한식")) return name.includes("한식");
+      if (normalized.includes("중식")) return name.includes("중식");
+      if (normalized.includes("일식")) return name.includes("일식");
+      if (normalized.includes("양식")) return name.includes("양식");
+      if (normalized.includes("분식")) return name.includes("분식");
+      return name === normalized || name.includes(normalized) || normalized.includes(name);
+    });
+    if (matched) setSvcIndutyCd(matched.code);
+  }, [industryName, industries]);
+
   const handleAnalysis = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!file) { setApiError("CSV 파일을 선택해 주세요."); return; }
-    if (storeId.trim()) sessionStorage.setItem(AI_STORE_ID_KEY, storeId.trim());
+    if (!trdarCd) { setApiError("서울 구·동·상권을 자동완성 목록에서 선택해 주세요."); return; }
+    if (!svcIndutyCd) { setApiError("내 정보에 업종을 먼저 등록해 주세요."); return; }
     setRequesting(true);
     setApiError("");
     setJobStatus(null);
@@ -165,10 +236,9 @@ export function SalesPage() {
       setStatusMessage("분석 요청 중...");
       const job = await createAnalysis({
         file,
-        storeId: storeId.trim() || undefined,
         trdarCd: trdarCd || undefined,
         svcIndutyCd: svcIndutyCd || undefined,
-        yyquCd: yyquCd ? Number(yyquCd) : undefined,
+        storeId,
       });
       setJobStatus(job.status);
 
@@ -186,7 +256,6 @@ export function SalesPage() {
       sessionStorage.setItem(AI_ANALYSIS_ID_KEY, result.analysis_id);
       const target = (result.diagnosis?.["대상"] ?? {}) as Record<string, unknown>;
       const label = [
-        result.store_id ? `매장 ${result.store_id}` : null,
         target["상권명"], target["업종명"], target["기준분기"],
       ]
         .filter(Boolean).join(" · ") || "최근 매출 분석";
@@ -202,7 +271,7 @@ export function SalesPage() {
       );
     } catch (error) {
       if (error instanceof ApiError && error.status === 404 && !trdarCd && !svcIndutyCd) {
-        setApiError("최초 업로드는 상권 코드와 업종 코드를 함께 입력해야 합니다. 이후부터는 파일만 올려도 자동으로 채워집니다.");
+        setApiError("내 정보에 등록된 업종과 서울 지역·상권을 확인해 주세요. 이후부터는 파일만 올려도 자동으로 채워집니다.");
       } else {
         setApiError(error instanceof Error ? error.message : "분석 요청에 실패했습니다.");
       }
@@ -287,12 +356,12 @@ export function SalesPage() {
   const trafficAgeData = analysis ? ratioChartData(report?.유동인구_구성?.연령대별, "age") : [];
   const trafficGenderData = analysis ? ratioChartData(report?.유동인구_구성?.성별, "gender") : [];
   const periodLabel = preset === "월별" ? "이번 달" : "이번 분기";
-  // 분기 단위 상권 분석(report)과 월 단위 POS 상세 원인 분석(rootCause)은 서로 다른
-  // 데이터 기준이라 하나로 합치지 않고 따로 보여준다.
-  const quarterlyInsight = report?.["분석결과 해설"] ?? null;
-  const monthlyInsight = [rootCause?.headline, rootCause?.narrative]
-    .filter((value): value is string => Boolean(value))
-    .join(" ") || null;
+  const aiSummary = report?.["AI분석"] as {
+    제목?: string;
+    headline?: string;
+    summary?: string;
+    sections?: Record<string, string>;
+  } | undefined;
   const topCategory = rootCause?.topCategory;
   const metrics = analysis && selectedDailySales.length ? [
     {
@@ -344,21 +413,39 @@ export function SalesPage() {
           <Upload className="w-4 h-4 text-[#246BFD]" />
           <h3 className="font-bold">매출 CSV 분석 연동</h3>
         </div>
-        <input
-          value={storeId}
-          onChange={(event) => setStoreId(event.target.value)}
-          placeholder="매장 ID (여러 매장을 구분하려면 입력)"
-          className="w-full h-10 px-3 mb-3 text-sm bg-muted rounded-xl border border-border"
-        />
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <input type="file" accept=".csv,text/csv" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="text-xs bg-muted rounded-xl p-2" />
-          <input value={trdarCd} onChange={(event) => setTrdarCd(event.target.value)} placeholder="상권 코드 (최초 1회만)" className="h-10 px-3 text-sm bg-muted rounded-xl border border-border" />
-          <input value={svcIndutyCd} onChange={(event) => setSvcIndutyCd(event.target.value)} placeholder="업종 코드 (최초 1회만)" className="h-10 px-3 text-sm bg-muted rounded-xl border border-border" />
-          <input value={yyquCd} onChange={(event) => setYyquCd(event.target.value)} placeholder="분기 코드 (선택)" inputMode="numeric" className="h-10 px-3 text-sm bg-muted rounded-xl border border-border" />
+          <div className="relative">
+            <input
+              value={locationSearch}
+              onChange={(event) => handleLocationSearch(event.target.value)}
+              onFocus={() => setLocationFocused(true)}
+              onBlur={() => window.setTimeout(() => setLocationFocused(false), 150)}
+              placeholder="서울 구·동·상권 검색"
+              className="h-10 w-full px-3 text-sm bg-muted rounded-xl border border-border"
+              autoComplete="off"
+            />
+            {locationFocused && filteredLocationOptions.length > 0 && (
+              <div className="absolute z-20 top-11 left-0 right-0 max-h-56 overflow-y-auto rounded-xl border border-border bg-card shadow-lg">
+                {filteredLocationOptions.map((area) => (
+                  <button
+                    key={area.code}
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => selectLocation(area)}
+                    className="block w-full px-3 py-2 text-left text-xs hover:bg-muted"
+                  >
+                    {area.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <p className="text-[11px] text-muted-foreground mt-2">
-          상권/업종 코드는 최초 업로드 때 한 번만 입력하면 이후에는 저장된 값으로 자동 채워집니다.
+          구·동·상권명을 일부만 입력해 검색한 뒤 목록을 선택하면 상권 코드로 자동 변환됩니다.
         </p>
+        {locationLoadError && <p className="text-[11px] text-red-600 mt-1">지역 목록: {locationLoadError}</p>}
         <div className="flex items-center gap-3 mt-4">
           <button disabled={requesting} className="px-4 py-2 bg-[#246BFD] text-white text-sm font-bold rounded-xl disabled:opacity-60 flex items-center gap-2">
             {requesting && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -737,24 +824,17 @@ export function SalesPage() {
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xs font-bold text-[#246BFD] bg-[#246BFD]/10 px-1.5 py-0.5 rounded">AI 분석</span>
             </div>
-            {quarterlyInsight || monthlyInsight ? (
+            {aiSummary?.summary ? (
               <div className="space-y-3">
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-1">분기별 상권 분석</p>
-                  <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
-                    {quarterlyInsight || "이번 분기 상권 데이터가 부족해 상권 분석 해설을 생성하지 못했습니다."}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-1">월별 상세 원인 분석</p>
-                  <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
-                    {monthlyInsight || "POS 상세 분석 데이터가 부족해 월별 원인 분석을 생성하지 못했습니다."}
-                  </p>
-                </div>
+                <p className="text-base font-bold text-foreground">{aiSummary.제목 ?? "매출 원인 상세분석"}</p>
+                {aiSummary.headline && (
+                  <p className="text-sm font-semibold text-foreground">{aiSummary.headline}</p>
+                )}
+                <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{aiSummary.summary}</p>
               </div>
             ) : (
               <p className="text-sm text-foreground leading-relaxed">
-                분석을 실행하면 분기별 상권 분석과 월별 상세 POS 원인 분석을 함께 보여드립니다.
+                분석을 실행하면 매출 원인 상세분석을 보여드립니다.
               </p>
             )}
             <p className="text-[11px] text-muted-foreground/60 mt-2">※ AI 분석은 참고용이며 인과관계를 보장하지 않습니다.</p>

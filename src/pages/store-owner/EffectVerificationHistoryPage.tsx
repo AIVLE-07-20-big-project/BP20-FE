@@ -25,20 +25,20 @@ import { PageShell } from "../../shared/components/PageShell";
 
 const STATUS_OPTIONS: Array<{ value: VerificationStatus | ""; label: string }> = [
   { value: "", label: "전체 상태" },
-  { value: "COLLECTING", label: "측정 중" },
-  { value: "READY", label: "분석 대기" },
-  { value: "VERIFIED", label: "검증 완료" },
-  { value: "FAILED", label: "검증 실패" },
+  { value: "COLLECTING", label: "실행 중" },
+  { value: "READY", label: "실행 대기 중" },
+  { value: "VERIFIED", label: "실행 완료" },
+  { value: "FAILED", label: "실행 실패" },
 ];
 
 const STATUS_VIEW: Record<
   VerificationStatus,
   { label: string; className: string; icon: typeof Clock3 }
 > = {
-  COLLECTING: { label: "측정 중", className: "border-violet-200 bg-violet-50 text-violet-700", icon: Clock3 },
-  READY: { label: "분석 대기", className: "border-amber-200 bg-amber-50 text-amber-700", icon: CalendarClock },
-  VERIFIED: { label: "검증 완료", className: "border-emerald-200 bg-emerald-50 text-emerald-700", icon: CheckCircle2 },
-  FAILED: { label: "검증 실패", className: "border-red-200 bg-red-50 text-red-700", icon: XCircle },
+  COLLECTING: { label: "실행 중", className: "border-violet-200 bg-violet-50 text-violet-700", icon: Clock3 },
+  READY: { label: "실행 대기 중", className: "border-amber-200 bg-amber-50 text-amber-700", icon: CalendarClock },
+  VERIFIED: { label: "실행 완료", className: "border-emerald-200 bg-emerald-50 text-emerald-700", icon: CheckCircle2 },
+  FAILED: { label: "실행 실패", className: "border-red-200 bg-red-50 text-red-700", icon: XCircle },
 };
 
 function formatDate(value: string | null) {
@@ -55,6 +55,10 @@ function formatDate(value: string | null) {
 function getRemainingDays(dueAt: string) {
   const difference = new Date(dueAt).getTime() - Date.now();
   return difference <= 0 ? 0 : Math.ceil(difference / 86_400_000);
+}
+
+function actionNameOf(execution: VerificationExecution) {
+  return execution.selected_action?.방안 ?? execution.selected_action?.action ?? null;
 }
 
 function HistoryCard({
@@ -80,16 +84,14 @@ function HistoryCard({
         }
       }}
       className="group cursor-pointer rounded-2xl border border-border bg-card p-4 transition-all hover:border-[#246BFD]/40 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#246BFD]/30"
-      aria-label={`추천 ID ${execution.recommendation_id} 효과 검증 상세보기`}
+      aria-label={`${actionNameOf(execution) ?? "추천 방안"} 효과 검증 상세보기`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
-            <span>실행 ID {execution.recommendation_id}</span>
-            <span aria-hidden="true">·</span>
             <span>{execution.recommendation_type === "SALES" ? "매출형" : "리뷰형"}</span>
           </div>
-          <h3 className="font-bold">전략 {execution.recommendation_id}</h3>
+          <h3 className="font-bold">{actionNameOf(execution) ?? "추천 방안 확인 불가"}</h3>
         </div>
         <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-bold ${status.className}`}>
           <StatusIcon className="h-3.5 w-3.5" aria-hidden="true" />

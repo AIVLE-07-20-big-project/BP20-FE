@@ -40,10 +40,19 @@ const NAV_GROUPS = [
   { label: "Analytics", items: ANALYTICS_NAV },
 ];
 
+type StoreIdentity = {
+  name: string;
+  category: string;
+};
+
+export type StoreOwnerLayoutContext = {
+  updateStoreIdentity: (store: StoreIdentity | null) => void;
+};
+
 export function StoreOwnerLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [storeIdentity, setStoreIdentity] = useState<{ name: string; category: string } | null>(null);
+  const [storeIdentity, setStoreIdentity] = useState<StoreIdentity | null>(null);
   const { user, isDemo, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -279,7 +288,7 @@ export function StoreOwnerLayout() {
 
         {/* Content */}
         <main className="flex-1 overflow-hidden print:overflow-visible print:h-auto">
-          <Outlet />
+          <Outlet context={{ updateStoreIdentity: setStoreIdentity } satisfies StoreOwnerLayoutContext} />
         </main>
       </div>
     </div>

@@ -15,12 +15,25 @@ export function createAnalysis(input: CreateAnalysisInput) {
   if (input.trdarCd) form.append("trdar_cd", input.trdarCd);
   if (input.svcIndutyCd) form.append("svc_induty_cd", input.svcIndutyCd);
   if (input.yyquCd !== undefined) form.append("yyqu_cd", String(input.yyquCd));
-  if (input.storeId) form.append("store_id", input.storeId);
+  if (input.storeId !== undefined) form.append("store_id", String(input.storeId));
 
   return apiRequest<AiAnalysisJob>("/api/ai/analyses", {
     method: "POST",
     body: form,
   });
+}
+
+export interface LocationArea { code: string; name: string; region_code: string; region_name: string; }
+export interface LocationDistrict { code: string; name: string; areas: LocationArea[]; }
+
+export function getLocations() {
+  return apiRequest<{ regions: LocationDistrict[] }>("/api/ai/locations", { method: "GET" });
+}
+
+export interface IndustryOption { code: string; name: string; }
+
+export function getIndustries() {
+  return apiRequest<{ industries: IndustryOption[] }>("/api/ai/industries", { method: "GET" });
 }
 
 export function getAnalysisJobStatus(jobId: string) {
@@ -60,9 +73,8 @@ export function createRecommendation(analysisId: string) {
   );
 }
 
-export function getRecommendations(storeId?: string) {
-  const query = storeId ? `?store_id=${encodeURIComponent(storeId)}` : "";
-  return apiRequest<AiRecommendationRun[]>(`/api/ai/recommendations${query}`, { method: "GET" });
+export function getRecommendations() {
+  return apiRequest<AiRecommendationRun[]>("/api/ai/recommendations", { method: "GET" });
 }
 
 export function resumeRecommendation(
