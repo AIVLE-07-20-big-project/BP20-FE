@@ -9,6 +9,7 @@ import {
 import { PageShell } from "../../shared/components/PageShell";
 import type { AIRecommendation } from "../../entities/recommendation/recommendation.types";
 import type { AiRecommendationDecision, AiRecommendationRun, AiStrategyAction } from "../../entities/ai-analysis/ai-analysis.types";
+import type { VerificationExecution } from "../../entities/effect-verification/effect-verification.types";
 import { createRecommendation, resumeRecommendation } from "../../features/ai-analysis/api/aiAnalysisApi";
 import { startRecommendationExecution } from "../../features/effect-verification/api/effectVerificationApi";
 
@@ -349,21 +350,21 @@ export function AiStrategyPage() {
   const [recommendationLoading, setRecommendationLoading] = useState(false);
   const [recommendationStage, setRecommendationStage] = useState(0);
   const [recommendationError, setRecommendationError] = useState("");
-  const [verificationStarted, setVerificationStarted] = useState(false);
+  const [verificationExecution, setVerificationExecution] = useState<VerificationExecution | null>(null);
   const [verificationRetryThreadId, setVerificationRetryThreadId] = useState<string | null>(null);
 
   const startSalesEffectMeasurement = async (threadId: string) => {
     try {
-      await startRecommendationExecution({
+      const execution = await startRecommendationExecution({
         thread_id: threadId,
         recommendation_type: "SALES",
       });
-      setVerificationStarted(true);
+      setVerificationExecution(execution);
       setVerificationRetryThreadId(null);
       setRecommendationError("");
       return true;
     } catch (error) {
-      setVerificationStarted(false);
+      setVerificationExecution(null);
       setVerificationRetryThreadId(threadId);
       setRecommendationError(
         error instanceof Error
@@ -384,7 +385,7 @@ export function AiStrategyPage() {
     setRecommendationLoading(true);
     setRecommendationStage(1);
     setRecommendationError("");
-    setVerificationStarted(false);
+    setVerificationExecution(null);
     setVerificationRetryThreadId(null);
     try {
       const result = await createRecommendation(analysisId.trim());
@@ -545,9 +546,27 @@ export function AiStrategyPage() {
 
           <FinalReportSection report={recommendationRun.final_report} />
 
-          {verificationStarted && (
-            <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-700">
-              전략 실행이 완료되어 30일 효과 측정이 자동으로 시작되었습니다.
+          {verificationExecution && (
+            <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+                    <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                    측정 중
+                  </div>
+                  <p className="mt-1 text-xs text-emerald-700">
+                    전략 실행 시점부터 효과 측정이 자동으로 시작되었습니다. 측정 완료 예정일은 {dateInputValue(verificationExecution.verification_due_at)}입니다.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/store/strategy-verifications/${encodeURIComponent(verificationExecution.recommendation_id)}`)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
+                >
+                  전략 검증에서 확인
+                  <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </div>
             </div>
           )}
 
