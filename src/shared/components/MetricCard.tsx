@@ -16,6 +16,9 @@ interface MetricCardProps {
 export function MetricCard({ label, value, subLabel, change, changePeriod = "전주 대비", icon, accent, mini, children }: MetricCardProps) {
   const isPositive = change !== undefined && change > 0;
   const isNegative = change !== undefined && change < 0;
+  const formattedChange = change === undefined
+    ? ""
+    : Math.abs(change).toLocaleString("ko-KR", { maximumFractionDigits: 3 });
 
   return (
     <div className={clsx(
@@ -38,7 +41,7 @@ export function MetricCard({ label, value, subLabel, change, changePeriod = "전
           !isPositive && !isNegative && "text-muted-foreground"
         )}>
           {isPositive ? <TrendingUp className="w-3 h-3" /> : isNegative ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
-          <span>{changePeriod} {Math.abs(change)}% {isPositive ? "증가" : isNegative ? "감소" : "동일"}</span>
+          <span>{changePeriod} {formattedChange}% {isPositive ? "증가" : isNegative ? "감소" : "동일"}</span>
         </div>
       )}
       {children}

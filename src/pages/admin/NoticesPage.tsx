@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  Plus, Search, Pin, AlertTriangle, ChevronRight, X, Edit2,
+  Plus, Search, AlertTriangle, ChevronRight, X, Edit2,
   Copy, XCircle, Calendar, Eye, Users, Globe, Tag, Clock,
   FileText, CheckCircle2, Megaphone
 } from "lucide-react";
 import { useAuth } from "../../app/providers/AuthProvider";
+import { getAccessToken } from "../../features/auth/model/authSession";
+import { createNotice, deleteNotice, getNotices, updateNotice, uploadNoticeAttachment, type NoticeApi, type NoticeRequestApi } from "../../features/notices/api/noticesApi";
+import { apiUrl } from "../../shared/config/runtimeEnv";
 
 type NoticeStatus = "게시 중" | "게시 예정" | "임시 저장" | "종료됨";
 type NoticeCategory = "서비스 안내" | "점검 안내" | "기능 업데이트" | "정책 변경" | "긴급 공지";
@@ -12,7 +15,6 @@ type AudienceType = "전체 가맹점" | "선택 가맹점" | "지역" | "업종
 
 interface Notice {
   id: string;
-  pinned: boolean;
   urgent: boolean;
   status: NoticeStatus;
   category: NoticeCategory;
@@ -24,16 +26,41 @@ interface Notice {
   viewRate: number;
   updatedAt: string;
   body: string;
+  attachment?: { originalName: string; downloadUrl: string };
 }
 
 const NOTICES: Notice[] = [
-  { id: "n1", pinned: true, urgent: false, status: "게시 중", category: "기능 업데이트", title: "AI 전략 추천 기능 업데이트 안내 (v2.4)", audience: "전체 가맹점", author: "박준혁", publishDate: "07.18", viewCount: 284, viewRate: 91, updatedAt: "07.18", body: "AI 전략 추천 기능이 업데이트되어 더욱 정확한 분석 결과를 제공합니다." },
-  { id: "n2", pinned: false, urgent: true, status: "게시 중", category: "긴급 공지", title: "[긴급] POS 연동 오류 복구 완료 안내", audience: "전체 가맹점", author: "이서연", publishDate: "07.17", viewCount: 312, viewRate: 96, updatedAt: "07.17", body: "07.17 오전 발생한 POS 연동 오류가 복구되었습니다." },
-  { id: "n3", pinned: false, urgent: false, status: "게시 예정", category: "점검 안내", title: "정기 시스템 점검 안내 (7월 22일 새벽 2~4시)", audience: "전체 가맹점", author: "박준혁", publishDate: "07.22", viewCount: 0, viewRate: 0, updatedAt: "07.16", body: "정기 점검이 7월 22일 새벽 2시부터 4시까지 진행될 예정입니다." },
-  { id: "n4", pinned: false, urgent: false, status: "게시 중", category: "정책 변경", title: "서비스 이용약관 개정 안내 (2025년 8월 1일 적용)", audience: "전체 가맹점", author: "이서연", publishDate: "07.15", viewCount: 198, viewRate: 63, updatedAt: "07.15", body: "서비스 이용약관이 8월 1일부터 개정됩니다." },
-  { id: "n5", pinned: false, urgent: false, status: "임시 저장", category: "서비스 안내", title: "[초안] 8월 성수기 대비 AI 추천 활용 가이드", audience: "전체 가맹점", author: "박준혁", publishDate: "—", viewCount: 0, viewRate: 0, updatedAt: "07.14", body: "초안 작성 중입니다." },
-  { id: "n6", pinned: false, urgent: false, status: "종료됨", category: "서비스 안내", title: "6월 정기 점검 완료 안내", audience: "전체 가맹점", author: "이서연", publishDate: "06.28", viewCount: 301, viewRate: 88, updatedAt: "06.28", body: "6월 정기 점검이 완료되었습니다." },
+  { id: "n1", urgent: false, status: "게시 중", category: "기능 업데이트", title: "AI 전략 추천 기능 업데이트 안내 (v2.4)", audience: "전체 가맹점", author: "박준혁", publishDate: "07.18", viewCount: 284, viewRate: 91, updatedAt: "07.18", body: "AI 전략 추천 기능이 업데이트되어 더욱 정확한 분석 결과를 제공합니다." },
+  { id: "n2", urgent: true, status: "게시 중", category: "긴급 공지", title: "[긴급] POS 연동 오류 복구 완료 안내", audience: "전체 가맹점", author: "이서연", publishDate: "07.17", viewCount: 312, viewRate: 96, updatedAt: "07.17", body: "07.17 오전 발생한 POS 연동 오류가 복구되었습니다." },
+  { id: "n3", urgent: false, status: "게시 예정", category: "점검 안내", title: "정기 시스템 점검 안내 (7월 22일 새벽 2~4시)", audience: "전체 가맹점", author: "박준혁", publishDate: "07.22", viewCount: 0, viewRate: 0, updatedAt: "07.16", body: "정기 점검이 7월 22일 새벽 2시부터 4시까지 진행될 예정입니다." },
+  { id: "n4", urgent: false, status: "게시 중", category: "정책 변경", title: "서비스 이용약관 개정 안내 (2025년 8월 1일 적용)", audience: "전체 가맹점", author: "이서연", publishDate: "07.15", viewCount: 198, viewRate: 63, updatedAt: "07.15", body: "서비스 이용약관이 8월 1일부터 개정됩니다." },
+  { id: "n5", urgent: false, status: "임시 저장", category: "서비스 안내", title: "[초안] 8월 성수기 대비 AI 추천 활용 가이드", audience: "전체 가맹점", author: "박준혁", publishDate: "—", viewCount: 0, viewRate: 0, updatedAt: "07.14", body: "초안 작성 중입니다." },
+  { id: "n6", urgent: false, status: "종료됨", category: "서비스 안내", title: "6월 정기 점검 완료 안내", audience: "전체 가맹점", author: "이서연", publishDate: "06.28", viewCount: 301, viewRate: 88, updatedAt: "06.28", body: "6월 정기 점검이 완료되었습니다." },
 ];
+
+function mapApiNotice(notice: NoticeApi): Notice {
+  const date = new Date(notice.updatedAt);
+  const formattedDate = String(date.getMonth() + 1).padStart(2, "0") + "." + String(date.getDate()).padStart(2, "0");
+  const status = notice.status === "PUBLISHED" ? "게시 중" : "임시 저장";
+  return {
+    id: String(notice.id),
+    urgent: notice.urgent,
+    status,
+    category: notice.category as NoticeCategory,
+    title: notice.title,
+    audience: notice.audience as AudienceType,
+    author: notice.author,
+    publishDate: status === "게시 중" ? formattedDate : "—",
+    viewCount: 0,
+    viewRate: 0,
+    updatedAt: formattedDate,
+    body: notice.body,
+    attachment: notice.attachment && {
+      originalName: notice.attachment.originalName,
+      downloadUrl: apiUrl(`/api/notices/${notice.id}/attachment`),
+    },
+  };
+}
 
 const STATUS_STYLE: Record<NoticeStatus, string> = {
   "게시 중": "bg-[#0E9F6E]/10 text-[#0E9F6E]",
@@ -50,13 +77,6 @@ const CATEGORY_COLORS: Record<NoticeCategory, string> = {
   "긴급 공지": "text-red-600 bg-red-50",
 };
 
-const SUMMARY = [
-  { label: "게시 중", count: NOTICES.filter(n => n.status === "게시 중").length, color: "text-[#0E9F6E]" },
-  { label: "게시 예정", count: NOTICES.filter(n => n.status === "게시 예정").length, color: "text-[#246BFD]" },
-  { label: "임시 저장", count: NOTICES.filter(n => n.status === "임시 저장").length, color: "text-muted-foreground" },
-  { label: "종료됨", count: NOTICES.filter(n => n.status === "종료됨").length, color: "text-gray-400" },
-];
-
 type ComposeMode = "create" | "edit";
 
 interface ComposePanelProps {
@@ -64,16 +84,22 @@ interface ComposePanelProps {
   mode: ComposeMode;
   onClose: () => void;
   isSuperAdmin: boolean;
+  onSave: (notice: Partial<Notice>, publish: boolean, file?: File) => void;
 }
 
-function ComposePanel({ initial, mode, onClose, isSuperAdmin }: ComposePanelProps) {
+function ComposePanel({ initial, mode, onClose, isSuperAdmin, onSave }: ComposePanelProps) {
   const [title, setTitle] = useState(initial?.title || "");
   const [category, setCategory] = useState<NoticeCategory>(initial?.category || "서비스 안내");
   const [body, setBody] = useState(initial?.body || "");
   const [audience, setAudience] = useState<AudienceType>(initial?.audience || "전체 가맹점");
-  const [pinned, setPinned] = useState(initial?.pinned || false);
   const [schedulePublish, setSchedulePublish] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [file, setFile] = useState<File | undefined>();
+
+  const submit = (publish: boolean) => {
+    if (!title.trim() || !body.trim()) return;
+    onSave({ title: title.trim(), category, body: body.trim(), audience }, publish, file);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -88,6 +114,17 @@ function ComposePanel({ initial, mode, onClose, isSuperAdmin }: ComposePanelProp
           <div>
             <label className="block text-xs font-semibold mb-1">제목</label>
             <input value={title} onChange={e => setTitle(e.target.value)} placeholder="공지 제목을 입력하세요" className="w-full h-9 px-3 text-sm bg-muted rounded-xl focus:outline-none focus:ring-2 focus:ring-[#246BFD]/30" />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold mb-1">첨부 파일 <span className="font-normal text-muted-foreground">(선택, 최대 20MB)</span></label>
+            <input
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,.gif,.doc,.docx,.xls,.xlsx"
+              onChange={e => setFile(e.target.files?.[0])}
+              className="w-full text-xs file:mr-2 file:border-0 file:bg-[#246BFD]/10 file:text-[#246BFD] file:px-3 file:py-1.5 file:rounded-lg"
+            />
+            {file && <p className="text-[11px] text-muted-foreground mt-1 truncate">{file.name}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -124,9 +161,6 @@ function ComposePanel({ initial, mode, onClose, isSuperAdmin }: ComposePanelProp
           <div className="space-y-2">
             {isSuperAdmin && (
               <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
-                <input type="checkbox" checked={pinned} onChange={e => setPinned(e.target.checked)} className="w-4 h-4 rounded accent-[#246BFD]" />
-                <Pin className="w-3.5 h-3.5 text-muted-foreground" />
-                중요 공지로 고정 (최고 관리자 전용)
               </label>
             )}
             <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
@@ -168,11 +202,11 @@ function ComposePanel({ initial, mode, onClose, isSuperAdmin }: ComposePanelProp
         </div>
 
         <div className="px-5 pb-5 border-t border-border pt-4 space-y-2">
-          <button className="w-full h-10 bg-[#246BFD] text-white text-sm font-bold rounded-xl hover:bg-[#1D4ED8] transition-colors">
+          <button onClick={() => submit(true)} disabled={!title.trim() || !body.trim()} className="w-full h-10 bg-[#246BFD] text-white text-sm font-bold rounded-xl hover:bg-[#1D4ED8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             {schedulePublish ? "게시 예약" : "지금 게시"}
           </button>
           <div className="flex gap-2">
-            <button onClick={() => setSaved(true)} className="flex-1 h-9 text-xs font-semibold border border-border rounded-xl text-muted-foreground hover:bg-muted transition-colors">임시 저장</button>
+            <button onClick={() => { submit(false); setSaved(true); }} disabled={!title.trim() || !body.trim()} className="flex-1 h-9 text-xs font-semibold border border-border rounded-xl text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50">임시 저장</button>
             <button onClick={onClose} className="flex-1 h-9 text-xs font-semibold border border-border rounded-xl text-muted-foreground hover:bg-muted transition-colors">취소</button>
           </div>
         </div>
@@ -186,9 +220,12 @@ interface DetailDrawerProps {
   onClose: () => void;
   onEdit: () => void;
   isSuperAdmin: boolean;
+  onEnd: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
 }
 
-function DetailDrawer({ notice, onClose, onEdit, isSuperAdmin }: DetailDrawerProps) {
+function DetailDrawer({ notice, onClose, onEdit, isSuperAdmin, onEnd, onDuplicate, onDelete }: DetailDrawerProps) {
   const [confirmEnd, setConfirmEnd] = useState(false);
 
   return (
@@ -197,7 +234,6 @@ function DetailDrawer({ notice, onClose, onEdit, isSuperAdmin }: DetailDrawerPro
       <div className="relative w-full max-w-md bg-card border-l border-border h-full overflow-y-auto z-10 flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
-            {notice.pinned && <Pin className="w-3.5 h-3.5 text-[#246BFD]" />}
             {notice.urgent && <AlertTriangle className="w-3.5 h-3.5 text-red-500" />}
             <h3 className="font-bold text-sm truncate">{notice.title}</h3>
           </div>
@@ -244,6 +280,11 @@ function DetailDrawer({ notice, onClose, onEdit, isSuperAdmin }: DetailDrawerPro
             <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">본문</div>
             <div className="text-sm leading-relaxed bg-muted/50 rounded-2xl p-4">{notice.body}</div>
           </div>
+          {notice.attachment && (
+            <a href={notice.attachment.downloadUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-[#246BFD] bg-[#246BFD]/5 border border-[#246BFD]/15 rounded-xl px-3 py-2 hover:bg-[#246BFD]/10">
+              <FileText className="w-4 h-4" /> {notice.attachment.originalName}
+            </a>
+          )}
 
           <div>
             <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">편집 이력</div>
@@ -258,7 +299,7 @@ function DetailDrawer({ notice, onClose, onEdit, isSuperAdmin }: DetailDrawerPro
             <button onClick={onEdit} className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-semibold bg-[#246BFD]/10 text-[#246BFD] border border-[#246BFD]/20 rounded-xl hover:bg-[#246BFD]/20 transition-colors">
               <Edit2 className="w-3.5 h-3.5" /> 수정
             </button>
-            <button className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-semibold border border-border rounded-xl text-muted-foreground hover:bg-muted transition-colors">
+            <button onClick={onDuplicate} className="flex-1 h-9 flex items-center justify-center gap-1.5 text-xs font-semibold border border-border rounded-xl text-muted-foreground hover:bg-muted transition-colors">
               <Copy className="w-3.5 h-3.5" /> 복제
             </button>
           </div>
@@ -271,14 +312,12 @@ function DetailDrawer({ notice, onClose, onEdit, isSuperAdmin }: DetailDrawerPro
             <div className="bg-red-50 border border-red-200 rounded-xl p-3 space-y-2">
               <p className="text-xs text-red-700 font-semibold">이 공지를 종료하시겠습니까? 이 작업은 즉시 적용됩니다.</p>
               <div className="flex gap-2">
-                <button className="flex-1 h-8 text-xs font-bold bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors">종료 확인</button>
+                <button onClick={onEnd} className="flex-1 h-8 text-xs font-bold bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors">종료 확인</button>
                 <button onClick={() => setConfirmEnd(false)} className="flex-1 h-8 text-xs font-semibold border border-border rounded-xl text-muted-foreground hover:bg-muted transition-colors">취소</button>
               </div>
             </div>
           )}
-          {isSuperAdmin && (
-            <button className="w-full h-9 text-xs font-semibold text-red-600 hover:underline">삭제</button>
-          )}
+          <button onClick={onDelete} className="w-full h-9 text-xs font-semibold text-red-600 hover:underline">삭제</button>
         </div>
       </div>
     </div>
@@ -297,14 +336,103 @@ export function NoticesPage() {
   const [selectedNotice, setSelectedNotice] = useState<Notice | null>(null);
   const [composeMode, setComposeMode] = useState<ComposeMode | null>(null);
   const [composeInitial, setComposeInitial] = useState<Notice | undefined>(undefined);
+  const [notices, setNotices] = useState<Notice[]>(NOTICES);
 
-  const filtered = NOTICES.filter(n => {
+  useEffect(() => {
+    const token = getAccessToken();
+    if (!token) return;
+    getNotices(token)
+      .then(items => setNotices(items.map(mapApiNotice)))
+      .catch(() => undefined);
+  }, []);
+
+  const filtered = notices.filter(n => {
     if (search && !n.title.includes(search) && !n.author.includes(search)) return false;
     if (statusFilter !== "전체" && n.status !== statusFilter) return false;
     if (categoryFilter !== "전체" && n.category !== categoryFilter) return false;
     if (audienceFilter !== "전체" && n.audience !== audienceFilter) return false;
     return true;
+  }).sort((a, b) => {
+    if (sort === "조회순") return b.viewCount - a.viewCount;
+    if (sort === "수정일순") return b.updatedAt.localeCompare(a.updatedAt);
+    return b.publishDate.localeCompare(a.publishDate);
   });
+
+  const summary = [
+    { label: "게시 중", count: notices.filter(n => n.status === "게시 중").length, color: "text-[#0E9F6E]" },
+    { label: "게시 예정", count: notices.filter(n => n.status === "게시 예정").length, color: "text-[#246BFD]" },
+    { label: "임시 저장", count: notices.filter(n => n.status === "임시 저장").length, color: "text-muted-foreground" },
+    { label: "종료됨", count: notices.filter(n => n.status === "종료됨").length, color: "text-gray-400" },
+  ];
+
+  const saveNotice = async (draft: Partial<Notice>, publish: boolean, file?: File) => {
+    const now = new Date();
+    const today = String(now.getMonth() + 1).padStart(2, "0") + "." + String(now.getDate()).padStart(2, "0");
+    const token = getAccessToken();
+    const request: NoticeRequestApi = {
+      title: draft.title ?? "",
+      body: draft.body ?? "",
+      category: draft.category ?? "서비스 안내",
+      audience: draft.audience ?? "전체 가맹점",
+      status: publish ? "PUBLISHED" : "DRAFT",
+      urgent: draft.category === "긴급 공지",
+    };
+    if (token) {
+      try {
+        const saved = composeInitial?.id && /^\d+$/.test(composeInitial.id)
+          ? await updateNotice(Number(composeInitial.id), request, token)
+          : await createNotice(request, token);
+        const mapped = mapApiNotice(saved);
+        if (file) {
+          const attachment = await uploadNoticeAttachment(Number(saved.id), file, token);
+          mapped.attachment = {
+            originalName: attachment.originalName,
+            downloadUrl: apiUrl(`/api/notices/${saved.id}/attachment`),
+          };
+        }
+        setNotices(current => composeInitial
+          ? current.map(n => n.id === composeInitial.id ? mapped : n)
+          : [mapped, ...current]);
+        setComposeMode(null);
+        setComposeInitial(undefined);
+        return;
+      } catch {
+        // API 요청 실패 시 화면을 닫지 않고 사용자에게 입력 상태를 유지합니다.
+        return;
+      }
+    }
+    if (composeInitial) {
+      setNotices(current => current.map(n => n.id === composeInitial.id ? { ...n, ...draft, status: publish ? "게시 중" : "임시 저장", updatedAt: today } as Notice : n));
+    } else {
+      setNotices(current => [{ id: "n" + Date.now(), urgent: draft.category === "긴급 공지", status: publish ? "게시 중" : "임시 저장", author: user?.name ?? "관리자", publishDate: publish ? today : "—", viewCount: 0, viewRate: 0, updatedAt: today, ...draft } as Notice, ...current]);
+    }
+    setComposeMode(null);
+    setComposeInitial(undefined);
+  };
+
+  const endSelected = () => {
+    if (!selectedNotice) return;
+    setNotices(current => current.map(n => n.id === selectedNotice.id ? { ...n, status: "종료됨" } : n));
+    setSelectedNotice(null);
+  };
+  const duplicateSelected = () => {
+    if (!selectedNotice) return;
+    setNotices(current => [{ ...selectedNotice, id: "n" + Date.now(), title: "[복제] " + selectedNotice.title, status: "임시 저장", publishDate: "—", updatedAt: "방금 전" }, ...current]);
+    setSelectedNotice(null);
+  };
+  const deleteSelected = async () => {
+    if (!selectedNotice) return;
+    const token = getAccessToken();
+    if (token && /^\d+$/.test(selectedNotice.id)) {
+      try {
+        await deleteNotice(Number(selectedNotice.id), token);
+      } catch {
+        return;
+      }
+    }
+    setNotices(current => current.filter(n => n.id !== selectedNotice.id));
+    setSelectedNotice(null);
+  };
 
   return (
     <div className="h-full overflow-y-auto">
@@ -316,8 +444,8 @@ export function NoticesPage() {
             <p className="text-sm text-muted-foreground mt-0.5">가맹점에 전달할 서비스 공지와 운영 안내를 작성하고 게시 상태를 관리합니다.</p>
           </div>
           <div className="flex gap-2">
-            <button className="text-xs font-semibold px-3 py-2 border border-border rounded-xl text-muted-foreground hover:bg-muted transition-colors flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5" /> 게시 예약 관리
+            <button onClick={() => setStatusFilter(statusFilter === "게시 예정" ? "전체" : "게시 예정")} className="text-xs font-semibold px-3 py-2 border border-border rounded-xl text-muted-foreground hover:bg-muted transition-colors flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5" /> 게시 예정 보기
             </button>
             <button
               onClick={() => { setComposeInitial(undefined); setComposeMode("create"); }}
@@ -330,7 +458,7 @@ export function NoticesPage() {
 
         {/* Summary */}
         <div className="grid grid-cols-4 gap-3 mb-5">
-          {SUMMARY.map(s => (
+          {summary.map(s => (
             <button
               key={s.label}
               onClick={() => setStatusFilter(statusFilter === s.label ? "전체" : s.label as NoticeStatus)}
@@ -408,7 +536,6 @@ export function NoticesPage() {
                   >
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-1">
-                        {n.pinned && <Pin className="w-3.5 h-3.5 text-[#246BFD]" />}
                         {n.urgent && <AlertTriangle className="w-3.5 h-3.5 text-red-500" />}
                       </div>
                     </td>
@@ -458,8 +585,11 @@ export function NoticesPage() {
         <DetailDrawer
           notice={selectedNotice}
           onClose={() => setSelectedNotice(null)}
-          onEdit={() => { setComposeInitial(selectedNotice); setComposeMode("edit"); setSelectedNotice(null); }}
-          isSuperAdmin={isSuperAdmin}
+            onEdit={() => { setComposeInitial(selectedNotice); setComposeMode("edit"); setSelectedNotice(null); }}
+            isSuperAdmin={isSuperAdmin}
+            onEnd={endSelected}
+            onDuplicate={duplicateSelected}
+            onDelete={deleteSelected}
         />
       )}
 
@@ -469,6 +599,7 @@ export function NoticesPage() {
           mode={composeMode}
           onClose={() => setComposeMode(null)}
           isSuperAdmin={isSuperAdmin}
+          onSave={saveNotice}
         />
       )}
     </div>

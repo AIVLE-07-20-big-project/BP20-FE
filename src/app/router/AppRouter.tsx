@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { AdminLayout } from "../layouts/AdminLayout";
 import { StoreOwnerLayout } from "../layouts/StoreOwnerLayout";
 import { useAuth } from "../providers/AuthProvider";
@@ -13,12 +13,19 @@ const DashboardPage = lazy(() => import("../../pages/store-owner/DashboardPage")
 const SalesPage = lazy(() => import("../../pages/store-owner/SalesPage").then(({ SalesPage }) => ({ default: SalesPage })));
 const AiStrategyPage = lazy(() => import("../../pages/store-owner/AiStrategyPage").then(({ AiStrategyPage }) => ({ default: AiStrategyPage })));
 const AiStrategyDetailPage = lazy(() => import("../../pages/store-owner/AiStrategyDetailPage").then(({ AiStrategyDetailPage }) => ({ default: AiStrategyDetailPage })));
+const EffectVerificationHistoryPage = lazy(() => import("../../pages/store-owner/EffectVerificationHistoryPage").then(({ EffectVerificationHistoryPage }) => ({ default: EffectVerificationHistoryPage })));
+const RecommendationHistoryPage = lazy(() => import("../../pages/store-owner/RecommendationHistoryPage").then(({ RecommendationHistoryPage }) => ({ default: RecommendationHistoryPage })));
+const EffectVerificationDetailPage = lazy(() => import("../../pages/store-owner/EffectVerificationDetailPage").then(({ EffectVerificationDetailPage }) => ({ default: EffectVerificationDetailPage })));
 const LedgerPage = lazy(() => import("../../pages/store-owner/LedgerPage").then(({ LedgerPage }) => ({ default: LedgerPage })));
 const CostPage = lazy(() => import("../../pages/store-owner/CostPage").then(({ CostPage }) => ({ default: CostPage })));
 const InventoryPage = lazy(() => import("../../pages/store-owner/InventoryPage").then(({ InventoryPage }) => ({ default: InventoryPage })));
 const ReviewsPage = lazy(() => import("../../pages/store-owner/ReviewsPage").then(({ ReviewsPage }) => ({ default: ReviewsPage })));
 const ReportsPage = lazy(() => import("../../pages/store-owner/ReportsPage").then(({ ReportsPage }) => ({ default: ReportsPage })));
+const CommercePage = lazy(() => import("../../pages/store-owner/CommercePage").then(({ CommercePage }) => ({ default: CommercePage })));
+const CustomersPage = lazy(() => import("../../pages/store-owner/CustomersPage").then(({ CustomersPage }) => ({ default: CustomersPage })));
+const AccountPage = lazy(() => import("../../pages/account/AccountPage").then(({ AccountPage }) => ({ default: AccountPage })));
 const PlaceholderPage = lazy(() => import("../../pages/store-owner/PlaceholderPage").then(({ PlaceholderPage }) => ({ default: PlaceholderPage })));
+const ProductImagePage = lazy(() => import("../../pages/store-owner/ProductImagePage").then(({ ProductImagePage }) => ({ default: ProductImagePage })));
 
 const PortfolioDashboard = lazy(() => import("../../pages/admin/PortfolioDashboard").then(({ PortfolioDashboard }) => ({ default: PortfolioDashboard })));
 const MerchantsPage = lazy(() => import("../../pages/admin/MerchantsPage").then(({ MerchantsPage }) => ({ default: MerchantsPage })));
@@ -42,6 +49,18 @@ function RouteLoading() {
         페이지를 불러오는 중입니다.
       </div>
     </div>
+  );
+}
+
+function LegacyEffectVerificationDetailRedirect() {
+  const { recommendationId } = useParams();
+  return (
+    <Navigate
+      to={recommendationId
+        ? `/store/strategy-verifications/${encodeURIComponent(recommendationId)}`
+        : "/store/strategy-verifications"}
+      replace
+    />
   );
 }
 
@@ -77,16 +96,27 @@ export function AppRouter() {
           <Route index element={<DashboardPage />} />
           <Route path="sales" element={<SalesPage />} />
           <Route path="actions" element={<AiStrategyPage />} />
+          <Route path="recommendations/history" element={<RecommendationHistoryPage />} />
+          <Route path="strategy-verifications" element={<Navigate to="/store/strategy-verifications/sales" replace />} />
+          <Route path="strategy-verifications/sales" element={<EffectVerificationHistoryPage recommendationType="SALES" />} />
+          <Route path="strategy-verifications/review" element={<EffectVerificationHistoryPage recommendationType="REVIEW" />} />
+          <Route path="strategy-verifications/:recommendationId" element={<EffectVerificationDetailPage />} />
+          <Route path="actions/history" element={<Navigate to="/store/strategy-verifications" replace />} />
+          <Route
+            path="actions/verifications/:recommendationId"
+            element={<LegacyEffectVerificationDetailRedirect />}
+          />
           <Route path="actions/:id" element={<AiStrategyDetailPage />} />
           <Route path="ledger" element={<LedgerPage />} />
           <Route path="cost" element={<CostPage />} />
           <Route path="inventory" element={<InventoryPage />} />
           <Route path="reviews" element={<ReviewsPage />} />
-          <Route path="customers" element={<PlaceholderPage title="고객·쿠폰 전략" />} />
+          <Route path="customers" element={<CustomersPage />} />
           <Route path="reports" element={<ReportsPage />} />
-          <Route path="commerce" element={<PlaceholderPage title="온라인 커머스" />} />
+          <Route path="commerce" element={<CommercePage />} />
+          <Route path="commerce/product-images" element={<ProductImagePage />} />
           <Route path="help" element={<PlaceholderPage title="도움말" />} />
-          <Route path="profile" element={<PlaceholderPage title="내 정보 및 보안" />} />
+          <Route path="profile" element={<AccountPage />} />
           <Route path="staff" element={<NotFoundPage returnTo="/store" returnLabel="점주 대시보드로 돌아가기" />} />
           <Route path="settings" element={<NotFoundPage returnTo="/store" returnLabel="점주 대시보드로 돌아가기" />} />
           <Route path="*" element={<NotFoundPage returnTo="/store" returnLabel="점주 대시보드로 돌아가기" />} />
@@ -111,6 +141,7 @@ export function AppRouter() {
           <Route path="subscriptions" element={<PlaceholderPage title="구독·계약 현황" />} />
           <Route path="notices" element={<NoticesPage />} />
           <Route path="service-status" element={<ServiceStatusPage />} />
+          <Route path="profile" element={<AccountPage />} />
           <Route
             path="accounts/admins"
             element={(

@@ -1,10 +1,14 @@
 import type {
   EffectVerificationResult,
+  RegisterMockThreadExecutionInput,
+  RegisterVerificationExecutionInput,
+  StartRecommendationExecutionInput,
+  VerificationCandidateRecommendation,
   VerificationExecution,
+  VerificationStatus,
 } from "../../../entities/effect-verification/effect-verification.types";
 import { getAccessToken } from "../../../shared/api/apiClient";
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080").replace(/\/$/, "");
+import { apiUrl } from "../../../shared/config/runtimeEnv";
 
 export class EffectVerificationApiError extends Error {
   constructor(
@@ -16,9 +20,35 @@ export class EffectVerificationApiError extends Error {
   }
 }
 
+type VerificationCandidateWire = Omit<
+  VerificationCandidateRecommendation,
+  "selected_action"
+> & {
+  selected_action?: {
+    action?: string;
+    방안?: string;
+    axis?: string | null;
+  } | null;
+};
+
+function normalizeCandidate(
+  candidate: VerificationCandidateWire,
+): VerificationCandidateRecommendation {
+  const selectedAction = candidate.selected_action;
+  return {
+    ...candidate,
+    selected_action: selectedAction
+      ? {
+          action: selectedAction.action ?? selectedAction.방안 ?? "",
+          axis: selectedAction.axis ?? null,
+        }
+      : null,
+  };
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const accessToken = getAccessToken();
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(apiUrl(path), {
     ...init,
     headers: {
       Accept: "application/json",
@@ -42,11 +72,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function getVerificationExecution(
-  recommendationId: number,
+  recommendationId: string,
 ): Promise<VerificationExecution | null> {
   try {
     return await request<VerificationExecution>(
-      `/api/effect-verifications/executions/${recommendationId}`,
+      `/api/effect-verifications/executions/${encodeURIComponent(recommendationId)}`,
     );
   } catch (error) {
     if (error instanceof EffectVerificationApiError && error.status === 404) {
@@ -56,26 +86,152 @@ export async function getVerificationExecution(
   }
 }
 
-export function registerMockExecution(recommendationId: number) {
+export function getVerificationHistory(
+  storeId: number,
+  status?: VerificationStatus,
+) {
+  const query = new URLSearchParams({ store_id: String(storeId) });
+  if (status) query.set("status", status);
+
+  return request<VerificationExecution[]>(
+    `/api/effect-verifications/executions?${query.toString()}`,
+  );
+}
+
+export function registerVerificationExecution(
+  input: RegisterVerificationExecutionInput,
+) {
   return request<VerificationExecution>(
-    `/api/mock/effect-verifications/executions/${recommendationId}/register-auto`,
+    "/api/effect-verifications/executions",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export async function getVerificationCandidates() {
+  const actualCandidates = await request<{
+    data: VerificationCandidateWire[];
+  }>("/api/ai/recommendations")
+    .then((response) => response.data)
+    .catch((error: unknown) => {
+      if (
+        error instanceof EffectVerificationApiError
+        && (error.status === 401 || error.status === 403)
+      ) {
+        return [];
+      }
+      throw error;
+    });
+
+  const mockCandidates = await request<VerificationCandidateWire[]>(
+    "/api/mock/effect-verifications/executions/candidates",
+  ).catch((error: unknown) => {
+    if (
+      error instanceof EffectVerificationApiError
+      && (error.status === 401 || error.status === 403 || error.status === 404)
+    ) {
+      return [];
+    }
+    throw error;
+  });
+
+  return [...actualCandidates, ...mockCandidates].map(normalizeCandidate);
+}
+
+export function startRecommendationExecution(input: StartRecommendationExecutionInput) {
+  return request<VerificationExecution>(
+    "/api/effect-verifications/executions/start",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function linkCampaignDecision(threadId: string, decisionId: string) {
+  return request<VerificationExecution>(
+    `/api/effect-verifications/executions/by-thread/${encodeURIComponent(threadId)}/decision`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision_id: decisionId }),
+    },
+  );
+}
+
+export function registerMockThreadExecution(
+  threadId: string,
+  input: RegisterMockThreadExecutionInput,
+) {
+  return request<VerificationExecution>(
+    `/api/mock/effect-verifications/executions/by-thread/${encodeURIComponent(threadId)}/register-auto`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function registerMockExecution(recommendationId: string) {
+  return request<VerificationExecution>(
+    `/api/mock/effect-verifications/executions/${encodeURIComponent(recommendationId)}/register-auto`,
     { method: "POST" },
   );
 }
 
-export function completeMockVerification(recommendationId: number) {
+export function completeMockVerification(recommendationId: string) {
+  const identifierPath = recommendationId.includes("-")
+    ? `by-thread/${encodeURIComponent(recommendationId)}`
+    : encodeURIComponent(recommendationId);
   return request<EffectVerificationResult>(
-    `/api/mock/effect-verifications/executions/${recommendationId}/complete-auto`,
+    `/api/mock/effect-verifications/executions/${identifierPath}/complete-auto`,
+    { method: "POST" },
+  );
+}
+
+export function completeVerificationFromAnalysis(
+  threadId: string,
+  afterAnalysisId: string,
+) {
+  return request<EffectVerificationResult>(
+    `/api/effect-verifications/executions/by-thread/${encodeURIComponent(threadId)}/complete-from-analysis`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ after_analysis_id: afterAnalysisId }),
+    },
+  );
+}
+
+export function retryEffectVerification(recommendationId: string) {
+  return request<VerificationExecution>(
+    `/api/effect-verifications/executions/${encodeURIComponent(recommendationId)}/retry`,
+    { method: "POST" },
+  );
+}
+
+export function resetMockVerificationData() {
+  return request<{
+    deletedExecutions: number;
+    deletedResults: number;
+    deletedStrategyWeights: number;
+  }>(
+    "/api/mock/effect-verifications/executions/reset",
     { method: "POST" },
   );
 }
 
 export async function getVerificationResult(
-  recommendationId: number,
+  recommendationId: string,
 ): Promise<EffectVerificationResult | null> {
   try {
     return await request<EffectVerificationResult>(
-      `/api/effect-verifications/recommendations/${recommendationId}`,
+      `/api/effect-verifications/recommendations/${encodeURIComponent(recommendationId)}`,
     );
   } catch (error) {
     if (error instanceof EffectVerificationApiError && error.status === 404) {

@@ -6,6 +6,7 @@ import {
 } from "recharts";
 import { PageShell } from "../../shared/components/PageShell";
 import { MetricCard } from "../../shared/components/MetricCard";
+import { EffectVerificationPerformanceSection } from "./components/EffectVerificationPerformanceSection";
 
 const CUMULATIVE_DATA = [
   { month: "2월", aiActive: 4.2, nonAi: 1.1, cumulative: 4.2 },
@@ -155,6 +156,8 @@ export function ROIPage() {
         </div>
         <p className="text-[11px] text-muted-foreground/60 mt-3">※ 가명 처리된 실제 가맹점 데이터 기반. 개별 결과는 다를 수 있습니다.</p>
       </div>
+
+      <EffectVerificationPerformanceSection />
     </PageShell>
   );
 }
