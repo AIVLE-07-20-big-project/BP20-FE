@@ -67,7 +67,6 @@ export interface DetailedSalesAnalysis {
 
 export interface AiAnalysisResult {
   analysis_id: string;
-  store_id?: string | null;
   report: AiSalesReport;
   diagnosis?: Record<string, unknown>;
   detailed_analysis?: DetailedSalesAnalysis;
@@ -121,7 +120,8 @@ export interface CreateAnalysisInput {
   trdarCd?: string;
   svcIndutyCd?: string;
   yyquCd?: number;
-  storeId?: string;
+  // 캠페인 실행·효과검증 단계에서 매장을 식별하는 데 필요하다 — 없으면 이후 단계가 실패한다.
+  storeId?: number;
 }
 
 export interface AiStrategyAction {
@@ -136,6 +136,7 @@ export interface AiRecommendationRun {
   문제유형?: string | null;
   selected_action?: AiStrategyAction | null;
   candidate_actions?: AiStrategyAction[];
+  recommended_actions?: AiStrategyAction[];
   candidate_status?: Record<string, string> | null;
   scm_result?: Record<string, unknown> | null;
   rag_evidence?: Record<string, unknown> | null;
@@ -144,7 +145,6 @@ export interface AiRecommendationRun {
   warnings?: string[];
   final_report?: Record<string, unknown> | null;
   analysis_id?: string;
-  store_id?: string | null;
   created_at?: string;
   updated_at?: string;
   execution_started_at?: string | null;
