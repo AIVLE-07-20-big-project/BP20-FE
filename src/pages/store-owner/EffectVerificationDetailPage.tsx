@@ -25,6 +25,7 @@ import {
   retryEffectVerification,
 } from "../../features/effect-verification/api/effectVerificationApi";
 import { PageShell } from "../../shared/components/PageShell";
+import { ReportBox } from "../../shared/components/ReportBox";
 
 const AI_ANALYSIS_OPTIONS_KEY = "bp20:ai-analysis-options";
 
@@ -144,20 +145,6 @@ function buildNarrative(actionName: string | null, metrics: VerificationMetricRe
     sentences.push(`전체 매출 변화를 제외하면, 이 방안이 겨냥한 시간대만 놓고 봤을 때의 추가 개선 폭은 약 ${adjusted >= 0 ? "+" : ""}${adjusted}%p로 볼 수 있습니다.`);
   }
   return sentences.join(" ");
-}
-
-function ReportBox({ title, text, tone }: { title: string; text: string; tone: "positive" | "negative" | "neutral" }) {
-  const toneClass = {
-    positive: "border-emerald-100 bg-emerald-50 text-emerald-800",
-    negative: "border-amber-100 bg-amber-50 text-amber-800",
-    neutral: "border-border bg-muted/40 text-foreground",
-  }[tone];
-  return (
-    <div className={`rounded-xl border p-3 ${toneClass}`}>
-      <p className="text-xs font-bold">{title}</p>
-      <p className="mt-1.5 text-xs leading-relaxed">{text}</p>
-    </div>
-  );
 }
 
 function ResultSection({ result, actionName }: { result: EffectVerificationResult; actionName: string | null }) {
