@@ -7,6 +7,7 @@ import {
   Calendar, Info, Loader2
 } from "lucide-react";
 import { PageShell } from "../../shared/components/PageShell";
+import { ReportSections } from "../../shared/components/ReportBox";
 import type { AIRecommendation } from "../../entities/recommendation/recommendation.types";
 import type { AiRecommendationDecision, AiRecommendationRun, AiStrategyAction } from "../../entities/ai-analysis/ai-analysis.types";
 import type { VerificationExecution } from "../../entities/effect-verification/effect-verification.types";
@@ -801,9 +802,7 @@ function FinalReportSection({ report }: { report?: Record<string, unknown> | nul
       {error ? (
         <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl p-3">{error}</p>
       ) : (
-        <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap bg-muted rounded-xl p-4">
-          {text || "리포트 내용이 비어 있습니다."}
-        </p>
+        <ReportSections text={text || "리포트 내용이 비어 있습니다."} />
       )}
     </div>
   );

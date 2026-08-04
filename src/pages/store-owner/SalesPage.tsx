@@ -6,6 +6,7 @@ import {
 } from "recharts";
 import { PageShell } from "../../shared/components/PageShell";
 import { MetricCard } from "../../shared/components/MetricCard";
+import { AIInsightCard } from "../../shared/components/AIInsightCard";
 import { WEEKLY_SALES, HOURLY_DATA } from "../../mocks";
 import { createAnalysis, getAnalysis, getIndustries, getLocations, pollAnalysisJob } from "../../features/ai-analysis/api/aiAnalysisApi";
 import type { IndustryOption, LocationDistrict } from "../../features/ai-analysis/api/aiAnalysisApi";
@@ -363,6 +364,8 @@ export function SalesPage() {
     sections?: Record<string, string>;
   } | undefined;
   const topCategory = rootCause?.topCategory;
+  const insightTitle = aiSummary?.headline ?? aiSummary?.제목 ?? rootCause?.headline ?? "매출 원인 상세분석";
+  const insightSummary = aiSummary?.summary ?? rootCause?.narrative;
   const metrics = analysis && selectedDailySales.length ? [
     {
       label: `${periodLabel} 총 매출`,
@@ -814,33 +817,27 @@ export function SalesPage() {
         </div>
       </div>
 
-      {/* AI cause analysis */}
-      <div className="bg-card border border-border rounded-2xl p-5">
-        <div className="flex items-start gap-3">
-          <div className="w-7 h-7 rounded-xl bg-[#246BFD]/10 flex items-center justify-center flex-shrink-0">
-            <Sparkles className="w-4 h-4 text-[#246BFD]" />
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs font-bold text-[#246BFD] bg-[#246BFD]/10 px-1.5 py-0.5 rounded">AI 분석</span>
+      {/* AI cause analysis — 프로젝트 공통 AIInsightCard로 다른 화면의 AI 분석 카드와 톤을 맞춘다 */}
+      {insightSummary ? (
+        <AIInsightCard
+          title={insightTitle}
+          summary={insightSummary}
+        />
+      ) : (
+        <div className="bg-card border border-border rounded-2xl p-5">
+          <div className="flex items-start gap-3">
+            <div className="w-7 h-7 rounded-xl bg-[#246BFD]/10 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-4 h-4 text-[#246BFD]" />
             </div>
-            {aiSummary?.summary ? (
-              <div className="space-y-3">
-                <p className="text-base font-bold text-foreground">{aiSummary.제목 ?? "매출 원인 상세분석"}</p>
-                {aiSummary.headline && (
-                  <p className="text-sm font-semibold text-foreground">{aiSummary.headline}</p>
-                )}
-                <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{aiSummary.summary}</p>
-              </div>
-            ) : (
-              <p className="text-sm text-foreground leading-relaxed">
+            <div className="flex-1">
+              <span className="text-xs font-bold text-[#246BFD] bg-[#246BFD]/10 px-1.5 py-0.5 rounded">AI 분석</span>
+              <p className="text-sm text-foreground leading-relaxed mt-2">
                 분석을 실행하면 매출 원인 상세분석을 보여드립니다.
               </p>
-            )}
-            <p className="text-[11px] text-muted-foreground/60 mt-2">※ AI 분석은 참고용이며 인과관계를 보장하지 않습니다.</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </PageShell>
   );
 }
