@@ -34,7 +34,7 @@ const STORE_NAV = [
 
 const BUSINESS_NAV = [
   { to: "/admin/sales-targets", icon: Target, label: "영업 타겟" },
-  { to: "/admin/roi", icon: TrendingUp, label: "AI 성과·ROI" },
+  { to: "/admin/roi", icon: TrendingUp, label: "효과 검증 현황" },
 ];
 
 export function AdminLayout() {
