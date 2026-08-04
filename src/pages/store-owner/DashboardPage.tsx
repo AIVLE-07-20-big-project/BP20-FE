@@ -123,6 +123,20 @@ const REVIEW_ASPECTS = [
 
 const DONUT_DATA = REVIEW_ASPECTS.map(a => ({ name: a.label, value: a.pct, color: a.color }));
 
+const SPARKLINE_DATA: Record<string, { v: number }[]> = {
+  sales: [{ v: 980 }, { v: 1050 }, { v: 990 }, { v: 1120 }, { v: 1080 }, { v: 1247 }],
+  orders: [{ v: 72 }, { v: 80 }, { v: 68 }, { v: 91 }, { v: 84 }, { v: 87 }],
+  monthly: [{ v: 28 }, { v: 29.4 }, { v: 31.2 }, { v: 30.8 }, { v: 31.9 }, { v: 32.8 }],
+  profit: [{ v: 7.8 }, { v: 8.1 }, { v: 7.9 }, { v: 8.4 }, { v: 8.2 }, { v: 8.42 }],
+};
+
+const KPI_CARDS = [
+  { label: "오늘 매출", value: "1,247,000원", change: -5.2, period: "지난 월요일 대비", sparkKey: "sales" as const, positive: false },
+  { label: "오늘 주문 건수", value: "87건", change: 2.4, period: "지난 월요일 대비", sparkKey: "orders" as const, positive: true },
+  { label: "이번 달 예상 매출", value: "32,800,000원", change: 8.1, period: "지난달 대비", sparkKey: "monthly" as const, positive: true },
+  { label: "예상 순이익", value: "8,420,000원", change: -1.8, period: "이번 달 예상", sparkKey: "profit" as const, positive: false },
+];
+
 interface DonutTooltipProps {
   active?: boolean;
   payload?: { name: string; value: number; payload: { name: string; value: number; color: string } }[];
@@ -306,16 +320,6 @@ export function DashboardPage() {
       sparkData: ordersSpark, positive: (monthly.transactionsChange ?? 0) >= 0,
     },
   ] : KPI_CARDS.map((card) => ({ ...card, sparkData: SPARKLINE_DATA[card.sparkKey] as { v: number }[] }));
-
-  const sendChat = () => {
-    const msg = chatMsg.trim();
-    if (!msg) return;
-    setChatLog(l => [...l, { role: "user", text: msg }]);
-    setChatMsg("");
-    setTimeout(() => {
-      setChatLog(l => [...l, { role: "ai", text: "AI 분석 중입니다. 잠시 후 인사이트를 제공해 드릴게요." }]);
-    }, 800);
-  };
 
   return (
     <div className="h-full overflow-y-auto">
