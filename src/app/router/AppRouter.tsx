@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { AdminLayout } from "../layouts/AdminLayout";
 import { StoreOwnerLayout } from "../layouts/StoreOwnerLayout";
 import { useAuth } from "../providers/AuthProvider";
@@ -14,6 +14,7 @@ const SalesPage = lazy(() => import("../../pages/store-owner/SalesPage").then(({
 const AiStrategyPage = lazy(() => import("../../pages/store-owner/AiStrategyPage").then(({ AiStrategyPage }) => ({ default: AiStrategyPage })));
 const AiStrategyDetailPage = lazy(() => import("../../pages/store-owner/AiStrategyDetailPage").then(({ AiStrategyDetailPage }) => ({ default: AiStrategyDetailPage })));
 const EffectVerificationHistoryPage = lazy(() => import("../../pages/store-owner/EffectVerificationHistoryPage").then(({ EffectVerificationHistoryPage }) => ({ default: EffectVerificationHistoryPage })));
+const RecommendationHistoryPage = lazy(() => import("../../pages/store-owner/RecommendationHistoryPage").then(({ RecommendationHistoryPage }) => ({ default: RecommendationHistoryPage })));
 const EffectVerificationDetailPage = lazy(() => import("../../pages/store-owner/EffectVerificationDetailPage").then(({ EffectVerificationDetailPage }) => ({ default: EffectVerificationDetailPage })));
 const LedgerPage = lazy(() => import("../../pages/store-owner/LedgerPage").then(({ LedgerPage }) => ({ default: LedgerPage })));
 const CostPage = lazy(() => import("../../pages/store-owner/CostPage").then(({ CostPage }) => ({ default: CostPage })));
@@ -51,6 +52,18 @@ function RouteLoading() {
   );
 }
 
+function LegacyEffectVerificationDetailRedirect() {
+  const { recommendationId } = useParams();
+  return (
+    <Navigate
+      to={recommendationId
+        ? `/store/strategy-verifications/${encodeURIComponent(recommendationId)}`
+        : "/store/strategy-verifications"}
+      replace
+    />
+  );
+}
+
 export function AppRouter() {
   const { user, isInitializing } = useAuth();
 
@@ -83,8 +96,16 @@ export function AppRouter() {
           <Route index element={<DashboardPage />} />
           <Route path="sales" element={<SalesPage />} />
           <Route path="actions" element={<AiStrategyPage />} />
-          <Route path="actions/history" element={<EffectVerificationHistoryPage />} />
-          <Route path="actions/verifications/:recommendationId" element={<EffectVerificationDetailPage />} />
+          <Route path="recommendations/history" element={<RecommendationHistoryPage />} />
+          <Route path="strategy-verifications" element={<Navigate to="/store/strategy-verifications/sales" replace />} />
+          <Route path="strategy-verifications/sales" element={<EffectVerificationHistoryPage recommendationType="SALES" />} />
+          <Route path="strategy-verifications/review" element={<EffectVerificationHistoryPage recommendationType="REVIEW" />} />
+          <Route path="strategy-verifications/:recommendationId" element={<EffectVerificationDetailPage />} />
+          <Route path="actions/history" element={<Navigate to="/store/strategy-verifications" replace />} />
+          <Route
+            path="actions/verifications/:recommendationId"
+            element={<LegacyEffectVerificationDetailRedirect />}
+          />
           <Route path="actions/:id" element={<AiStrategyDetailPage />} />
           <Route path="ledger" element={<LedgerPage />} />
           <Route path="cost" element={<CostPage />} />

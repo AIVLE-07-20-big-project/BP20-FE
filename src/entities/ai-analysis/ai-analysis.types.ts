@@ -31,6 +31,36 @@ export interface DetailedRootCauseAnalysis {
 
 export interface DetailedSalesAnalysis {
   dailySales?: DetailedDailySales[];
+  salesBreakdown?: {
+    dimensions?: Record<string, Array<{ value: string; revenue: number; revenueSharePct: number; quantity: number; receiptCount: number; averageOrderValue?: number | null }>>;
+    hourly?: Array<{ value: string; revenue: number; revenueSharePct: number; receiptCount: number }>;
+    weekday?: Array<{ value: string; revenue: number; revenueSharePct: number; receiptCount: number }>;
+    daypart?: Array<{ value: string; revenue: number; revenueSharePct: number; receiptCount: number }>;
+    weekdayDaypart?: Array<{ value: string; revenue: number; revenueSharePct: number; receiptCount: number }>;
+    priceQuantity?: { averageUnitPrice?: number; medianUnitPrice?: number; averageQuantityPerLine?: number };
+  };
+  eventAnalysis?: {
+    available?: boolean;
+    eventCount?: number | null;
+    eventDays?: number | null;
+    exposure?: number | null;
+    exposedDays?: number;
+    unexposedDays?: number;
+    averageDailyRevenueExposed?: number | null;
+    averageDailyRevenueUnexposed?: number | null;
+    exposedVsUnexposedRevenuePct?: number | null;
+    interpretation?: string;
+    reason?: string;
+  };
+  trafficAnalysis?: {
+    available?: boolean;
+    averageQuarterlyFootTraffic?: number;
+    averageDailyRevenue?: number;
+    averageDailyTransactions?: number;
+    revenuePerFootTraffic?: number;
+    transactionsPerFootTrafficPct?: number;
+    interpretation?: string;
+  };
   rootCauseAnalysis?: DetailedRootCauseAnalysis;
   dataQuality?: { externalDataRegion?: string; warnings?: string[] };
 }
@@ -90,7 +120,8 @@ export interface CreateAnalysisInput {
   trdarCd?: string;
   svcIndutyCd?: string;
   yyquCd?: number;
-  storeId?: string;
+  // 캠페인 실행·효과검증 단계에서 매장을 식별하는 데 필요하다 — 없으면 이후 단계가 실패한다.
+  storeId?: number;
 }
 
 export interface AiStrategyAction {
@@ -105,6 +136,8 @@ export interface AiRecommendationRun {
   문제유형?: string | null;
   selected_action?: AiStrategyAction | null;
   candidate_actions?: AiStrategyAction[];
+  recommended_actions?: AiStrategyAction[];
+  candidate_status?: Record<string, string> | null;
   scm_result?: Record<string, unknown> | null;
   rag_evidence?: Record<string, unknown> | null;
   ope_result?: Record<string, unknown> | null;
@@ -112,10 +145,16 @@ export interface AiRecommendationRun {
   warnings?: string[];
   final_report?: Record<string, unknown> | null;
   analysis_id?: string;
-  store_id?: string | null;
   created_at?: string;
   updated_at?: string;
+  execution_started_at?: string | null;
+  execution_ended_at?: string | null;
   [key: string]: unknown;
 }
 
-export type AiRecommendationDecision = "approve" | "reject";
+export type AiRecommendationDecision = "approve" | "edit" | "reject";
+
+export interface AiRecommendationExecutionPeriod {
+  execution_started_at?: string;
+  execution_ended_at?: string;
+}

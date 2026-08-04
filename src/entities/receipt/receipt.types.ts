@@ -29,6 +29,7 @@ export interface ReceiptParseResult {
 
 export interface OcrParseResponse {
   ocrText: string[];
+  processedImage: string;
   result: ReceiptParseResult;
 }
 
@@ -125,3 +126,5 @@ export interface LedgerReportOptions {
   year?: number;
   month?: number;
 }
+
+export type ReceiptUpdateRequest = Omit<ReceiptCreateRequest, "storeId" | "uploadedByUserId" | "rawImagePath" | "force">;
