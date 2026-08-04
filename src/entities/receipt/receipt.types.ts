@@ -29,6 +29,7 @@ export interface ReceiptParseResult {
 
 export interface OcrParseResponse {
   ocrText: string[];
+  processedImage: string;
   result: ReceiptParseResult;
 }
 

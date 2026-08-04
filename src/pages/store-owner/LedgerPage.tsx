@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   Upload, CheckCircle2, AlertCircle, Edit3, FileText,
-  ChevronRight, Sparkles, TrendingUp, ExternalLink, Info, Loader2, Download, Plus, Trash2, X, Save
+  ChevronRight, Sparkles, Loader2, Download, Plus, Trash2, X, Save
 } from "lucide-react";
 import { ApiError } from "@/shared/api/apiClient";
 import { createReceipt, getLedgerReportHtml, getReceipt, getReceipts, parseReceiptImage, updateReceipt } from "@/entities/receipt/receipt.api";
@@ -119,13 +118,12 @@ function ItemEditor({ items, onChange }: { items: ReceiptItemData[]; onChange: (
 }
 
 export function LedgerPage() {
-  const navigate = useNavigate();
   const [step, setStep] = useState<Step>("inbox");
   const [editField, setEditField] = useState<string | null>(null);
-  const [savingsOpen, setSavingsOpen] = useState(false);
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
 
   const [ocrText, setOcrText] = useState<string[]>([]);
+  const [processedImage, setProcessedImage] = useState<string | null>(null);
   const [form, setForm] = useState<EditableForm | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
@@ -204,6 +202,7 @@ export function LedgerPage() {
   const resetToInbox = () => {
     setStep("inbox");
     setOcrText([]);
+    setProcessedImage(null);
     setForm(null);
     setErrorMessage(null);
     setDuplicateWarning(null);
@@ -212,10 +211,12 @@ export function LedgerPage() {
 
   const handleFileSelected = async (file: File) => {
     setErrorMessage(null);
+    setProcessedImage(null);
     setStep("uploading");
     try {
       const parsed = await parseReceiptImage(file);
       setOcrText(parsed.ocrText);
+      setProcessedImage(parsed.processedImage);
       setForm(toEditableForm(parsed.result));
       setStep("review");
     } catch (error) {
@@ -489,75 +490,25 @@ export function LedgerPage() {
             )}
           </div>
 
-          {/* AI Insight panel — 1/3 */}
-          <div className="space-y-3">
-            <h3 className="font-bold text-sm flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
-              AI 지출·원가 인사이트
-            </h3>
-
-            {/* Insight card 1 */}
-            <div className="bg-card border border-border rounded-2xl p-4">
-              <div className="flex items-start gap-2.5 mb-3">
-                <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
-                  <TrendingUp className="w-4 h-4 text-amber-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="text-xs font-bold">식재료 원가 상승</span>
-                    <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">주의</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">원가 페이지에서 매입 단가 변화를 확인해보세요.</p>
-                </div>
+          {/* OCR에 실제 사용된 전처리 이미지 — 1/3 */}
+          <aside className="bg-card border border-border rounded-2xl p-4 min-h-[24rem] flex flex-col">
+            <h3 className="font-bold text-sm mb-3">전처리 이미지</h3>
+            {processedImage ? (
+              <div className="flex-1 min-h-0 rounded-xl bg-muted/40 overflow-auto p-2 flex items-start justify-center">
+                <img
+                  src={processedImage}
+                  alt="OCR 분석에 사용된 전처리 영수증"
+                  className="max-w-full h-auto rounded-lg shadow-sm"
+                />
               </div>
-              <button
-                onClick={() => navigate("/store/cost")}
-                className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-[#246BFD] bg-[#246BFD]/8 hover:bg-[#246BFD]/15 py-2 rounded-xl transition-colors"
-              >
-                원가 상세보기 <ExternalLink className="w-3 h-3" />
-              </button>
-            </div>
-
-            {/* Insight card 2 */}
-            <div className="bg-card border border-border rounded-2xl p-4">
-              <div className="flex items-start gap-2.5 mb-3">
-                <div className="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
-                  <AlertCircle className="w-4 h-4 text-red-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="text-xs font-bold">예산/이상지출 확인</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">이번 달 예산 초과 여부와 이상 지출을 확인해보세요.</p>
-                </div>
+            ) : (
+              <div className="flex-1 rounded-xl border-2 border-dashed border-border bg-muted/20 flex flex-col items-center justify-center px-6 text-center">
+                <FileText className="w-9 h-9 text-muted-foreground/50 mb-3" />
+                <p className="text-sm font-semibold text-muted-foreground">전처리 이미지 미리보기</p>
+                <p className="text-xs text-muted-foreground/70 mt-1">영수증을 업로드하면 OCR에 사용된 이미지가 표시됩니다.</p>
               </div>
-              <button
-                onClick={() => navigate("/store/cost")}
-                className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-[#246BFD] bg-[#246BFD]/8 hover:bg-[#246BFD]/15 py-2 rounded-xl transition-colors"
-              >
-                지출 내역보기 <ExternalLink className="w-3 h-3" />
-              </button>
-            </div>
-
-            {/* Savings estimate */}
-            <div className="bg-[#246BFD]/5 border border-[#246BFD]/15 rounded-2xl p-4">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold">이번 달 절감 가능 금액</span>
-                  <span className="text-[10px] font-bold text-[#8B5CF6] bg-[#8B5CF6]/10 px-1.5 py-0.5 rounded">AI 분석</span>
-                </div>
-                <button onClick={() => setSavingsOpen(o => !o)} className="text-muted-foreground hover:text-foreground">
-                  <Info className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <div className="text-2xl font-black text-[#246BFD] tabular-nums">준비 중</div>
-              {savingsOpen && (
-                <div className="mt-2 text-[11px] text-muted-foreground bg-white/60 rounded-xl p-2.5 space-y-0.5">
-                  <p>· 절감액 추정 기능은 원가·매입단가 분석과 함께 준비 중입니다.</p>
-                </div>
-              )}
-            </div>
-          </div>
+            )}
+          </aside>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -597,7 +548,7 @@ export function LedgerPage() {
                       className={`border-b border-border last:border-0 transition-colors cursor-pointer ${hoveredRow === i ? "bg-muted/50" : ""}`}
                     >
                       <td className="py-3 pr-4">
-                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${meta.color}`}>{meta.label}</span>
+                        <span className={`inline-block whitespace-nowrap text-[11px] font-bold px-2 py-0.5 rounded-full ${meta.color}`}>{meta.label}</span>
                       </td>
                       <td className="py-3 pr-4 text-muted-foreground font-medium">{formatShortDate(row.transactionDate)}</td>
                       <td className="py-3 pr-4 font-semibold text-foreground">{row.vendorName ?? "-"}</td>
