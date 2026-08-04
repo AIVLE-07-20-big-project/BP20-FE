@@ -6,6 +6,7 @@ import type {
   OcrParseResponse,
   ReceiptCreateRequest,
   ReceiptResponse,
+  ReceiptUpdateRequest,
 } from "./receipt.types";
 
 type QueryParams = Record<string, string | number | boolean | undefined>;
@@ -80,4 +81,11 @@ export async function getLedgerReportHtml(storeId: number, options?: LedgerRepor
   });
   const response = await apiRequestRaw(`/api/store-owner/analytics/report${query}`);
   return response.text();
+}
+
+export function updateReceipt(receiptId: number, payload: ReceiptUpdateRequest): Promise<ReceiptResponse> {
+  return apiRequest<ReceiptResponse>(`/api/store-owner/receipts/${receiptId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
 }

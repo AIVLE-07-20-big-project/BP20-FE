@@ -14,6 +14,7 @@ export interface EffectVerificationTypeSummary {
 
 export interface EffectVerificationRecentResult {
   recommendation_id: string;
+  action_name?: string;
   store_id: number;
   recommendation_type: RecommendationType;
   effect_score: number;
