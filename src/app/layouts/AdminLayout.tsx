@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { clsx } from "clsx";
 import { LiveDateTime } from "../../shared/components/LiveDateTime";
+import { PolicyFooter } from "../../shared/components/PolicyFooter";
 import { useAuth } from "../providers/AuthProvider";
 
 const DASHBOARD_NAV = [
@@ -242,8 +243,13 @@ export function AdminLayout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-hidden">
-          <Outlet />
+        <main className="min-h-0 flex-1 overflow-y-auto">
+          <div className="min-h-full">
+            <Outlet />
+          </div>
+          <div className="border-t border-border bg-card/90 px-4 py-3">
+            <PolicyFooter />
+          </div>
         </main>
       </div>
     </div>

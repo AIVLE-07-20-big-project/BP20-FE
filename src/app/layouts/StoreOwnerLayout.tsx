@@ -11,6 +11,7 @@ import { commerceApi } from "../../features/commerce/api/commerceApi";
 import { StoreNoticePopover } from "../../features/notices/ui/StoreNoticePopover";
 import { ApiError } from "../../shared/api/apiClient";
 import { LiveDateTime } from "../../shared/components/LiveDateTime";
+import { PolicyFooter } from "../../shared/components/PolicyFooter";
 import { useAuth } from "../providers/AuthProvider";
 
 const DASHBOARD_NAV = [
@@ -287,8 +288,13 @@ export function StoreOwnerLayout() {
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-hidden print:overflow-visible print:h-auto">
-          <Outlet context={{ updateStoreIdentity: setStoreIdentity } satisfies StoreOwnerLayoutContext} />
+        <main className="min-h-0 flex-1 overflow-y-auto print:overflow-visible print:h-auto">
+          <div className="min-h-full">
+            <Outlet context={{ updateStoreIdentity: setStoreIdentity } satisfies StoreOwnerLayoutContext} />
+          </div>
+          <div className="border-t border-border bg-card/90 px-4 py-3 print:hidden">
+            <PolicyFooter />
+          </div>
         </main>
       </div>
     </div>

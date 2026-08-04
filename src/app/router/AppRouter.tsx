@@ -5,6 +5,9 @@ import { StoreOwnerLayout } from "../layouts/StoreOwnerLayout";
 import { useAuth } from "../providers/AuthProvider";
 import { LoginPage } from "../../pages/auth/LoginPage";
 import { SignupPage } from "../../pages/auth/SignupPage";
+import { PrivacyPolicyPage } from "../../pages/legal/PrivacyPolicyPage";
+import { TermsPage } from "../../pages/legal/TermsPage";
+import { OpenSourceLicensesPage } from "../../pages/legal/OpenSourceLicensesPage";
 import { NotFoundPage } from "../../pages/error/NotFoundPage";
 import { GuestRoute } from "./GuestRoute";
 import { ProtectedRoute } from "./ProtectedRoute";
@@ -72,6 +75,9 @@ export function AppRouter() {
       <Routes>
         <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
         <Route path="/signup" element={<GuestRoute><SignupPage /></GuestRoute>} />
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/open-source-licenses" element={<OpenSourceLicensesPage />} />
         <Route
           path="/"
           element={
