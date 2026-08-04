@@ -23,7 +23,8 @@ interface AuthContextType {
     password: string,
     role: UserRole,
     remember: boolean,
-  ) => Promise<{ ok: boolean; error?: string }>;
+    captchaToken: string | null,
+  ) => Promise<{ ok: boolean; error?: string; errorCode?: string }>;
   signup: (
     payload: SignupPayload,
   ) => Promise<{ ok: boolean; user?: User; error?: string }>;
@@ -82,9 +83,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string,
     role: UserRole,
     remember: boolean,
-  ): Promise<{ ok: boolean; error?: string }> => {
+    captchaToken: string | null,
+  ): Promise<{ ok: boolean; error?: string; errorCode?: string }> => {
     try {
-      const result = await authApi.login(email.trim(), password, remember);
+      const result = await authApi.login(email.trim(), password, remember, captchaToken);
       const roleMatches = result.user.role === role
         || (result.user.role === "SUPER_ADMIN" && role === "ADMIN");
 
@@ -108,6 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         error: error instanceof ApiError
           ? error.message
           : "로그인에 실패했습니다.",
+        errorCode: error instanceof ApiError ? error.code : undefined,
       };
     }
   };
