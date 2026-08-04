@@ -24,9 +24,9 @@ export function MerchantDetailPage() {
     <div className="h-full overflow-y-auto">
       <div className="max-w-4xl mx-auto px-6 py-6">
         {/* Back */}
-        <button onClick={() => navigate("/admin/merchants")} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors">
+        <button onClick={() => navigate("/admin/risks")} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors">
           <ChevronLeft className="w-4 h-4" />
-          가맹점 목록으로
+          위험 신호 목록으로
         </button>
 
         {/* Header */}
