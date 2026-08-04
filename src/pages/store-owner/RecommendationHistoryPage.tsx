@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Calendar, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "../../shared/components/PageShell";
+import { ReportSections } from "../../shared/components/ReportBox";
 import { getRecommendations, resumeRecommendation } from "../../features/ai-analysis/api/aiAnalysisApi";
 import type { AiRecommendationRun } from "../../entities/ai-analysis/ai-analysis.types";
 
@@ -190,9 +191,9 @@ export function RecommendationHistoryPage() {
                 {String(reportRun.final_report["error"])}
               </p>
             ) : (
-              <p className="mt-4 max-h-[60vh] overflow-y-auto whitespace-pre-wrap rounded-xl bg-muted p-4 text-sm leading-relaxed text-foreground">
-                {String(reportRun.final_report["report"] ?? "리포트 내용이 비어 있습니다.")}
-              </p>
+              <div className="mt-4 max-h-[60vh] overflow-y-auto">
+                <ReportSections text={String(reportRun.final_report["report"] ?? "리포트 내용이 비어 있습니다.")} />
+              </div>
             )}
             <div className="mt-5 flex justify-end">
               <button type="button" onClick={() => setReportRun(null)} className="rounded-xl border border-border px-4 py-2 text-xs font-bold">
