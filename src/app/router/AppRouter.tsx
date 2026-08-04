@@ -31,7 +31,6 @@ const PlaceholderPage = lazy(() => import("../../pages/store-owner/PlaceholderPa
 const ProductImagePage = lazy(() => import("../../pages/store-owner/ProductImagePage").then(({ ProductImagePage }) => ({ default: ProductImagePage })));
 
 const PortfolioDashboard = lazy(() => import("../../pages/admin/PortfolioDashboard").then(({ PortfolioDashboard }) => ({ default: PortfolioDashboard })));
-const MerchantsPage = lazy(() => import("../../pages/admin/MerchantsPage").then(({ MerchantsPage }) => ({ default: MerchantsPage })));
 const MerchantDetailPage = lazy(() => import("../../pages/admin/MerchantDetailPage").then(({ MerchantDetailPage }) => ({ default: MerchantDetailPage })));
 const RisksPage = lazy(() => import("../../pages/admin/RisksPage").then(({ RisksPage }) => ({ default: RisksPage })));
 const ROIPage = lazy(() => import("../../pages/admin/ROIPage").then(({ ROIPage }) => ({ default: ROIPage })));
@@ -137,7 +136,6 @@ export function AppRouter() {
           }
         >
           <Route index element={<PortfolioDashboard />} />
-          <Route path="merchants" element={<MerchantsPage />} />
           <Route path="merchants/:id" element={<MerchantDetailPage />} />
           <Route path="store-owner-invitations" element={<Navigate to="/admin/accounts/store-owners" replace />} />
           <Route path="risks" element={<RisksPage />} />

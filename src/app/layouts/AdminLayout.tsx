@@ -2,7 +2,6 @@ import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   Bell,
-  Building2,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -29,7 +28,6 @@ const DASHBOARD_NAV = [
 ];
 
 const STORE_NAV = [
-  { to: "/admin/merchants", icon: Building2, label: "가맹점 관리" },
   { to: "/admin/notices", icon: Megaphone, label: "가맹점 공지" },
 ];
 

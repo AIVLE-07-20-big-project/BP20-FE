@@ -1,216 +1,191 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Building2, AlertTriangle, TrendingUp, BarChart3,
-  ChevronRight, Sparkles, Activity
-} from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar } from "recharts";
+import { ChevronRight } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { MetricCard } from "../../shared/components/MetricCard";
-import { MERCHANTS } from "../../mocks";
-
-const HEALTH_DATA = [
-  { name: "안정", count: 842, color: "#0E9F6E", bg: "bg-emerald-50", text: "text-emerald-700" },
-  { name: "관찰", count: 328, color: "#D97706", bg: "bg-amber-50", text: "text-amber-700" },
-  { name: "위험", count: 114, color: "#D92D20", bg: "bg-red-50", text: "text-red-700" },
-];
-
-const TREND_DATA = [
-  { month: "2월", active: 820, uplift: 4.2 },
-  { month: "3월", active: 890, uplift: 5.1 },
-  { month: "4월", active: 980, uplift: 5.8 },
-  { month: "5월", active: 1050, uplift: 6.4 },
-  { month: "6월", active: 1150, uplift: 7.2 },
-  { month: "7월", active: 1170, uplift: 7.8 },
-];
-
-const INDUSTRY_DATA = [
-  { industry: "카페", count: 384 },
-  { industry: "한식", count: 218 },
-  { industry: "베이커리", count: 142 },
-  { industry: "양식", count: 98 },
-  { industry: "미용", count: 84 },
-  { industry: "기타", count: 358 },
-];
+import { getEffectVerificationRoiSummary } from "../../features/effect-verification/api/effectVerificationRoiApi";
+import type { EffectVerificationRoiSummary } from "../../entities/effect-verification/effect-verification-roi.types";
+import { getMerchantMonitoring, type MerchantMonitoringItem } from "../../features/admin/api/merchantMonitoringApi";
 
 export function PortfolioDashboard() {
   const navigate = useNavigate();
-  const [filter, setFilter] = useState("전체");
+  const [verification, setVerification] = useState<EffectVerificationRoiSummary | null>(null);
+  const [merchants, setMerchants] = useState<MerchantMonitoringItem[]>([]);
+  const [merchantsLoading, setMerchantsLoading] = useState(true);
 
-  const critical = MERCHANTS.filter(m => m.riskLevel === "critical");
+  useEffect(() => {
+    getEffectVerificationRoiSummary()
+      .then(setVerification)
+      .catch(() => setVerification(null));
+  }, []);
+
+  useEffect(() => {
+    getMerchantMonitoring()
+      .then((response) => setMerchants(response.merchants))
+      .finally(() => setMerchantsLoading(false));
+  }, []);
+
+  const inactiveStores = verification
+    ? Math.max(verification.total_stores - verification.ai_active_stores, 0)
+    : null;
+  const effectiveRate = verification && verification.total_verified > 0
+    ? (verification.effective_count / verification.total_verified) * 100
+    : null;
+  const recommendationData = verification?.type_summaries.map((item) => ({
+    type: item.recommendation_type === "SALES" ? "매출" : "리뷰",
+    count: item.verified_count,
+  })) ?? [];
+  const statusData = verification ? [
+    { label: "AI 활성", count: verification.ai_active_stores, color: "#0E9F6E", bg: "bg-emerald-50", text: "text-emerald-700" },
+    { label: "AI 미활성", count: inactiveStores ?? 0, color: "#98A2B3", bg: "bg-slate-50", text: "text-slate-700" },
+    { label: "추천 실행", count: verification.executed_recommendations, color: "#5B6CFF", bg: "bg-indigo-50", text: "text-indigo-700" },
+  ] : [];
+
+  const kpis = verification ? [
+    { label: "전체 가맹점", value: `${verification.total_stores.toLocaleString()}개` },
+    { label: "AI 활성", value: `${verification.ai_active_stores.toLocaleString()}개` },
+    { label: "AI 미활성", value: `${inactiveStores?.toLocaleString() ?? "-"}개` },
+    { label: "추천 실행", value: `${verification.executed_recommendations.toLocaleString()}건` },
+    { label: "추천 실행률", value: `${verification.execution_rate.toFixed(1)}%` },
+    { label: "검증 완료 추천", value: `${verification.total_verified.toLocaleString()}건` },
+    { label: "추천 효과율", value: effectiveRate == null ? "-" : `${effectiveRate.toFixed(1)}%` },
+    { label: "평균 효과 점수", value: verification.total_verified ? verification.average_effect_score.toFixed(1) : "-" },
+  ] : [];
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="px-6 pt-6 pb-8 max-w-[1400px] mx-auto">
-        {/* Header */}
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold">가맹점 운영 현황</h1>
             <div className="flex items-center gap-1.5 mt-1">
               <span className="w-1.5 h-1.5 rounded-full bg-[#18C79A] animate-pulse" />
-              <span className="text-xs text-muted-foreground">오늘 09:42 기준</span>
+              <span className="text-xs text-muted-foreground">저장된 운영 데이터 기준</span>
             </div>
           </div>
-          <div className="flex gap-2">
-            {["전체", "서울", "경기", "부산"].map((f) => (
-              <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-colors ${
-                filter === f ? "bg-[#087F65] text-white" : "bg-card border border-border text-muted-foreground hover:text-foreground"
-              }`}>{f}</button>
-            ))}
-          </div>
         </div>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-5">
-          {[
-            { label: "전체 가맹점", value: "1,284개" },
-            { label: "AI 활성", value: "1,170개", change: 12.4 },
-            { label: "위험 가맹점", value: "114개", change: -8.2 },
-            { label: "AI 영향 매출 증가", value: "+7.8%", change: 0.6 },
-            { label: "추천 실행률", value: "58.4%", change: 3.1 },
-            { label: "리포트 열람률", value: "72.1%", change: 1.8 },
-          ].map((k) => (
-            <MetricCard key={k.label} label={k.label} value={k.value} change={k.change} mini />
-          ))}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-5">
+          {kpis.length ? kpis.map((kpi) => (
+            <MetricCard key={kpi.label} label={kpi.label} value={kpi.value} mini />
+          )) : (
+            <div className="col-span-full rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
+              운영 데이터를 불러오는 중입니다.
+            </div>
+          )}
         </div>
 
-        {/* Main bento grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-          {/* Portfolio health */}
           <div className="bg-card border border-border rounded-2xl p-5">
-            <h3 className="font-bold mb-4">포트폴리오 건강도</h3>
+            <h3 className="font-bold mb-4">AI 운영 현황</h3>
             <div className="space-y-3 mb-4">
-              {HEALTH_DATA.map((h) => (
-                <div key={h.name}>
+              {statusData.map((status) => (
+                <div key={status.label}>
                   <div className="flex items-center justify-between text-xs mb-1">
-                    <span className={`font-semibold ${h.text}`}>{h.name}</span>
-                    <span className="font-bold tabular-nums">{h.count}개</span>
+                    <span className={`font-semibold ${status.text}`}>{status.label}</span>
+                    <span className="font-bold tabular-nums">{status.count.toLocaleString()}개</span>
                   </div>
                   <div className="h-2.5 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${(h.count / 1284) * 100}%`, background: h.color }} />
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${verification?.total_stores ? (status.count / verification.total_stores) * 100 : 0}%`,
+                        background: status.color,
+                      }}
+                    />
                   </div>
                 </div>
               ))}
             </div>
             <div className="flex gap-2">
-              {HEALTH_DATA.map((h) => (
-                <div key={h.name} className={`flex-1 ${h.bg} rounded-xl p-2.5 text-center`}>
-                  <div className={`text-lg font-black ${h.text}`}>{h.count}</div>
-                  <div className="text-[11px] text-muted-foreground">{h.name}</div>
+              {statusData.map((status) => (
+                <div key={status.label} className={`flex-1 ${status.bg} rounded-xl p-2.5 text-center`}>
+                  <div className={`text-lg font-black ${status.text}`}>{status.count.toLocaleString()}</div>
+                  <div className="text-[11px] text-muted-foreground">{status.label}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* AI active trend */}
           <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="font-bold">AI 활성 가맹점 추이</h3>
-                <p className="text-xs text-muted-foreground">월별 AI 매출 기여도</p>
+                <h3 className="font-bold">추천 유형별 검증 현황</h3>
+                <p className="text-xs text-muted-foreground">저장된 효과 검증 결과 기준</p>
               </div>
+              <button onClick={() => navigate("/admin/roi")} className="text-xs text-[#087F65] font-semibold hover:underline flex items-center gap-0.5">
+                자세히 보기 <ChevronRight className="w-3 h-3" />
+              </button>
             </div>
-            <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={TREND_DATA}>
-                  <defs>
-                    <linearGradient id="activeGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#18C79A" stopOpacity={0.25} />
-                      <stop offset="100%" stopColor="#18C79A" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#DDE3EC" vertical={false} />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#667085" }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="left" tick={{ fontSize: 11, fill: "#667085" }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: "#667085" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
-                  <Tooltip />
-                  <Area yAxisId="left" type="monotone" dataKey="active" stroke="#18C79A" fill="url(#activeGrad)" strokeWidth={2} name="AI 활성 가맹점" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+            {recommendationData.length ? (
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={recommendationData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#DDE3EC" vertical={false} />
+                    <XAxis dataKey="type" tick={{ fontSize: 11, fill: "#667085" }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#667085" }} axisLine={false} tickLine={false} />
+                    <Tooltip />
+                    <Bar dataKey="count" name="검증 건수" fill="#5B6CFF" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <p className="rounded-xl bg-muted/60 p-4 text-sm text-muted-foreground">아직 유형별 검증 결과가 없습니다.</p>
+            )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-          {/* Risk signal */}
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle className="w-5 h-5 text-red-500" />
-              <h3 className="font-bold text-red-800">위험 신호</h3>
-            </div>
-            <p className="text-sm text-red-700 mb-4">
-              서울 강남구 카페 업종 중 최근 4주 매출이 20% 이상 하락한 매장이 <strong>38곳</strong>입니다.
-              AI 비활성 상태이거나 추천 실행률이 20% 미만인 매장이 포함되어 있습니다.
-            </p>
-            <button onClick={() => navigate("/admin/risks")} className="flex items-center gap-1.5 text-sm font-semibold text-red-700 hover:underline">
-              위험 가맹점 확인 <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Industry distribution */}
-          <div className="bg-card border border-border rounded-2xl p-5">
-            <h3 className="font-bold mb-4">업종별 분포</h3>
-            <div className="h-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={INDUSTRY_DATA} layout="vertical">
-                  <XAxis type="number" tick={{ fontSize: 10, fill: "#667085" }} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="industry" tick={{ fontSize: 11, fill: "#667085" }} axisLine={false} tickLine={false} width={40} />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#5B6CFF" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-
-        {/* Critical merchants needing attention */}
         <div className="bg-card border border-border rounded-2xl p-5 mb-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold">개입 필요 가맹점</h3>
-            <button onClick={() => navigate("/admin/risks")} className="text-xs text-[#087F65] font-semibold hover:underline flex items-center gap-0.5">
+            <div>
+              <h3 className="font-bold">최근 추천 효과 검증</h3>
+              <p className="text-xs text-muted-foreground">실제 실행 후 저장된 검증 결과</p>
+            </div>
+            <button onClick={() => navigate("/admin/roi")} className="text-xs text-[#087F65] font-semibold hover:underline flex items-center gap-0.5">
               전체 보기 <ChevronRight className="w-3 h-3" />
             </button>
           </div>
-          <div className="space-y-3">
-            {critical.map((m) => (
-              <div key={m.id} onClick={() => navigate(`/admin/merchants/${m.id}`)} className="flex items-center gap-3 p-3 bg-red-50 border border-red-100 rounded-xl cursor-pointer hover:border-red-300 transition-colors">
-                <div className="w-8 h-8 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
-                  <Building2 className="w-4 h-4 text-red-600" />
+          {verification?.recent_results.length ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {verification.recent_results.slice(0, 3).map((result) => (
+                <div key={`${result.recommendation_id}-${result.verified_date}`} className="rounded-xl bg-muted/60 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold">매장 {result.store_id}</span>
+                    <span className="text-[11px] text-muted-foreground">{result.verified_date}</span>
+                  </div>
+                  <div className="text-sm font-bold">{result.recommendation_type === "SALES" ? "매출 추천" : "리뷰 추천"}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{result.verdict}</div>
+                  <div className="mt-2 text-base font-black text-[#0E9F6E]">효과 점수 {result.effect_score.toFixed(1)}</div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm text-foreground">{m.name}</div>
-                  <div className="text-xs text-muted-foreground">{m.region} · {m.industry} · 담당: {m.assignedManager}</div>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <div className="text-sm font-bold text-red-600 tabular-nums">{m.salesChange4w}%</div>
-                  <div className="text-xs text-muted-foreground">4주 매출 변화</div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-xl bg-muted/60 p-4 text-sm text-muted-foreground">아직 저장된 추천 효과 검증 결과가 없습니다.</p>
+          )}
         </div>
 
-        {/* Recent incidents */}
         <div className="bg-card border border-border rounded-2xl p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Activity className="w-4 h-4 text-muted-foreground" />
-            <h3 className="font-bold">시스템 현황</h3>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-bold">전체 가맹점</h3>
+              <p className="text-xs text-muted-foreground">MySQL에 저장된 가맹점과 AI 운영 현황</p>
+            </div>
+            <span className="text-xs text-muted-foreground">{merchants.length}개</span>
           </div>
-          <div className="space-y-2">
-            {[
-              { status: "정상", label: "POS 데이터 수집", detail: "1,240개 가맹점 정상 수신 중", color: "text-[#0E9F6E]", dot: "bg-[#0E9F6E]" },
-              { status: "지연", label: "리뷰 데이터 연동", detail: "44개 가맹점 수집 지연 (12분)", color: "text-[#D97706]", dot: "bg-[#D97706]" },
-              { status: "정상", label: "AI 분석 엔진", detail: "모든 가맹점 일일 분석 완료", color: "text-[#0E9F6E]", dot: "bg-[#0E9F6E]" },
-            ].map((s, i) => (
-              <div key={i} className="flex items-center gap-3 text-sm">
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${s.dot}`} />
-                <span className="font-medium w-32">{s.label}</span>
-                <span className="text-muted-foreground flex-1">{s.detail}</span>
-                <span className={`text-xs font-semibold ${s.color}`}>{s.status}</span>
-              </div>
-            ))}
-          </div>
+          {merchantsLoading ? (
+            <p className="rounded-xl bg-muted/60 p-4 text-sm text-muted-foreground">가맹점 데이터를 불러오는 중입니다.</p>
+          ) : merchants.length === 0 ? (
+            <p className="rounded-xl bg-muted/60 p-4 text-sm text-muted-foreground">저장된 가맹점이 없습니다.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-sm">
+                <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="pb-3 pr-4">가맹점</th><th className="pb-3 pr-4">점주</th><th className="pb-3 pr-4">주소</th><th className="pb-3 pr-4">업종</th><th className="pb-3 pr-4 text-right">AI</th><th className="pb-3 pr-4 text-right">분석</th><th className="pb-3 pr-4 text-right">추천 실행률</th><th className="pb-3 text-right">검증</th></tr></thead>
+                <tbody>{merchants.map((merchant) => <tr key={merchant.id} className="border-b border-border/60 last:border-0"><td className="py-3 pr-4 font-semibold">{merchant.name}</td><td className="py-3 pr-4">{merchant.owner}</td><td className="py-3 pr-4 text-muted-foreground">{merchant.address}</td><td className="py-3 pr-4">{merchant.category}</td><td className="py-3 pr-4 text-right">{merchant.aiActive ? "활성" : "비활성"}</td><td className="py-3 pr-4 text-right">{merchant.analysisCount}건</td><td className="py-3 pr-4 text-right">{merchant.executionRate.toFixed(1)}%</td><td className="py-3 text-right">{merchant.verifiedRecommendations}건</td></tr>)}</tbody>
+              </table>
+            </div>
+          )}
         </div>
+
       </div>
     </div>
   );
