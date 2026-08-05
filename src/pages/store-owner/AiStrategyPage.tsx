@@ -522,7 +522,7 @@ export function AiStrategyPage() {
         <div className="bg-card border border-[#246BFD]/30 rounded-2xl p-5 mb-5">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div>
-              <div className="text-xs font-semibold text-[#246BFD] mb-1">실제 AI 추천 결과</div>
+              <div className="text-xs font-semibold text-[#246BFD] mb-1">AI 추천 결과</div>
               <h3 className="text-xl font-black">
                 {recommendedActions.length === 1
                   ? recommendedActions[0].방안
@@ -788,16 +788,10 @@ function FinalReportSection({ report }: { report?: Record<string, unknown> | nul
   if (!report) return null;
   const error = report["error"] as string | undefined;
   const text = String(report["report"] ?? "");
-  const verified = Boolean(report["verified"]);
   return (
     <div className="mt-4">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-bold text-muted-foreground">최종 리포트</span>
-        {!error && (
-          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${verified ? "text-[#0E9F6E] bg-[#0E9F6E]/10" : "text-amber-600 bg-amber-50"}`}>
-            {verified ? "수치 검증됨" : "수치 재확인 필요"}
-          </span>
-        )}
       </div>
       {error ? (
         <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl p-3">{error}</p>
