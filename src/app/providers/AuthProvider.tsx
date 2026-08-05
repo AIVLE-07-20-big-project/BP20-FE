@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import type { User, UserRole } from "../../entities/user/user.types";
 import * as authApi from "../../features/auth/api/authApi";
 import type { SignupPayload } from "../../features/auth/api/authApi";
@@ -13,28 +14,9 @@ import {
   ApiError,
   AUTH_EXPIRED_EVENT,
 } from "../../shared/api/apiClient";
+import { AuthContext } from "./AuthContext";
 
-interface AuthContextType {
-  user: User | null;
-  isInitializing: boolean;
-  isDemo: boolean;
-  login: (
-    email: string,
-    password: string,
-    role: UserRole,
-    remember: boolean,
-    captchaToken: string | null,
-  ) => Promise<{ ok: boolean; error?: string; errorCode?: string }>;
-  signup: (
-    payload: SignupPayload,
-  ) => Promise<{ ok: boolean; user?: User; error?: string }>;
-  logout: () => Promise<void>;
-  switchDemo: (userId: string) => void;
-}
-
-const AuthContext = createContext<AuthContextType | null>(null);
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const demoUser = getSessionUser();
   const [user, setUser] = useState<User | null>(demoUser);
   const [isInitializing, setIsInitializing] = useState(!demoUser);
@@ -170,12 +152,4 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
-  return context;
 }

@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { AdminLayout } from "../layouts/AdminLayout";
 import { StoreOwnerLayout } from "../layouts/StoreOwnerLayout";
-import { useAuth } from "../providers/AuthProvider";
+import { useAuth } from "../providers/useAuth";
 import { LoginPage } from "../../pages/auth/LoginPage";
 import { SignupPage } from "../../pages/auth/SignupPage";
 import { PrivacyPolicyPage } from "../../pages/legal/PrivacyPolicyPage";

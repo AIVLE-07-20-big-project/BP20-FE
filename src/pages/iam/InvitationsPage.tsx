@@ -1,5 +1,5 @@
 import { ShieldCheck } from "lucide-react";
-import { useAuth } from "../../app/providers/AuthProvider";
+import { useAuth } from "../../app/providers/useAuth";
 import { PageShell } from "../../shared/components/PageShell";
 import { InvitationListSection } from "./components/InvitationListSection";
 

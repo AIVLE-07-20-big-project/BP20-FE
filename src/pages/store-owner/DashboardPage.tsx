@@ -10,7 +10,7 @@ import {
   CartesianGrid, PieChart, Pie, Cell
 } from "recharts";
 import { MetricCard } from "../../shared/components/MetricCard";
-import { useAuth } from "../../app/providers/AuthProvider";
+import { useAuth } from "../../app/providers/useAuth";
 import { AI_RECOMMENDATIONS } from "../../mocks";
 import type { InventoryItem } from "../../entities/inventory/inventory.types";
 import { getUploadedInventories } from "../../features/inventory/api/inventoryApi";

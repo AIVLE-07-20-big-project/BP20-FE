@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Shield, Store } from "lucide-react";
-import { useAuth } from "../../app/providers/AuthProvider";
+import { useAuth } from "../../app/providers/useAuth";
 import type { UserRole } from "../../entities/user/user.types";
 import {
   activateRecaptchaBadge,

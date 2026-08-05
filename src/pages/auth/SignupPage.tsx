@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, CheckCircle2, KeyRound } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../../app/providers/AuthProvider";
+import { useAuth } from "../../app/providers/useAuth";
 import { AuthLayout } from "./components/AuthLayout";
 import { PasswordField } from "./components/PasswordField";
 import { evaluatePassword } from "../../features/auth/model/passwordPolicy";

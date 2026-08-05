@@ -21,7 +21,7 @@ import {
 import { clsx } from "clsx";
 import { LiveDateTime } from "../../shared/components/LiveDateTime";
 import { PolicyFooter } from "../../shared/components/PolicyFooter";
-import { useAuth } from "../providers/AuthProvider";
+import { useAuth } from "../providers/useAuth";
 
 const DASHBOARD_NAV = [
   { to: "/admin", icon: LayoutDashboard, label: "통합 대시보드" },

@@ -18,7 +18,7 @@ import {
   Sparkles,
   Store as StoreIcon,
 } from "lucide-react";
-import { useAuth } from "../../app/providers/AuthProvider";
+import { useAuth } from "../../app/providers/useAuth";
 import type { StoreOwnerLayoutContext } from "../../app/layouts/StoreOwnerLayout";
 import type {
   Coupon,

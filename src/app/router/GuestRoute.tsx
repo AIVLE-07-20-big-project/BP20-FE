@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
-import { useAuth } from "../providers/AuthProvider";
+import { useAuth } from "../providers/useAuth";
 
 export function GuestRoute({ children }: { children: ReactNode }) {
   const { user, isInitializing } = useAuth();

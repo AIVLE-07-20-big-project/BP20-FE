@@ -12,7 +12,7 @@ import { StoreNoticePopover } from "../../features/notices/ui/StoreNoticePopover
 import { ApiError } from "../../shared/api/apiClient";
 import { LiveDateTime } from "../../shared/components/LiveDateTime";
 import { PolicyFooter } from "../../shared/components/PolicyFooter";
-import { useAuth } from "../providers/AuthProvider";
+import { useAuth } from "../providers/useAuth";
 
 const DASHBOARD_NAV = [
   { to: "/store", icon: LayoutDashboard, label: "점주 대시보드" },
