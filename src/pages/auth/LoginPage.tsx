@@ -1,9 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Shield, Store } from "lucide-react";
-import { useAuth } from "../../app/providers/AuthProvider";
+import { useAuth } from "../../app/providers/useAuth";
 import type { UserRole } from "../../entities/user/user.types";
+import {
+  activateRecaptchaBadge,
+  executeRecaptcha,
+  initializeRecaptcha,
+} from "../../features/auth/lib/recaptchaV3";
 import { DEMO_USERS } from "../../mocks";
+import { RECAPTCHA_SITE_KEY } from "../../shared/config/runtimeEnv";
 import { AuthLayout } from "./components/AuthLayout";
 import { PasswordField } from "./components/PasswordField";
 
@@ -17,6 +23,14 @@ export function LoginPage() {
   const { login, switchDemo } = useAuth();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    const deactivateBadge = activateRecaptchaBadge();
+    void initializeRecaptcha().catch(() => {
+      // 로그인 요청 시 사용자에게 초기화 오류를 안내한다.
+    });
+    return deactivateBadge;
+  }, []);
+
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!email.trim() || !password) {
@@ -26,7 +40,16 @@ export function LoginPage() {
 
     setLoading(true);
     setError("");
-    const result = await login(email, password, role, remember);
+    let captchaToken: string | null;
+    try {
+      captchaToken = await executeRecaptcha("login");
+    } catch {
+      setLoading(false);
+      setError("자동입력 방지 확인을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      return;
+    }
+
+    const result = await login(email, password, role, remember, captchaToken);
     setLoading(false);
 
     if (result.ok) {
@@ -133,6 +156,30 @@ export function LoginPage() {
           회원가입
         </Link>
       </p>
+
+      {RECAPTCHA_SITE_KEY && (
+        <p className="mt-3 text-center text-[10px] leading-4 text-muted-foreground">
+          이 사이트는 reCAPTCHA로 보호되며 Google의{" "}
+          <a
+            href="https://policies.google.com/privacy"
+            target="_blank"
+            rel="noreferrer"
+            className="font-semibold hover:underline"
+          >
+            개인정보처리방침
+          </a>
+          과{" "}
+          <a
+            href="https://policies.google.com/terms"
+            target="_blank"
+            rel="noreferrer"
+            className="font-semibold hover:underline"
+          >
+            서비스 약관
+          </a>
+          이 적용됩니다.
+        </p>
+      )}
 
       <div className="mt-8 border-t border-border pt-6">
         <div className="mb-3 flex items-center gap-2">

@@ -22,6 +22,7 @@ export function PortfolioDashboard() {
   useEffect(() => {
     getMerchantMonitoring()
       .then((response) => setMerchants(response.merchants))
+      .catch(() => setMerchants([]))
       .finally(() => setMerchantsLoading(false));
   }, []);
 
@@ -180,7 +181,7 @@ export function PortfolioDashboard() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-sm">
                 <thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="pb-3 pr-4">가맹점</th><th className="pb-3 pr-4">점주</th><th className="pb-3 pr-4">주소</th><th className="pb-3 pr-4">업종</th><th className="pb-3 pr-4 text-right">AI</th><th className="pb-3 pr-4 text-right">분석</th><th className="pb-3 pr-4 text-right">추천 실행률</th><th className="pb-3 text-right">검증</th></tr></thead>
-                <tbody>{merchants.map((merchant) => <tr key={merchant.id} className="border-b border-border/60 last:border-0"><td className="py-3 pr-4 font-semibold">{merchant.name}</td><td className="py-3 pr-4">{merchant.owner}</td><td className="py-3 pr-4 text-muted-foreground">{merchant.address}</td><td className="py-3 pr-4">{merchant.category}</td><td className="py-3 pr-4 text-right">{merchant.aiActive ? "활성" : "비활성"}</td><td className="py-3 pr-4 text-right">{merchant.analysisCount}건</td><td className="py-3 pr-4 text-right">{merchant.executionRate.toFixed(1)}%</td><td className="py-3 text-right">{merchant.verifiedRecommendations}건</td></tr>)}</tbody>
+                <tbody>{merchants.map((merchant) => <tr key={merchant.id} className="border-b border-border/60 last:border-0"><td className="py-3 pr-4 font-semibold">{merchant.name}</td><td className="py-3 pr-4">{merchant.owner}</td><td className="py-3 pr-4 text-muted-foreground">{merchant.address}</td><td className="py-3 pr-4">{merchant.category}</td><td className="py-3 pr-4 text-right">{merchant.aiActive ? "활성" : "비활성"}</td><td className="py-3 pr-4 text-right">{merchant.analysisCount}건</td><td className="py-3 pr-4 text-right">{merchant.executionRate.toFixed(1)}%</td><td className="py-3 text-right">{merchant.verifiedRecommendations == null ? "-" : `${merchant.verifiedRecommendations}건`}</td></tr>)}</tbody>
               </table>
             </div>
           )}

@@ -21,6 +21,9 @@ export interface SignupPayload {
   password: string;
   name: string;
   phoneNumber: string | null;
+  privacyConsent: boolean;
+  privacyPolicyVersion: string;
+  captchaToken: string | null;
 }
 
 function toUser(response: AuthUserResponse): User {
@@ -38,10 +41,11 @@ export async function login(
   email: string,
   password: string,
   rememberMe: boolean,
+  captchaToken: string | null,
 ) {
   const response = await apiRequest<AuthResponse>("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password, rememberMe }),
+    body: JSON.stringify({ email, password, rememberMe, captchaToken }),
   });
   return {
     token: response.accessToken,

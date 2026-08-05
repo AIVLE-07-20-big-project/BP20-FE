@@ -1,16 +1,16 @@
-import { useEffect, useMemo, useState, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Zap, Package, Star, TrendingDown, AlertCircle, ArrowRight,
   CloudRain, Clock, BarChart3,
-  ChevronRight, Sparkles, Bot, X, Send, Flame
+  ChevronRight, Sparkles, Flame
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, PieChart, Pie, Cell
 } from "recharts";
 import { MetricCard } from "../../shared/components/MetricCard";
-import { useAuth } from "../../app/providers/AuthProvider";
+import { useAuth } from "../../app/providers/useAuth";
 import { AI_RECOMMENDATIONS } from "../../mocks";
 import type { InventoryItem } from "../../entities/inventory/inventory.types";
 import { getUploadedInventories } from "../../features/inventory/api/inventoryApi";
@@ -123,11 +123,18 @@ const REVIEW_ASPECTS = [
 
 const DONUT_DATA = REVIEW_ASPECTS.map(a => ({ name: a.label, value: a.pct, color: a.color }));
 
-const CHAT_SUGGESTIONS = [
-  "오늘 매출이 지난주보다 낮은 이유는?",
-  "어떤 매출 기반 전략 추천을 먼저 실행할까요?",
-  "이번 주 재고 주문이 필요한 항목은?",
-  "오늘 쿠폰 발송을 추천하는 이유는?",
+const SPARKLINE_DATA: Record<string, { v: number }[]> = {
+  sales: [{ v: 980 }, { v: 1050 }, { v: 990 }, { v: 1120 }, { v: 1080 }, { v: 1247 }],
+  orders: [{ v: 72 }, { v: 80 }, { v: 68 }, { v: 91 }, { v: 84 }, { v: 87 }],
+  monthly: [{ v: 28 }, { v: 29.4 }, { v: 31.2 }, { v: 30.8 }, { v: 31.9 }, { v: 32.8 }],
+  profit: [{ v: 7.8 }, { v: 8.1 }, { v: 7.9 }, { v: 8.4 }, { v: 8.2 }, { v: 8.42 }],
+};
+
+const KPI_CARDS = [
+  { label: "오늘 매출", value: "1,247,000원", change: -5.2, period: "지난 월요일 대비", sparkKey: "sales" as const, positive: false },
+  { label: "오늘 주문 건수", value: "87건", change: 2.4, period: "지난 월요일 대비", sparkKey: "orders" as const, positive: true },
+  { label: "이번 달 예상 매출", value: "32,800,000원", change: 8.1, period: "지난달 대비", sparkKey: "monthly" as const, positive: true },
+  { label: "예상 순이익", value: "8,420,000원", change: -1.8, period: "이번 달 예상", sparkKey: "profit" as const, positive: false },
 ];
 
 interface DonutTooltipProps {
@@ -150,18 +157,11 @@ function DonutTooltipContent({ active, payload }: DonutTooltipProps) {
 export function DashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [actionStates, setActionStates] = useState<Record<string, string>>({});
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatMsg, setChatMsg] = useState("");
-  const [chatLog, setChatLog] = useState<{ role: "user" | "ai"; text: string }[]>([]);
   const [inventories, setInventories] = useState<InventoryItem[]>([]);
   const [weather, setWeather] = useState<CurrentWeather | null>(null);
-  const chatRef = useRef<HTMLDivElement>(null);
   const [analysis, setAnalysis] = useState<AiAnalysisResult | null>(null);
   const [recommendationRuns, setRecommendationRuns] = useState<AiRecommendationRun[]>([]);
-
-  const isDashboard = location.pathname === "/store" || location.pathname === "/store/";
 
   useEffect(() => {
     let cancelled = false;
@@ -319,17 +319,7 @@ export function DashboardPage() {
       change: monthly.transactionsChange, period: "지난달 대비",
       sparkData: ordersSpark, positive: (monthly.transactionsChange ?? 0) >= 0,
     },
-  ] : [];
-
-  const sendChat = () => {
-    const msg = chatMsg.trim();
-    if (!msg) return;
-    setChatLog(l => [...l, { role: "user", text: msg }]);
-    setChatMsg("");
-    setTimeout(() => {
-      setChatLog(l => [...l, { role: "ai", text: "AI 분석 중입니다. 잠시 후 인사이트를 제공해 드릴게요." }]);
-    }, 800);
-  };
+  ] : KPI_CARDS.map((card) => ({ ...card, sparkData: SPARKLINE_DATA[card.sparkKey] as { v: number }[] }));
 
   return (
     <div className="h-full overflow-y-auto">
@@ -606,75 +596,6 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* Floating AI chatbot — dashboard only */}
-      {isDashboard && (
-        <>
-          {/* Drawer */}
-          {chatOpen && (
-            <div className="fixed bottom-20 right-4 lg:right-6 w-80 bg-card border border-border rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden" style={{ maxHeight: "70vh" }}>
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-gradient-to-r from-[#246BFD]/10 to-[#8B5CF6]/10">
-                <Bot className="w-4 h-4 text-[#246BFD]" />
-                <span className="text-sm font-bold flex-1">AI 도우미</span>
-                <button onClick={() => setChatOpen(false)} className="p-1 text-muted-foreground hover:text-foreground rounded-lg">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-3 space-y-2" ref={chatRef}>
-                {chatLog.length === 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground text-center pt-2 pb-1">궁금한 점을 물어보세요</p>
-                    {CHAT_SUGGESTIONS.map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => { setChatMsg(s); }}
-                        className="w-full text-left text-xs bg-muted hover:bg-muted-foreground/10 rounded-xl px-3 py-2 transition-colors"
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {chatLog.map((m, i) => (
-                  <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[85%] text-xs px-3 py-2 rounded-xl ${m.role === "user" ? "bg-[#246BFD] text-white" : "bg-muted text-foreground"}`}>
-                      {m.text}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="p-3 border-t border-border">
-                <div className="flex gap-2">
-                  <input
-                    value={chatMsg}
-                    onChange={e => setChatMsg(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && sendChat()}
-                    placeholder="메시지 입력..."
-                    className="flex-1 text-xs h-8 px-3 bg-muted rounded-xl focus:outline-none focus:ring-2 focus:ring-[#246BFD]/40"
-                  />
-                  <button onClick={sendChat} className="w-8 h-8 flex items-center justify-center bg-[#246BFD] text-white rounded-xl hover:bg-[#1D4ED8] transition-colors">
-                    <Send className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-          {/* Launcher button */}
-          <div className="fixed bottom-6 right-4 lg:right-6 z-50 group">
-            <button
-              onClick={() => setChatOpen(o => !o)}
-              className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#246BFD] to-[#8B5CF6] flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 transition-all focus:outline-none focus:ring-2 focus:ring-[#246BFD]/50"
-              aria-label="AI 도우미 열기"
-            >
-              {chatOpen ? <X className="w-5 h-5 text-white" /> : <Bot className="w-5 h-5 text-white" />}
-            </button>
-            {!chatOpen && (
-              <div className="absolute bottom-full right-0 mb-2 bg-[#111A2E] text-white text-[11px] px-2.5 py-1.5 rounded-xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                AI 도우미 열기
-              </div>
-            )}
-          </div>
-        </>
-      )}
     </div>
   );
 }
