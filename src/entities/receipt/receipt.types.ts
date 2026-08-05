@@ -93,22 +93,6 @@ export interface BudgetOverageResponse {
   overPct: number | null;
 }
 
-/** 업로드 내역 수정 요청 (POST 요청과 필드 구성은 같되 storeId/force는 뺐다) */
-export interface ReceiptUpdateRequest {
-  documentType: string;
-  storeName: string | null;
-  businessNumber: string | null;
-  transactionDate: string;
-  transactionTime: string | null;
-  paymentMethod: string;
-  items: ReceiptItemData[];
-  supplyAmount: number | null;
-  vat: number | null;
-  taxFreeAmount: number | null;
-  totalAmount: number;
-  category: string;
-}
-
 export interface ReceiptPageResponse {
   content: ReceiptResponse[];
   page: number;
@@ -127,4 +111,5 @@ export interface LedgerReportOptions {
   month?: number;
 }
 
+/** 업로드 내역 수정 요청 (POST 요청과 필드 구성은 같되 storeId/uploadedByUserId/rawImagePath/force는 뺐다) */
 export type ReceiptUpdateRequest = Omit<ReceiptCreateRequest, "storeId" | "uploadedByUserId" | "rawImagePath" | "force">;
