@@ -4,7 +4,7 @@ import {
   Copy, XCircle, Calendar, Eye, Users, Globe, Tag, Clock,
   FileText, CheckCircle2, Megaphone
 } from "lucide-react";
-import { useAuth } from "../../app/providers/AuthProvider";
+import { useAuth } from "../../app/providers/useAuth";
 import { getAccessToken } from "../../features/auth/model/authSession";
 import { createNotice, deleteNotice, getNotices, updateNotice, uploadNoticeAttachment, type NoticeApi, type NoticeRequestApi } from "../../features/notices/api/noticesApi";
 import { apiUrl } from "../../shared/config/runtimeEnv";

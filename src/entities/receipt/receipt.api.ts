@@ -5,6 +5,7 @@ import type {
   LedgerReportOptions,
   OcrParseResponse,
   ReceiptCreateRequest,
+  ReceiptPageResponse,
   ReceiptResponse,
   ReceiptUpdateRequest,
 } from "./receipt.types";
@@ -52,8 +53,26 @@ export function getReceipt(receiptId: number): Promise<ReceiptResponse> {
   return apiRequest<ReceiptResponse>(`/api/store-owner/receipts/${receiptId}`);
 }
 
-export function getReceipts(storeId: number): Promise<ReceiptResponse[]> {
-  return apiRequest<ReceiptResponse[]>(`/api/store-owner/receipts${toQueryString({ storeId })}`);
+/** 업로드 내역 목록 (30건 단위 페이지네이션). page는 0부터 시작한다. */
+export function getReceipts(storeId: number, page = 0, size = 30): Promise<ReceiptPageResponse> {
+  return apiRequest<ReceiptPageResponse>(
+    `/api/store-owner/receipts${toQueryString({ storeId, page, size })}`
+  );
+}
+
+/** 업로드 내역에서 영수증을 직접 수정한다. */
+export function updateReceipt(receiptId: number, payload: ReceiptUpdateRequest): Promise<ReceiptResponse> {
+  return apiRequest<ReceiptResponse>(`/api/store-owner/receipts/${receiptId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+/** 업로드 내역에서 영수증을 삭제한다. */
+export function deleteReceipt(receiptId: number): Promise<void> {
+  return apiRequest<void>(`/api/store-owner/receipts/${receiptId}`, {
+    method: "DELETE",
+  });
 }
 
 /** 이상 지출 탐지 (2번 AI 가계부) */
@@ -81,11 +100,4 @@ export async function getLedgerReportHtml(storeId: number, options?: LedgerRepor
   });
   const response = await apiRequestRaw(`/api/store-owner/analytics/report${query}`);
   return response.text();
-}
-
-export function updateReceipt(receiptId: number, payload: ReceiptUpdateRequest): Promise<ReceiptResponse> {
-  return apiRequest<ReceiptResponse>(`/api/store-owner/receipts/${receiptId}`, {
-    method: "PUT",
-    body: JSON.stringify(payload),
-  });
 }
