@@ -2,7 +2,6 @@ import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   Bell,
-  Building2,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -21,20 +20,20 @@ import {
 } from "lucide-react";
 import { clsx } from "clsx";
 import { LiveDateTime } from "../../shared/components/LiveDateTime";
-import { useAuth } from "../providers/AuthProvider";
+import { PolicyFooter } from "../../shared/components/PolicyFooter";
+import { useAuth } from "../providers/useAuth";
 
 const DASHBOARD_NAV = [
   { to: "/admin", icon: LayoutDashboard, label: "통합 대시보드" },
 ];
 
 const STORE_NAV = [
-  { to: "/admin/merchants", icon: Building2, label: "가맹점 관리" },
   { to: "/admin/notices", icon: Megaphone, label: "가맹점 공지" },
 ];
 
 const BUSINESS_NAV = [
   { to: "/admin/sales-targets", icon: Target, label: "영업 타겟" },
-  { to: "/admin/roi", icon: TrendingUp, label: "AI 성과·ROI" },
+  { to: "/admin/roi", icon: TrendingUp, label: "효과 검증 현황" },
 ];
 
 export function AdminLayout() {
@@ -242,8 +241,13 @@ export function AdminLayout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-hidden">
-          <Outlet />
+        <main className="min-h-0 flex-1 overflow-y-auto">
+          <div className="min-h-full">
+            <Outlet />
+          </div>
+          <div className="border-t border-border bg-card/90 px-4 py-3">
+            <PolicyFooter />
+          </div>
         </main>
       </div>
     </div>
