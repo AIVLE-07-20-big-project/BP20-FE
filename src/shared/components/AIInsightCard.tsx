@@ -41,7 +41,7 @@ export function AIInsightCard({ title, summary, confidence, impact, evidences = 
             {category && <span className={clsx("text-[11px] font-semibold", dark ? "text-white/50" : "text-muted-foreground")}>{category}</span>}
             {priority && <Badge variant="indigo">{priority}</Badge>}
           </div>
-          <h4 className={clsx("font-bold text-sm leading-snug", dark ? "text-white" : "text-foreground")}>{title}</h4>
+          <h4 className={clsx("font-bold text-base leading-snug break-keep", dark ? "text-white" : "text-foreground")}>{title}</h4>
         </div>
         {confidence != null && (
           <div className="flex-shrink-0 text-right">
@@ -51,10 +51,10 @@ export function AIInsightCard({ title, summary, confidence, impact, evidences = 
         )}
       </div>
 
-      <p className={clsx("text-xs leading-relaxed whitespace-pre-line", dark ? "text-white/70" : "text-muted-foreground")}>{summary}</p>
+      <p className={clsx("text-sm leading-relaxed whitespace-pre-line break-keep", dark ? "text-white/70" : "text-black")}>{summary}</p>
 
       {impact && (
-        <div className={clsx("rounded-xl px-3 py-2 text-xs font-semibold",
+        <div className={clsx("rounded-xl px-3 py-2 text-sm font-semibold leading-relaxed break-keep",
           dark ? "bg-white/5 text-[#93BBFD]" : "bg-[#246BFD]/8 text-[#246BFD]"
         )}>
           예상 효과: {impact}
@@ -75,7 +75,7 @@ export function AIInsightCard({ title, summary, confidence, impact, evidences = 
           {expanded && (
             <ul className="mt-2 space-y-1">
               {evidences.map((e, i) => (
-                <li key={i} className={clsx("flex items-start gap-1.5 text-xs",
+                <li key={i} className={clsx("flex items-start gap-1.5 text-sm leading-relaxed break-keep",
                   dark ? "text-white/60" : "text-muted-foreground"
                 )}>
                   <span className="w-1.5 h-1.5 rounded-full bg-[#8B5CF6] mt-1.5 flex-shrink-0" />
