@@ -70,6 +70,10 @@ export interface AiAnalysisResult {
   report: AiSalesReport;
   diagnosis?: Record<string, unknown>;
   detailed_analysis?: DetailedSalesAnalysis;
+  // 업로드한 POS 실제 기간(예: "2026년 5월") — 없으면 서버가 공공데이터 기준분기로
+  // 대체한 값("2026년 1분기")이 온다. 상권·업종·기준분기가 같은 여러 분석(예: 전략
+  // 적용 전/후 비교)을 화면에서 구분할 때 diagnosis.대상.기준분기 대신 이 필드를 쓴다.
+  분석기간?: string | null;
   warnings?: unknown[];
   [key: string]: unknown;
 }
