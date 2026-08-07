@@ -12,16 +12,16 @@ export const DEMO_USERS: User[] = [
   {
     id: "u2",
     name: "박준혁",
-    email: "junhyuk@bp20.com",
+    email: "junhyuk@marketpoke.com",
     role: "ADMIN",
-    organizationName: "BP20 파트너 콘솔",
+    organizationName: "MarketPoke 파트너 콘솔",
   },
   {
     id: "u3",
     name: "이서연",
-    email: "seoyeon@bp20.com",
+    email: "seoyeon@marketpoke.com",
     role: "SUPER_ADMIN",
-    organizationName: "BP20 파트너 콘솔",
+    organizationName: "MarketPoke 파트너 콘솔",
   },
 ];
 

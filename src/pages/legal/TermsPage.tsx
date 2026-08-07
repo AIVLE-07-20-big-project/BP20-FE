@@ -11,10 +11,10 @@ export function TermsPage() {
       meta={`시행일 ${LEGAL_CONFIG.effectiveDate} · 약관 버전 ${LEGAL_CONFIG.termsVersion}`}
     >
       <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-950">
-        BP20은 현재 관리자·점주 대상의 비공개 프로젝트 서비스이며 유료 결제와 고객용 주문 기능은 본 약관의 범위에 포함하지 않습니다.
+        {LEGAL_CONFIG.serviceName}은 현재 관리자·점주 대상의 비공개 프로젝트 서비스이며 유료 결제와 고객용 주문 기능은 본 약관의 범위에 포함하지 않습니다.
       </div>
 
-      <LegalSection title="제1조 (목적)"><p>본 약관은 {LEGAL_CONFIG.operatorName}(이하 “운영자”)가 제공하는 BP20 서비스의 이용 조건과 운영자 및 이용자의 권리·의무를 정함을 목적으로 합니다.</p></LegalSection>
+      <LegalSection title="제1조 (목적)"><p>본 약관은 {LEGAL_CONFIG.operatorName}(이하 “운영자”)가 제공하는 {LEGAL_CONFIG.serviceName} 서비스의 이용 조건과 운영자 및 이용자의 권리·의무를 정함을 목적으로 합니다.</p></LegalSection>
       <LegalSection title="제2조 (용어의 정의)">
         <ul className="list-disc space-y-1 pl-5">
           <li>“서비스”란 계정·권한 관리, 매장·상품·온라인 판매·할인·쿠폰 관리, 데이터 분석 및 AI 운영 지원 기능을 의미합니다.</li>
