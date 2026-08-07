@@ -3,8 +3,8 @@ function configured(value: string | undefined, fallback: string): string {
 }
 
 export const LEGAL_CONFIG = {
-  serviceName: "BP20",
-  operatorName: configured(import.meta.env.VITE_LEGAL_OPERATOR_NAME, "BP20 프로젝트팀"),
+  serviceName: "MarketPoke",
+  operatorName: configured(import.meta.env.VITE_LEGAL_OPERATOR_NAME, "MarketPoke 프로젝트팀"),
   privacyDepartment: configured(import.meta.env.VITE_PRIVACY_DEPARTMENT, "개인정보 보호 담당"),
   privacyOfficer: configured(import.meta.env.VITE_PRIVACY_OFFICER, "운영 전 지정 필요"),
   privacyEmail: configured(import.meta.env.VITE_PRIVACY_CONTACT_EMAIL, "운영 전 등록 필요"),

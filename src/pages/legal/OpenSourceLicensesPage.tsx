@@ -21,7 +21,7 @@ export function OpenSourceLicensesPage() {
   return (
     <LegalDocumentLayout
       title="오픈소스 라이선스"
-      description="BP20은 여러 오픈소스 소프트웨어를 사용하며 각 저작권자의 라이선스와 고지 조건을 존중합니다."
+      description={`${LEGAL_CONFIG.serviceName}은 여러 오픈소스 소프트웨어를 사용하며 각 저작권자의 라이선스와 고지 조건을 존중합니다.`}
       icon={<Library className="h-6 w-6" />}
       meta={`고지 기준일 ${LEGAL_CONFIG.effectiveDate} · 고지 버전 ${LEGAL_CONFIG.openSourceNoticeVersion}`}
     >

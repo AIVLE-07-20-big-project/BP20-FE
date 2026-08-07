@@ -77,7 +77,7 @@ export function AdminLayout() {
           </div>
           {(!collapsed || mobile) && (
             <div>
-              <div className="text-xs font-black tracking-wider text-white">BP20</div>
+              <div className="text-xs font-black tracking-wider text-white">MarketPoke</div>
               <div className="text-[10px] text-white/40">파트너 콘솔</div>
             </div>
           )}

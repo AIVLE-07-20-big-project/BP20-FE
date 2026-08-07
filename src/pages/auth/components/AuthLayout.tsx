@@ -29,7 +29,7 @@ export function AuthLayout({ children, contentWidth = "sm" }: AuthLayoutProps) {
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#246BFD] to-[#5B6CFF]">
             <Zap className="h-5 w-5 text-white" />
           </div>
-          <span className="text-xl font-black tracking-wide text-white">BP20</span>
+          <span className="text-xl font-black tracking-wide text-white">MarketPoke</span>
         </div>
 
         <div className="relative z-10">
@@ -65,7 +65,7 @@ export function AuthLayout({ children, contentWidth = "sm" }: AuthLayoutProps) {
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[#246BFD] to-[#5B6CFF]">
               <Zap className="h-4 w-4 text-white" />
             </div>
-            <span className="text-lg font-black tracking-wide">BP20</span>
+            <span className="text-lg font-black tracking-wide">MarketPoke</span>
           </div>
           {children}
         </div>

@@ -522,7 +522,7 @@ export function AiStrategyPage() {
         <div className="bg-card border border-[#246BFD]/30 rounded-2xl p-5 mb-5">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div>
-              <div className="text-xs font-semibold text-[#246BFD] mb-1">실제 AI 추천 결과</div>
+              <div className="text-xs font-semibold text-[#246BFD] mb-1">AI 추천 결과</div>
               <h3 className="text-xl font-black">
                 {recommendedActions.length === 1
                   ? recommendedActions[0].방안
@@ -720,7 +720,11 @@ function CandidateChips({ actions, selected, candidateStatus, selectable, onSele
 function EffectSummaryCard({ scm }: { scm?: Record<string, unknown> | null }) {
   const measured = scm?.["실측효과"] as Record<string, unknown> | undefined;
   const verdict = measured?.["판정"] as string | undefined;
-  const avg = formatPct(measured?.["효과율_평균"]);
+  const rawAvg = measured?.["효과율_평균"];
+  const avg = formatPct(rawAvg);
+  const isPositive = typeof rawAvg === "number" && rawAvg >= 0;
+  // 막대 길이는 ±30%p를 기준으로 시각화한다 — 그 이상은 막대를 가득 채운다.
+  const barWidthPct = typeof rawAvg === "number" ? Math.min(100, (Math.abs(rawAvg) / 0.3) * 100) : 0;
   return (
     <div className="bg-muted rounded-xl p-3">
       <div className="flex items-center justify-between mb-1.5">
@@ -728,7 +732,15 @@ function EffectSummaryCard({ scm }: { scm?: Record<string, unknown> | null }) {
         <VerdictBadge verdict={verdict} />
       </div>
       {avg ? (
-        <div className="text-lg font-black text-[#0E9F6E]">{avg}</div>
+        <>
+          <div className={`text-lg font-black ${isPositive ? "text-[#0E9F6E]" : "text-red-500"}`}>{avg}</div>
+          <div className="mt-1.5 h-1.5 w-full rounded-full bg-border/70">
+            <div
+              className={`h-1.5 rounded-full ${isPositive ? "bg-[#0E9F6E]" : "bg-red-500"}`}
+              style={{ width: `${barWidthPct}%` }}
+            />
+          </div>
+        </>
       ) : (
         <p className="text-xs text-muted-foreground">
           {(measured?.["사유"] as string) ?? "실측 데이터가 아직 충분하지 않아 참고용 수치가 없습니다."}
@@ -788,16 +800,10 @@ function FinalReportSection({ report }: { report?: Record<string, unknown> | nul
   if (!report) return null;
   const error = report["error"] as string | undefined;
   const text = String(report["report"] ?? "");
-  const verified = Boolean(report["verified"]);
   return (
     <div className="mt-4">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-bold text-muted-foreground">최종 리포트</span>
-        {!error && (
-          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${verified ? "text-[#0E9F6E] bg-[#0E9F6E]/10" : "text-amber-600 bg-amber-50"}`}>
-            {verified ? "수치 검증됨" : "수치 재확인 필요"}
-          </span>
-        )}
       </div>
       {error ? (
         <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl p-3">{error}</p>
