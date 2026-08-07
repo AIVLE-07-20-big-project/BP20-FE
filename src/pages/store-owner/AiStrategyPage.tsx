@@ -720,7 +720,11 @@ function CandidateChips({ actions, selected, candidateStatus, selectable, onSele
 function EffectSummaryCard({ scm }: { scm?: Record<string, unknown> | null }) {
   const measured = scm?.["실측효과"] as Record<string, unknown> | undefined;
   const verdict = measured?.["판정"] as string | undefined;
-  const avg = formatPct(measured?.["효과율_평균"]);
+  const rawAvg = measured?.["효과율_평균"];
+  const avg = formatPct(rawAvg);
+  const isPositive = typeof rawAvg === "number" && rawAvg >= 0;
+  // 막대 길이는 ±30%p를 기준으로 시각화한다 — 그 이상은 막대를 가득 채운다.
+  const barWidthPct = typeof rawAvg === "number" ? Math.min(100, (Math.abs(rawAvg) / 0.3) * 100) : 0;
   return (
     <div className="bg-muted rounded-xl p-3">
       <div className="flex items-center justify-between mb-1.5">
@@ -728,7 +732,15 @@ function EffectSummaryCard({ scm }: { scm?: Record<string, unknown> | null }) {
         <VerdictBadge verdict={verdict} />
       </div>
       {avg ? (
-        <div className="text-lg font-black text-[#0E9F6E]">{avg}</div>
+        <>
+          <div className={`text-lg font-black ${isPositive ? "text-[#0E9F6E]" : "text-red-500"}`}>{avg}</div>
+          <div className="mt-1.5 h-1.5 w-full rounded-full bg-border/70">
+            <div
+              className={`h-1.5 rounded-full ${isPositive ? "bg-[#0E9F6E]" : "bg-red-500"}`}
+              style={{ width: `${barWidthPct}%` }}
+            />
+          </div>
+        </>
       ) : (
         <p className="text-xs text-muted-foreground">
           {(measured?.["사유"] as string) ?? "실측 데이터가 아직 충분하지 않아 참고용 수치가 없습니다."}
