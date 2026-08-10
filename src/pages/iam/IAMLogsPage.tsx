@@ -19,8 +19,12 @@ const ACTION_LABEL: Record<IamLogAction, string> = {
   STORE_OWNER_INVITATION_REVOKED: "점주 초대 취소",
   ADMIN_DEACTIVATED: "관리자 비활성화",
   ADMIN_ACTIVATED: "관리자 활성화",
+  ADMIN_PERSONAL_DATA_REVEALED: "관리자 개인정보 원문 조회",
+  ADMIN_PERSONAL_DATA_REVEAL_FAILED: "관리자 개인정보 재인증 실패",
   STORE_OWNER_DEACTIVATED: "점주 비활성화",
   STORE_OWNER_ACTIVATED: "점주 활성화",
+  STORE_OWNER_PERSONAL_DATA_REVEALED: "점주 개인정보 원문 조회",
+  STORE_OWNER_PERSONAL_DATA_REVEAL_FAILED: "점주 개인정보 재인증 실패",
 };
 
 function formatDate(value: string) {
@@ -107,7 +111,11 @@ export function IAMLogsPage() {
                       <td className="max-w-[200px] truncate px-4 py-3 text-xs text-muted-foreground">
                         {log.targetEmail ?? (log.targetUserId ? `사용자 #${log.targetUserId}` : "-")}
                       </td>
-                      <td className="px-4 py-3"><Badge variant="positive">성공</Badge></td>
+                      <td className="px-4 py-3">
+                        <Badge variant={log.action.endsWith("_FAILED") ? "negative" : "positive"}>
+                          {log.action.endsWith("_FAILED") ? "실패" : "성공"}
+                        </Badge>
+                      </td>
                       <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">{log.sourceIp}</td>
                       <td className="px-4 py-3">
                         <button
