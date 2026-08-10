@@ -146,7 +146,7 @@ export function SalesTargetsPage() {
 
                 <div className="bg-muted rounded-xl p-3 text-xs">
                   <div className="font-semibold mb-1">인근 경쟁 현황</div>
-                  <div className="text-muted-foreground">반경 500m 내 동업종 2개, BP20 가맹점 없음</div>
+                  <div className="text-muted-foreground">반경 500m 내 동업종 2개, Market Poke 가맹점 없음</div>
                 </div>
               </div>
 

@@ -3,25 +3,25 @@ import type { User } from "../../entities/user/user.types";
 export const DEMO_USERS: User[] = [
   {
     id: "u1",
-    name: "김민지",
-    email: "minji@broolab.com",
+    name: "김점주",
+    email: "store-owner@bp20.com",
     role: "STORE_OWNER",
-    storeName: "성수 브루랩",
+    storeName: "AIVLE Cafe",
     storeCategory: "카페·베이커리",
   },
   {
     id: "u2",
-    name: "박준혁",
-    email: "junhyuk@bp20.com",
+    name: "박관리",
+    email: "admin@bp20.com",
     role: "ADMIN",
-    organizationName: "BP20 파트너 콘솔",
+    organizationName: "Market Poke 파트너 콘솔",
   },
   {
     id: "u3",
-    name: "이서연",
-    email: "seoyeon@bp20.com",
+    name: "이관리",
+    email: "super-admin@bp20.com",
     role: "SUPER_ADMIN",
-    organizationName: "BP20 파트너 콘솔",
+    organizationName: "Market Poke 파트너 콘솔",
   },
 ];
 
