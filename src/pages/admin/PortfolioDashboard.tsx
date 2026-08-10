@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar } from "recharts";
 import { MetricCard } from "../../shared/components/MetricCard";
+import { LiveDateTime } from "../../shared/components/LiveDateTime";
 import { MERCHANTS } from "../../mocks";
 
 const HEALTH_DATA = [
@@ -45,10 +46,7 @@ export function PortfolioDashboard() {
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold">가맹점 운영 현황</h1>
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#18C79A] animate-pulse" />
-              <span className="text-xs text-muted-foreground">오늘 09:42 기준</span>
-            </div>
+            <LiveDateTime className="mt-1 flex" />
           </div>
           <div className="flex gap-2">
             {["전체", "서울", "경기", "부산"].map((f) => (
