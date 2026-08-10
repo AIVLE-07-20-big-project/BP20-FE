@@ -24,11 +24,11 @@ export default function ActionItemCard({ item, onComplete }: ActionItemCardProps
       className="bg-muted/50 hover:bg-muted/80 transition-colors rounded-xl p-3.5 cursor-pointer space-y-2 border border-transparent hover:border-border"
     >
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-[#246BFD]/10 flex items-center justify-center flex-shrink-0">
             <TrendingUp className="w-3.5 h-3.5 text-[#246BFD]" />
           </div>
-          <span className="text-sm font-semibold">{item.keyword}</span>
+          <span className="truncate text-sm font-semibold">{item.keyword}</span>
           <span
             className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
               item.priority === "HIGH"
@@ -40,7 +40,7 @@ export default function ActionItemCard({ item, onComplete }: ActionItemCardProps
           >
             {item.priority}
           </span>
-          <div className="flex items-center gap-3">
+          <div className="ml-auto flex shrink-0 items-center gap-3">
             <button 
                 disabled={!!item.executedAt}
                 onClick={(e) => {
@@ -68,9 +68,9 @@ export default function ActionItemCard({ item, onComplete }: ActionItemCardProps
       {isOpen && (
         <div className="pt-2 border-t border-border/50 text-xs space-y-1.5 text-muted-foreground animate-in fade-in-50 duration-200">
           <p>
-            <span className="text-[10px] bg-muted px-2 py-0.5 rounded text-muted-foreground font-medium">
+            {/* <span className="text-[10px] bg-muted px-2 py-0.5 rounded text-muted-foreground font-medium">
                 {ASPECT_MAP[item.aspect] || item.aspect}
-            </span>
+            </span> */}
           </p>
           <p>
             <strong className="text-foreground">원인:</strong> {item.problemCause}

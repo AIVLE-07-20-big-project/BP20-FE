@@ -12,6 +12,7 @@ import { StoreNoticePopover } from "../../features/notices/ui/StoreNoticePopover
 import { ApiError } from "../../shared/api/apiClient";
 import { LiveDateTime } from "../../shared/components/LiveDateTime";
 import { useAuth } from "../providers/AuthProvider";
+import { useStoreStore } from "@/stores/useStoreStore";
 
 const DASHBOARD_NAV = [
   { to: "/store", icon: LayoutDashboard, label: "점주 대시보드" },
@@ -57,14 +58,24 @@ export function StoreOwnerLayout() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const { setCurrentStoreId } = useStoreStore();
+
   useEffect(() => {
     if (isDemo) {
       setStoreIdentity(null);
+      setCurrentStoreId(1);
       return;
     }
 
     commerceApi.getStore()
-      .then(({ name, category }) => setStoreIdentity({ name, category }))
+      .then(({ name, category, id }) => {
+        setStoreIdentity({ name, category })
+        
+        if (id) {
+          setCurrentStoreId(id);
+        }
+      }
+    )
       .catch((error: unknown) => {
         if (!(error instanceof ApiError && error.status === 404)) {
           console.error("매장 정보를 불러오지 못했습니다.", error);

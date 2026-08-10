@@ -26,15 +26,9 @@ export default function ReviewList({ showEvidence, onlyUnanalyzed, reviewList, i
 
     const ITEMS_PER_PAGE = 6;
 
-
     useEffect(() => {
       setCurrentPage(1);
     }, [showEvidence, onlyUnanalyzed]);
-
-    if (isLoading)
-      return <div className="p-5 text-xs text-muted-foreground">리뷰 불러오는 중</div>;
-    if (error)
-      return <div className="p-5 text-xs text-red-500">{error}</div>
 
     const filteredList = onlyUnanalyzed
       ? reviewList.filter((r) => !r.isAnalyzed)
@@ -46,6 +40,11 @@ export default function ReviewList({ showEvidence, onlyUnanalyzed, reviewList, i
       ? filteredList.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
       : filteredList.slice(0, 3);
 
+    if (isLoading)
+      return <div className="p-5 text-xs text-muted-foreground">리뷰 불러오는 중</div>;
+    if (error)
+      return <div className="p-5 text-xs text-red-500">{error}</div>
+      
     if (displayedList.length === 0) {
       return (
         <div className="p-5 text-xs text-center text-muted-foreground">
@@ -53,7 +52,8 @@ export default function ReviewList({ showEvidence, onlyUnanalyzed, reviewList, i
         </div>
       )
     }
-    
+
+
     return(
         <div className="space-y-3">
           {displayedList.map((r) => (
