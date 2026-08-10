@@ -14,9 +14,8 @@ export function PrivacyPolicyPage() {
       icon={<ShieldCheck className="h-6 w-6" />}
       meta={`시행일 ${LEGAL_CONFIG.effectiveDate} · 버전 ${LEGAL_CONFIG.privacyPolicyVersion}`}
     >
-
       <LegalSection title="1. 개인정보의 처리 목적">
-        <p>Market Poke는 다음 목적에 필요한 범위에서만 개인정보를 처리하며, 목적이 변경되는 경우 관계 법령에 따른 조치를 이행합니다.</p>
+        <p>{LEGAL_CONFIG.serviceName}는 다음 목적에 필요한 범위에서만 개인정보를 처리하며, 목적이 변경되는 경우 관계 법령에 따른 조치를 이행합니다.</p>
         <ul className="list-disc space-y-1 pl-5">
           <li>초대 대상 확인, 회원가입, 로그인, 본인 식별 및 역할별 권한 관리</li>
           <li>점주 매장 등록·관리, 고객 관리, 할인 및 쿠폰 운영</li>
@@ -46,7 +45,7 @@ export function PrivacyPolicyPage() {
       </LegalSection>
 
       <LegalSection title="3. 개인정보의 제3자 제공">
-        <p>Market Poke는 원칙적으로 정보주체의 개인정보를 제3자에게 제공하지 않습니다. 법령에 특별한 근거가 있거나 정보주체가 별도로 동의한 경우에는 제공받는 자, 목적, 항목, 보유기간과 동의 거부권을 사전에 안내합니다.</p>
+        <p>{LEGAL_CONFIG.serviceName}은 원칙적으로 정보주체의 개인정보를 제3자에게 제공하지 않습니다. 법령에 특별한 근거가 있거나 정보주체가 별도로 동의한 경우에는 제공받는 자, 목적, 항목, 보유기간과 동의 거부권을 사전에 안내합니다.</p>
       </LegalSection>
 
       <LegalSection title="4. 개인정보 처리업무의 위탁 및 국외 처리">

@@ -256,8 +256,11 @@ export function SalesPage() {
       setAnalysis(result);
       sessionStorage.setItem(AI_ANALYSIS_ID_KEY, result.analysis_id);
       const target = (result.diagnosis?.["대상"] ?? {}) as Record<string, unknown>;
+      // 상권·업종·기준분기(공공데이터 분기)가 같은 분석이 여러 개 있어도(예: 전략
+      // 적용 전/후 비교) 구분할 수 있도록, 공공데이터 분기 코드 대신 실제 POS 업로드
+      // 기간(분석기간)을 우선 사용한다.
       const label = [
-        target["상권명"], target["업종명"], target["기준분기"],
+        target["상권명"], target["업종명"], result["분석기간"] ?? target["기준분기"],
       ]
         .filter(Boolean).join(" · ") || "최근 매출 분석";
       let previous: Array<{ id: string; label: string }> = [];

@@ -178,13 +178,6 @@ export function RecommendationHistoryPage() {
                 <h3 className="text-base font-bold">{reportRun.selected_action?.방안 ?? "추천 방안"} 리포트</h3>
                 <p className="mt-1 text-xs text-muted-foreground">{statusLabel(reportRun)} · 적용 기간: {periodLabel(reportRun)}</p>
               </div>
-              {!reportRun.final_report["error"] && (
-                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                  reportRun.final_report["verified"] ? "bg-[#0E9F6E]/10 text-[#0E9F6E]" : "bg-amber-50 text-amber-600"
-                }`}>
-                  {reportRun.final_report["verified"] ? "수치 검증됨" : "수치 재확인 필요"}
-                </span>
-              )}
             </div>
             {reportRun.final_report["error"] ? (
               <p className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-600">

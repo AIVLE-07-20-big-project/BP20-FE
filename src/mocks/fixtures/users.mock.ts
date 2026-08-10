@@ -1,4 +1,7 @@
 import type { User } from "../../entities/user/user.types";
+import { LEGAL_CONFIG } from "../../pages/legal/legalConfig";
+
+const PARTNER_CONSOLE_NAME = `${LEGAL_CONFIG.serviceName} 파트너 콘솔`;
 
 export const DEMO_USERS: User[] = [
   {
@@ -11,17 +14,16 @@ export const DEMO_USERS: User[] = [
   },
   {
     id: "u2",
-    name: "박관리",
-    email: "admin@bp20.com",
+    name: "박준혁",
+    email: "junhyuk@marketpoke.com",
     role: "ADMIN",
-    organizationName: "Market Poke 파트너 콘솔",
+    organizationName: PARTNER_CONSOLE_NAME,
   },
   {
     id: "u3",
-    name: "이관리",
-    email: "super-admin@bp20.com",
+    name: "이서연",
+    email: "seoyeon@marketpoke.com",
     role: "SUPER_ADMIN",
-    organizationName: "Market Poke 파트너 콘솔",
+    organizationName: PARTNER_CONSOLE_NAME,
   },
 ];
-
