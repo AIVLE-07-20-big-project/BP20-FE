@@ -31,10 +31,10 @@ export function PolicyFooter({ dark = false }: { dark?: boolean }) {
         <Link to="/open-source-licenses" className={linkClassName}>오픈소스 라이선스</Link>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
-        <span className={clsx("font-semibold", dark ? "text-white/55" : "text-foreground/70")}>BP20</span>
+        <span className={clsx("font-semibold", dark ? "text-white/55" : "text-foreground/70")}>Market Poke</span>
         <span>개인정보 처리방침 버전 {LEGAL_CONFIG.privacyPolicyVersion}</span>
         <span aria-hidden="true" className={dark ? "text-white/15" : "text-border"}>|</span>
-        <span>© 2026 BP20. All rights reserved.</span>
+        <span>© 2026 Market Poke. All rights reserved.</span>
       </div>
     </footer>
   );

@@ -9,7 +9,7 @@ declare global {
   }
 }
 
-const SCRIPT_ID = "bp20-recaptcha-v3";
+const SCRIPT_ID = "Market Poke-recaptcha-v3";
 let scriptLoadingPromise: Promise<void> | null = null;
 let activeCaptchaViews = 0;
 

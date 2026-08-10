@@ -9,6 +9,7 @@ import {
   initializeRecaptcha,
 } from "../../features/auth/lib/recaptchaV3";
 import { DEMO_USERS } from "../../mocks";
+import { RecaptchaNotice } from "../../shared/components/RecaptchaNotice";
 import { RECAPTCHA_SITE_KEY } from "../../shared/config/runtimeEnv";
 import { AuthLayout } from "./components/AuthLayout";
 import { PasswordField } from "./components/PasswordField";
@@ -158,27 +159,9 @@ export function LoginPage() {
       </p>
 
       {RECAPTCHA_SITE_KEY && (
-        <p className="mt-3 text-center text-[10px] leading-4 text-muted-foreground">
-          이 사이트는 reCAPTCHA로 보호되며 Google의{" "}
-          <a
-            href="https://policies.google.com/privacy"
-            target="_blank"
-            rel="noreferrer"
-            className="font-semibold hover:underline"
-          >
-            개인정보처리방침
-          </a>
-          과{" "}
-          <a
-            href="https://policies.google.com/terms"
-            target="_blank"
-            rel="noreferrer"
-            className="font-semibold hover:underline"
-          >
-            서비스 약관
-          </a>
-          이 적용됩니다.
-        </p>
+        <div className="mt-4">
+          <RecaptchaNotice />
+        </div>
       )}
 
       <div className="mt-8 border-t border-border pt-6">
