@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useOutletContext } from "react-router-dom";
 import { Star, TrendingUp, AlertCircle, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
 import { PageShell } from "../../../shared/components/PageShell";
@@ -7,7 +8,7 @@ import { analyzeRequest, AspectStat, generateMonthlyReport, getAspectStat, getMo
 import AspectBarChart from "./components/AspectBarChart";
 import ReviewKeyword from "./components/ReviewKeyword";
 import AIRecommendation from "./components/AIRecommendation";
-import { useStoreStore } from "@/stores/useStoreStore";
+import type { StoreOwnerLayoutContext } from "../../../app/layouts/StoreOwnerLayout";
 
 const ASPECT_DATA = [
   { aspect: "맛", score: 4.7, prev: 4.6 },
@@ -59,7 +60,7 @@ export function ReviewsPage() {
   const [statLoading, setStatLoading] = useState<boolean>(true);
   const [statError, setStatError] = useState<string | null>(null);
 
-  const storeId = useStoreStore((state) => state.currentStoreId);
+  const { currentStoreId: storeId } = useOutletContext<StoreOwnerLayoutContext>();
   const previousMonth = (() => {
     const date = new Date();
     date.setMonth(date.getMonth() - 1);
@@ -286,7 +287,7 @@ export function ReviewsPage() {
 
       {/* Topic clusters */}
       <div className="bg-card border border-border rounded-2xl p-5 mb-4">
-        <ReviewKeyword />
+        <ReviewKeyword storeId={storeId} />
       </div>
 
       {/* Recent reviews */}
@@ -340,7 +341,7 @@ export function ReviewsPage() {
                 : `${previousMonth} 월간 리포트 생성`}
           </button>
         </div>
-        <AIRecommendation />
+        <AIRecommendation storeId={storeId} />
         <p className="text-[11px] text-muted-foreground/60 mt-3">※ AI 추정치이며 실제 효과는 다를 수 있습니다.</p>
       </div>
     </PageShell>

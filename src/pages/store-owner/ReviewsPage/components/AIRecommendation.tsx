@@ -2,17 +2,14 @@ import { useEffect, useState } from "react";
 import { getRecommendations, patchCompleteActionItem, Recommendations } from "../api/review";
 import { Loader2, TrendingUp } from "lucide-react";
 import ActionItemCard from "./ActionItemCard";
-import { useStoreStore } from "@/stores/useStoreStore";
 
-export default function AIRecommendation() {
+export default function AIRecommendation({ storeId }: { storeId: number | null }) {
     
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
     const [data, setData] = useState<Recommendations | null>(null);
 
-      const storeId = useStoreStore((state) => state.currentStoreId);
-    
       if (!storeId) return (
         <div>매장 정보를 불러오는 중입니다...</div>
       );

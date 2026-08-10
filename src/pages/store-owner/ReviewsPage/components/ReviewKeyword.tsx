@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import { getReviewKeywords, ReviewKeywords } from "../api/review";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { useStoreStore } from "@/stores/useStoreStore";
 
 interface Review {
     
 }
 
-export default function ReviewKeyword() {
+export default function ReviewKeyword({ storeId }: { storeId: number | null }) {
 
     const [reviewKeywords, setReviewKeywords] = useState<ReviewKeywords[]>([]);
 
@@ -15,8 +14,6 @@ export default function ReviewKeyword() {
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<boolean>(false);
     
-    const storeId = useStoreStore((state) => state.currentStoreId);
-
     if (!storeId) return (
     <div>매장 정보를 불러오는 중입니다...</div>
     );
