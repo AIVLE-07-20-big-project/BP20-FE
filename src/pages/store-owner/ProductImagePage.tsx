@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Upload, Sparkles, Loader2, AlertCircle, Download, ImageIcon } from "lucide-react";
+import { ArrowLeft, Upload, Sparkles, Loader2, AlertCircle, Download, ImageIcon, CheckCircle2 } from "lucide-react";
 import { PageShell } from "@/shared/components/PageShell";
 import { ApiError } from "@/shared/api/apiClient";
 import { generateProductImage, getProductImageCategories } from "@/entities/product-image/product-image.api";
+import { commerceApi } from "@/features/commerce/api/commerceApi";
+import type { Product } from "@/entities/commerce/commerce.types";
 
 export function ProductImagePage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [prompt, setPrompt] = useState("");
 
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -16,6 +19,12 @@ export function ProductImagePage() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
+
+  const [products, setProducts] = useState<Product[]>([]);
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [applying, setApplying] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
+  const [applySuccess, setApplySuccess] = useState(false);
 
   useEffect(() => {
     getProductImageCategories()
@@ -25,6 +34,10 @@ export function ProductImagePage() {
       })
       .catch(() => setCategories([]))
       .finally(() => setCategoriesLoading(false));
+
+    commerceApi.getProducts()
+      .then(setProducts)
+      .catch(() => setProducts([]));
   }, []);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -44,12 +57,14 @@ export function ProductImagePage() {
     if (!file || !selectedCategory) return;
     setGenerating(true);
     setError(null);
+    setApplyError(null);
+    setApplySuccess(false);
     try {
-      const blob = await generateProductImage(file, selectedCategory);
-      if (resultUrl) URL.revokeObjectURL(resultUrl);
-      setResultUrl(URL.createObjectURL(blob));
+      const result = await generateProductImage(file, selectedCategory, prompt);
+      setResultUrl(result.imageUrl);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "이미지 생성 중 오류가 발생했습니다.");
+      setResultUrl(null);
     } finally {
       setGenerating(false);
     }
@@ -60,9 +75,35 @@ export function ProductImagePage() {
     const a = document.createElement("a");
     a.href = resultUrl;
     a.download = `상품이미지_${selectedCategory || "생성결과"}.png`;
+    a.target = "_blank";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  };
+
+  const handleApplyToProduct = async () => {
+    if (!resultUrl || !selectedProductId) return;
+    const product = products.find(p => String(p.id) === selectedProductId);
+    if (!product) return;
+
+    setApplying(true);
+    setApplyError(null);
+    setApplySuccess(false);
+    try {
+      const updated = await commerceApi.updateProduct(product.id, {
+        name: product.name,
+        description: product.description ?? "",
+        price: product.price,
+        stockQuantity: product.stockQuantity,
+        imageUrl: resultUrl,
+      });
+      setProducts(prev => prev.map(p => (p.id === updated.id ? updated : p)));
+      setApplySuccess(true);
+    } catch (err) {
+      setApplyError(err instanceof ApiError ? err.message : "상품에 이미지를 저장하는 중 오류가 발생했습니다.");
+    } finally {
+      setApplying(false);
+    }
   };
 
   return (
@@ -119,22 +160,31 @@ export function ProductImagePage() {
             </span>
           </label>
 
-          <h3 className="font-bold text-sm mt-5 mb-3">2. 메뉴 카테고리 선택</h3>
-          {categoriesLoading ? (
-            <p className="text-xs text-muted-foreground">카테고리 불러오는 중...</p>
-          ) : categories.length === 0 ? (
-            <p className="text-xs text-muted-foreground">카테고리 목록을 불러오지 못했습니다.</p>
-          ) : (
-            <select
-              value={selectedCategory}
-              onChange={e => setSelectedCategory(e.target.value)}
-              className="w-full h-10 px-3 text-sm bg-muted rounded-xl border border-border focus:outline-none"
-            >
-              {categories.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
+          <h3 className="font-bold text-sm mt-5 mb-3">2. 메뉴 카테고리</h3>
+          <input
+            list="product-image-category-presets"
+            value={selectedCategory}
+            onChange={e => setSelectedCategory(e.target.value)}
+            placeholder="메뉴명을 입력하세요 (예: 아메리카노)"
+            className="w-full h-10 px-3 text-sm bg-muted rounded-xl border border-border focus:outline-none"
+          />
+          <datalist id="product-image-category-presets">
+            {categories.map(c => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+          {categoriesLoading && (
+            <p className="mt-1.5 text-xs text-muted-foreground">추천 카테고리 불러오는 중...</p>
           )}
+
+          <h3 className="font-bold text-sm mt-5 mb-3">3. 프롬프트 (선택, 비우면 기본값 사용)</h3>
+          <textarea
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            placeholder="배경/분위기를 직접 지정하고 싶으면 영어로 입력하세요."
+            rows={4}
+            className="w-full px-3 py-2 text-sm bg-muted rounded-xl border border-border focus:outline-none resize-none"
+          />
 
           <button
             onClick={() => void handleGenerate()}
@@ -174,7 +224,7 @@ export function ProductImagePage() {
                 <ImageIcon className="w-6 h-6 text-muted-foreground" />
               </div>
               <p className="text-sm text-muted-foreground max-w-xs">
-                왼쪽에서 사진을 올리고 카테고리를 선택한 뒤 "AI 이미지 생성"을 누르면, 배경이 합성된 결과가 여기에 표시됩니다.
+                왼쪽에서 사진을 올리고 카테고리를 입력한 뒤 "AI 이미지 생성"을 누르면, 배경이 합성된 결과가 여기에 표시됩니다.
               </p>
             </div>
           )}
@@ -187,7 +237,53 @@ export function ProductImagePage() {
           )}
 
           {resultUrl && !generating && (
-            <img src={resultUrl} alt="AI가 생성한 상품 이미지" className="w-full rounded-xl border border-border" />
+            <>
+              <img src={resultUrl} alt="AI가 생성한 상품 이미지" className="w-full rounded-xl border border-border" />
+
+              <h3 className="font-bold text-sm mt-5 mb-3">4. 메뉴에 저장</h3>
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedProductId}
+                  onChange={e => {
+                    setSelectedProductId(e.target.value);
+                    setApplySuccess(false);
+                    setApplyError(null);
+                  }}
+                  className="flex-1 h-10 px-3 text-sm bg-muted rounded-xl border border-border focus:outline-none"
+                >
+                  <option value="">저장할 상품을 선택하세요</option>
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => void handleApplyToProduct()}
+                  disabled={!selectedProductId || applying}
+                  className="flex items-center gap-1.5 text-sm bg-[#8B5CF6] text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-[#7C3AED] disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                >
+                  {applying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  이 상품에 저장
+                </button>
+              </div>
+
+              {products.length === 0 && (
+                <p className="mt-1.5 text-xs text-muted-foreground">등록된 상품이 없습니다. 매장·커머스에서 먼저 상품을 등록해주세요.</p>
+              )}
+
+              {applySuccess && (
+                <div className="mt-3 bg-[#0E9F6E]/10 border border-[#0E9F6E]/20 rounded-xl p-3 flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-[#0E9F6E] flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-[#0E9F6E]">상품 이미지로 저장했습니다.</p>
+                </div>
+              )}
+
+              {applyError && (
+                <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-red-700">{applyError}</p>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   Upload, CheckCircle2, AlertCircle, Edit3, FileText,
-  ChevronRight, Sparkles, TrendingUp, ExternalLink, Info, Loader2, Download
+  ChevronRight, ChevronLeft, Sparkles, Loader2, Download, Plus, Trash2, Check, X, Save,
 } from "lucide-react";
 import { ApiError } from "@/shared/api/apiClient";
-import { createReceipt, getLedgerReportHtml, getReceipts, parseReceiptImage } from "@/entities/receipt/receipt.api";
+import {
+  createReceipt, deleteReceipt, getLedgerReportHtml, getReceipt, getReceipts,
+  parseReceiptImage, updateReceipt,
+} from "@/entities/receipt/receipt.api";
+import { commerceApi } from "@/features/commerce/api/commerceApi";
 import type {
   ReceiptItemData,
   ReceiptParseResult,
@@ -13,8 +16,15 @@ import type {
   ReportType,
 } from "@/entities/receipt/receipt.types";
 
-// TODO: 로그인/매장 선택 기능이 붙으면 실제 storeId로 교체
-const STORE_ID = 1;
+const HISTORY_PAGE_SIZE = 30;
+
+/** 업로드 내역 인라인 수정 시 편집 가능한 필드 (테이블에 보이는 컬럼만) */
+interface HistoryEditDraft {
+  transactionDate: string;
+  vendorName: string;
+  totalAmount: string;
+  category: string;
+}
 
 type Step = "inbox" | "uploading" | "review" | "saving" | "done";
 
@@ -67,14 +77,64 @@ function toEditableForm(result: ReceiptParseResult) {
 
 type EditableForm = ReturnType<typeof toEditableForm>;
 
+function responseToEditableForm(receipt: ReceiptResponse): EditableForm {
+  return toEditableForm({
+    documentType: receipt.documentType,
+    storeName: receipt.vendorName,
+    businessNumber: receipt.businessNumber,
+    transactionDate: receipt.transactionDate,
+    transactionTime: receipt.transactionTime,
+    paymentMethod: receipt.paymentMethod,
+    category: receipt.category,
+    items: receipt.items,
+    supplyAmount: receipt.supplyAmount,
+    vat: receipt.vat,
+    taxFreeAmount: receipt.taxFreeAmount,
+    totalAmount: receipt.totalAmount,
+  });
+}
+
+function ItemEditor({ items, onChange }: { items: ReceiptItemData[]; onChange: (items: ReceiptItemData[]) => void }) {
+  const updateItem = (index: number, patch: Partial<ReceiptItemData>) =>
+    onChange(items.map((item, i) => i === index ? { ...item, ...patch } : item));
+  const numberValue = (value: string) => Number(value.replace(/[^0-9-]/g, "")) || 0;
+
+  return (
+    <div className="space-y-2">
+      {items.length === 0 && <p className="text-xs text-muted-foreground">등록된 품목이 없습니다.</p>}
+      {items.map((item, index) => (
+        <div key={index} className="grid grid-cols-12 gap-2 items-center rounded-xl bg-muted/50 p-2">
+          <input aria-label={`${index + 1}번 품목명`} value={item.itemName}
+            onChange={e => updateItem(index, { itemName: e.target.value })}
+            className="col-span-12 sm:col-span-6 h-8 px-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:border-[#246BFD]" />
+          <input aria-label={`${index + 1}번 수량`} type="number" min={1} value={item.quantity}
+            onChange={e => updateItem(index, { quantity: numberValue(e.target.value) })}
+            className="col-span-3 sm:col-span-1 h-8 px-2 text-xs bg-background border border-border rounded-lg" />
+          <input aria-label={`${index + 1}번 단가`} type="number" value={item.unitPrice ?? 0}
+            onChange={e => updateItem(index, { unitPrice: numberValue(e.target.value) })}
+            className="col-span-4 sm:col-span-2 h-8 px-2 text-xs bg-background border border-border rounded-lg" />
+          <input aria-label={`${index + 1}번 금액`} type="number" value={item.totalPrice}
+            onChange={e => updateItem(index, { totalPrice: numberValue(e.target.value) })}
+            className="col-span-4 sm:col-span-2 h-8 px-2 text-xs bg-background border border-border rounded-lg" />
+          <button aria-label={`${index + 1}번 품목 삭제`} onClick={() => onChange(items.filter((_, i) => i !== index))}
+            className="col-span-1 p-1.5 text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+        </div>
+      ))}
+      <button onClick={() => onChange([...items, { itemName: "새 품목", quantity: 1, unit: null, unitPrice: 0, totalPrice: 0 }])}
+        className="flex items-center gap-1 text-xs font-semibold text-[#246BFD] hover:underline">
+        <Plus className="w-3.5 h-3.5" /> 품목 추가
+      </button>
+    </div>
+  );
+}
+
 export function LedgerPage() {
-  const navigate = useNavigate();
   const [step, setStep] = useState<Step>("inbox");
   const [editField, setEditField] = useState<string | null>(null);
-  const [savingsOpen, setSavingsOpen] = useState(false);
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
 
   const [ocrText, setOcrText] = useState<string[]>([]);
+  const [processedImage, setProcessedImage] = useState<string | null>(null);
   const [form, setForm] = useState<EditableForm | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
@@ -82,6 +142,24 @@ export function LedgerPage() {
 
   const [history, setHistory] = useState<ReceiptResponse[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyPage, setHistoryPage] = useState(0);
+  const [historyTotalPages, setHistoryTotalPages] = useState(0);
+  const [historyTotalElements, setHistoryTotalElements] = useState(0);
+  const [editingReceiptId, setEditingReceiptId] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState<HistoryEditDraft | null>(null);
+  const [rowActionError, setRowActionError] = useState<string | null>(null);
+  const [rowActionLoading, setRowActionLoading] = useState(false);
+
+  // 로그인한 점주에게 귀속된 실제 매장 id (하드코딩 금지 - 매장마다 다름)
+  const [storeId, setStoreId] = useState<number | null>(null);
+  const [storeIdError, setStoreIdError] = useState<string | null>(null);
+
+  // 행 클릭 시 여는 상세 수정 모달(품목까지 전체 수정) — 인라인 수정(빠른 필드만)과 별개.
+  const [historyReceiptId, setHistoryReceiptId] = useState<number | null>(null);
+  const [historyForm, setHistoryForm] = useState<EditableForm | null>(null);
+  const [historyDetailLoading, setHistoryDetailLoading] = useState(false);
+  const [historySaving, setHistorySaving] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   // AI 가계부 리포트 (기간 선택 가능, HTML로 렌더링)
   const now = new Date();
@@ -112,10 +190,14 @@ export function LedgerPage() {
   };
 
   const generateReport = async () => {
+    if (!storeId) {
+      setReportError("매장 정보를 아직 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
     setReportLoading(true);
     setReportError(null);
     try {
-      const html = await getLedgerReportHtml(STORE_ID, {
+      const html = await getLedgerReportHtml(storeId, {
         reportType,
         year: reportYear,
         month: reportType === "monthly" ? reportMonth : undefined,
@@ -133,21 +215,118 @@ export function LedgerPage() {
   const stepKeys: Step[] = ["inbox", "uploading", "review", "saving", "done"];
   const currentStepIdx = stepKeys.indexOf(step);
 
-  const loadHistory = () => {
+  const loadHistory = (currentStoreId: number, page = 0) => {
     setHistoryLoading(true);
-    getReceipts(STORE_ID)
-      .then(setHistory)
-      .catch(() => setHistory([]))
+    getReceipts(currentStoreId, page, HISTORY_PAGE_SIZE)
+      .then((result) => {
+        setHistory(result.content);
+        setHistoryPage(result.page);
+        setHistoryTotalPages(result.totalPages);
+        setHistoryTotalElements(result.totalElements);
+      })
+      .catch(() => {
+        setHistory([]);
+        setHistoryTotalPages(0);
+        setHistoryTotalElements(0);
+      })
       .finally(() => setHistoryLoading(false));
   };
 
+  const goToHistoryPage = (page: number) => {
+    if (!storeId || page < 0 || page >= historyTotalPages) return;
+    setEditingReceiptId(null);
+    setEditDraft(null);
+    loadHistory(storeId, page);
+  };
+
+  const startEditReceipt = (row: ReceiptResponse) => {
+    setRowActionError(null);
+    setEditingReceiptId(row.receiptId);
+    setEditDraft({
+      transactionDate: row.transactionDate,
+      vendorName: row.vendorName ?? "",
+      totalAmount: String(row.totalAmount),
+      category: row.category,
+    });
+  };
+
+  const cancelEditReceipt = () => {
+    setEditingReceiptId(null);
+    setEditDraft(null);
+    setRowActionError(null);
+  };
+
+  const saveEditReceipt = async (row: ReceiptResponse) => {
+    if (!editDraft) return;
+    const totalAmount = Number(editDraft.totalAmount);
+    if (!Number.isFinite(totalAmount) || totalAmount < 0) {
+      setRowActionError("총금액을 올바르게 입력해주세요.");
+      return;
+    }
+    setRowActionLoading(true);
+    setRowActionError(null);
+    try {
+      await updateReceipt(row.receiptId, {
+        documentType: row.documentType,
+        storeName: editDraft.vendorName || null,
+        businessNumber: row.businessNumber,
+        transactionDate: editDraft.transactionDate,
+        transactionTime: row.transactionTime,
+        paymentMethod: row.paymentMethod,
+        items: row.items,
+        supplyAmount: row.supplyAmount,
+        vat: row.vat,
+        taxFreeAmount: row.taxFreeAmount,
+        totalAmount,
+        category: editDraft.category,
+      });
+      setEditingReceiptId(null);
+      setEditDraft(null);
+      if (storeId) loadHistory(storeId, historyPage);
+    } catch (error) {
+      setRowActionError(error instanceof ApiError ? error.message : "수정 중 오류가 발생했습니다.");
+    } finally {
+      setRowActionLoading(false);
+    }
+  };
+
+  const handleDeleteReceipt = async (row: ReceiptResponse) => {
+    if (!window.confirm(`${formatShortDate(row.transactionDate)} · ${row.vendorName ?? "상호명 없음"} 영수증을 삭제할까요?`)) {
+      return;
+    }
+    setRowActionLoading(true);
+    setRowActionError(null);
+    try {
+      await deleteReceipt(row.receiptId);
+      if (!storeId) return;
+      const isLastItemOnPage = history.length === 1 && historyPage > 0;
+      loadHistory(storeId, isLastItemOnPage ? historyPage - 1 : historyPage);
+    } catch (error) {
+      setRowActionError(error instanceof ApiError ? error.message : "삭제 중 오류가 발생했습니다.");
+    } finally {
+      setRowActionLoading(false);
+    }
+  };
+
   useEffect(() => {
-    loadHistory();
+    commerceApi.getStore()
+      .then((store) => {
+        setStoreId(store.id);
+        setStoreIdError(null);
+      })
+      .catch(() => {
+        setStoreIdError("매장 정보를 불러오지 못했습니다. 매장 등록 여부를 확인해주세요.");
+      });
   }, []);
+
+  useEffect(() => {
+    if (storeId) loadHistory(storeId, 0);
+  }, [storeId]);
 
   const resetToInbox = () => {
     setStep("inbox");
     setOcrText([]);
+    setProcessedImage(null);
     setForm(null);
     setErrorMessage(null);
     setDuplicateWarning(null);
@@ -156,10 +335,12 @@ export function LedgerPage() {
 
   const handleFileSelected = async (file: File) => {
     setErrorMessage(null);
+    setProcessedImage(null);
     setStep("uploading");
     try {
       const parsed = await parseReceiptImage(file);
       setOcrText(parsed.ocrText);
+      setProcessedImage(parsed.processedImage);
       setForm(toEditableForm(parsed.result));
       setStep("review");
     } catch (error) {
@@ -178,13 +359,60 @@ export function LedgerPage() {
     setForm(prev => (prev ? { ...prev, [key]: value } : prev));
   };
 
+  const openHistoryReceipt = async (receiptId: number) => {
+    setHistoryReceiptId(receiptId);
+    setHistoryForm(null);
+    setHistoryError(null);
+    setHistoryDetailLoading(true);
+    try {
+      setHistoryForm(responseToEditableForm(await getReceipt(receiptId)));
+    } catch (error) {
+      setHistoryError(error instanceof ApiError ? error.message : "영수증 상세 정보를 불러오지 못했습니다.");
+    } finally {
+      setHistoryDetailLoading(false);
+    }
+  };
+
+  const saveHistoryReceipt = async () => {
+    if (historyReceiptId === null || !historyForm) return;
+    setHistorySaving(true);
+    setHistoryError(null);
+    try {
+      await updateReceipt(historyReceiptId, {
+        documentType: historyForm.documentType,
+        storeName: historyForm.storeName || null,
+        businessNumber: historyForm.businessNumber || null,
+        transactionDate: historyForm.transactionDate,
+        transactionTime: historyForm.transactionTime || null,
+        paymentMethod: historyForm.paymentMethod,
+        category: historyForm.category,
+        items: historyForm.items,
+        supplyAmount: historyForm.supplyAmount,
+        vat: historyForm.vat,
+        taxFreeAmount: historyForm.taxFreeAmount,
+        totalAmount: historyForm.totalAmount,
+      });
+      setHistoryReceiptId(null);
+      setHistoryForm(null);
+      if (storeId) loadHistory(storeId, historyPage);
+    } catch (error) {
+      setHistoryError(error instanceof ApiError ? error.message : "영수증 수정 내용을 저장하지 못했습니다.");
+    } finally {
+      setHistorySaving(false);
+    }
+  };
+
   const submitReceipt = async (force: boolean) => {
     if (!form) return;
+    if (!storeId) {
+      setErrorMessage("매장 정보를 아직 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
     setStep("saving");
     setErrorMessage(null);
     try {
       const saved = await createReceipt({
-        storeId: STORE_ID,
+        storeId,
         documentType: form.documentType,
         storeName: form.storeName || null,
         businessNumber: form.businessNumber || null,
@@ -202,7 +430,7 @@ export function LedgerPage() {
       setSavedReceipt(saved);
       setDuplicateWarning(null);
       setStep("done");
-      loadHistory();
+      loadHistory(storeId);
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
         setDuplicateWarning(error.message);
@@ -222,6 +450,13 @@ export function LedgerPage() {
           <h1 className="text-2xl font-bold">AI 가계부 · 영수증 관리</h1>
           <p className="text-sm text-muted-foreground mt-0.5">영수증과 거래명세서를 업로드하면 AI가 지출 항목과 원가 정보를 자동으로 분류합니다.</p>
         </div>
+
+        {storeIdError && (
+          <div className="mb-5 flex items-center gap-2 px-4 py-3 rounded-xl bg-red-50 text-red-600 text-sm">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            {storeIdError}
+          </div>
+        )}
 
         {/* Two-column top area */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
@@ -343,20 +578,7 @@ export function LedgerPage() {
 
                 <div className="bg-card border border-border rounded-2xl p-4">
                   <h4 className="font-bold text-sm mb-3">품목 ({form.items.length}건)</h4>
-                  <div className="space-y-2">
-                    {form.items.length === 0 && (
-                      <p className="text-xs text-muted-foreground">인식된 품목이 없습니다. 필요하면 영수증을 다시 촬영해서 업로드해주세요.</p>
-                    )}
-                    {form.items.map((item: ReceiptItemData, i: number) => (
-                      <div key={`${item.itemName}-${i}`} className="flex items-center justify-between text-xs">
-                        <span className="flex-1 text-foreground">{item.itemName}</span>
-                        <span className="text-muted-foreground mr-4">
-                          {item.quantity}{item.unit ?? "개"} × ₩{(item.unitPrice ?? 0).toLocaleString()}
-                        </span>
-                        <span className="font-semibold tabular-nums">₩{item.totalPrice.toLocaleString()}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <ItemEditor items={form.items} onChange={items => updateField("items", items)} />
                   <div className="border-t border-border mt-3 pt-3 space-y-1 text-xs">
                     <div className="flex justify-between text-muted-foreground"><span>공급가액</span><span className="tabular-nums">₩{(form.supplyAmount ?? 0).toLocaleString()}</span></div>
                     <div className="flex justify-between text-muted-foreground"><span>부가세</span><span className="tabular-nums">₩{(form.vat ?? 0).toLocaleString()}</span></div>
@@ -403,75 +625,25 @@ export function LedgerPage() {
             )}
           </div>
 
-          {/* AI Insight panel — 1/3 */}
-          <div className="space-y-3">
-            <h3 className="font-bold text-sm flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
-              AI 지출·원가 인사이트
-            </h3>
-
-            {/* Insight card 1 */}
-            <div className="bg-card border border-border rounded-2xl p-4">
-              <div className="flex items-start gap-2.5 mb-3">
-                <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
-                  <TrendingUp className="w-4 h-4 text-amber-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="text-xs font-bold">식재료 원가 상승</span>
-                    <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">주의</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">원가 페이지에서 매입 단가 변화를 확인해보세요.</p>
-                </div>
+          {/* OCR에 실제 사용된 전처리 이미지 — 1/3 */}
+          <aside className="bg-card border border-border rounded-2xl p-4 min-h-[24rem] flex flex-col">
+            <h3 className="font-bold text-sm mb-3">전처리 이미지</h3>
+            {processedImage ? (
+              <div className="flex-1 min-h-0 rounded-xl bg-muted/40 overflow-auto p-2 flex items-start justify-center">
+                <img
+                  src={processedImage}
+                  alt="OCR 분석에 사용된 전처리 영수증"
+                  className="max-w-full h-auto rounded-lg shadow-sm"
+                />
               </div>
-              <button
-                onClick={() => navigate("/store/cost")}
-                className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-[#246BFD] bg-[#246BFD]/8 hover:bg-[#246BFD]/15 py-2 rounded-xl transition-colors"
-              >
-                원가 상세보기 <ExternalLink className="w-3 h-3" />
-              </button>
-            </div>
-
-            {/* Insight card 2 */}
-            <div className="bg-card border border-border rounded-2xl p-4">
-              <div className="flex items-start gap-2.5 mb-3">
-                <div className="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
-                  <AlertCircle className="w-4 h-4 text-red-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="text-xs font-bold">예산/이상지출 확인</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">이번 달 예산 초과 여부와 이상 지출을 확인해보세요.</p>
-                </div>
+            ) : (
+              <div className="flex-1 rounded-xl border-2 border-dashed border-border bg-muted/20 flex flex-col items-center justify-center px-6 text-center">
+                <FileText className="w-9 h-9 text-muted-foreground/50 mb-3" />
+                <p className="text-sm font-semibold text-muted-foreground">전처리 이미지 미리보기</p>
+                <p className="text-xs text-muted-foreground/70 mt-1">영수증을 업로드하면 OCR에 사용된 이미지가 표시됩니다.</p>
               </div>
-              <button
-                onClick={() => navigate("/store/cost")}
-                className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-[#246BFD] bg-[#246BFD]/8 hover:bg-[#246BFD]/15 py-2 rounded-xl transition-colors"
-              >
-                지출 내역보기 <ExternalLink className="w-3 h-3" />
-              </button>
-            </div>
-
-            {/* Savings estimate */}
-            <div className="bg-[#246BFD]/5 border border-[#246BFD]/15 rounded-2xl p-4">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold">이번 달 절감 가능 금액</span>
-                  <span className="text-[10px] font-bold text-[#8B5CF6] bg-[#8B5CF6]/10 px-1.5 py-0.5 rounded">AI 분석</span>
-                </div>
-                <button onClick={() => setSavingsOpen(o => !o)} className="text-muted-foreground hover:text-foreground">
-                  <Info className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <div className="text-2xl font-black text-[#246BFD] tabular-nums">준비 중</div>
-              {savingsOpen && (
-                <div className="mt-2 text-[11px] text-muted-foreground bg-white/60 rounded-xl p-2.5 space-y-0.5">
-                  <p>· 절감액 추정 기능은 원가·매입단가 분석과 함께 준비 중입니다.</p>
-                </div>
-              )}
-            </div>
-          </div>
+            )}
+          </aside>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -480,47 +652,170 @@ export function LedgerPage() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <h3 className="font-bold">최근 업로드 내역</h3>
-              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full font-semibold">{history.length}건</span>
+              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full font-semibold">{historyTotalElements}건</span>
             </div>
           </div>
+
+          {rowActionError && (
+            <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+              {rowActionError}
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border">
-                  {["상태", "날짜", "상호명", "총금액", "분류"].map(h => (
+                  {["상태", "날짜", "상호명", "총금액", "분류", ""].map(h => (
                     <th key={h} className="text-left text-muted-foreground font-semibold pb-2 pr-4 last:pr-0">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {historyLoading && (
-                  <tr><td colSpan={5} className="py-6 text-center text-muted-foreground">불러오는 중...</td></tr>
+                  <tr><td colSpan={6} className="py-6 text-center text-muted-foreground">불러오는 중...</td></tr>
                 )}
                 {!historyLoading && history.length === 0 && (
-                  <tr><td colSpan={5} className="py-6 text-center text-muted-foreground">아직 등록된 영수증이 없습니다.</td></tr>
+                  <tr><td colSpan={6} className="py-6 text-center text-muted-foreground">아직 등록된 영수증이 없습니다.</td></tr>
                 )}
                 {history.map((row, i) => {
                   const meta = STATUS_META[row.status];
+                  const isEditing = editingReceiptId === row.receiptId;
                   return (
                     <tr
                       key={row.receiptId}
+                      onClick={() => {
+                        // 인라인 수정 중인 행은 클릭해도 상세 모달을 열지 않는다 — 안 그러면
+                        // 입력창을 클릭할 때마다 모달이 같이 열려버린다.
+                        if (!isEditing) void openHistoryReceipt(row.receiptId);
+                      }}
                       onMouseEnter={() => setHoveredRow(i)}
                       onMouseLeave={() => setHoveredRow(null)}
-                      className={`border-b border-border last:border-0 transition-colors ${hoveredRow === i ? "bg-muted/50" : ""}`}
+                      title={isEditing ? undefined : "상세 정보 보기 및 수정"}
+                      className={`border-b border-border last:border-0 transition-colors ${isEditing ? "" : "cursor-pointer"} ${hoveredRow === i ? "bg-muted/50" : ""}`}
                     >
                       <td className="py-3 pr-4">
-                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${meta.color}`}>{meta.label}</span>
+                        <span className={`inline-block whitespace-nowrap text-[11px] font-bold px-2 py-0.5 rounded-full ${meta.color}`}>{meta.label}</span>
                       </td>
-                      <td className="py-3 pr-4 text-muted-foreground font-medium">{formatShortDate(row.transactionDate)}</td>
-                      <td className="py-3 pr-4 font-semibold text-foreground">{row.vendorName ?? "-"}</td>
-                      <td className="py-3 pr-4 font-bold tabular-nums">₩{row.totalAmount.toLocaleString()}</td>
-                      <td className="py-3 pr-4 text-muted-foreground">{row.category}</td>
+                      {isEditing && editDraft ? (
+                        <>
+                          <td className="py-2 pr-4">
+                            <input
+                              type="date"
+                              value={editDraft.transactionDate}
+                              onChange={e => setEditDraft({ ...editDraft, transactionDate: e.target.value })}
+                              className="w-28 h-7 px-1.5 text-xs bg-muted rounded-lg border border-[#246BFD]/40 focus:outline-none"
+                            />
+                          </td>
+                          <td className="py-2 pr-4">
+                            <input
+                              value={editDraft.vendorName}
+                              onChange={e => setEditDraft({ ...editDraft, vendorName: e.target.value })}
+                              className="w-24 h-7 px-1.5 text-xs bg-muted rounded-lg border border-[#246BFD]/40 focus:outline-none"
+                            />
+                          </td>
+                          <td className="py-2 pr-4">
+                            <input
+                              type="number"
+                              value={editDraft.totalAmount}
+                              onChange={e => setEditDraft({ ...editDraft, totalAmount: e.target.value })}
+                              className="w-20 h-7 px-1.5 text-xs bg-muted rounded-lg border border-[#246BFD]/40 focus:outline-none"
+                            />
+                          </td>
+                          <td className="py-2 pr-4">
+                            <input
+                              value={editDraft.category}
+                              onChange={e => setEditDraft({ ...editDraft, category: e.target.value })}
+                              className="w-20 h-7 px-1.5 text-xs bg-muted rounded-lg border border-[#246BFD]/40 focus:outline-none"
+                            />
+                          </td>
+                          <td className="py-3 pr-0">
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => void saveEditReceipt(row)}
+                                disabled={rowActionLoading}
+                                className="p-1 rounded text-[#0E9F6E] hover:bg-[#0E9F6E]/10 disabled:opacity-50"
+                                title="저장"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={cancelEditReceipt}
+                                disabled={rowActionLoading}
+                                className="p-1 rounded text-muted-foreground hover:bg-muted disabled:opacity-50"
+                                title="취소"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="py-3 pr-4 text-muted-foreground font-medium">{formatShortDate(row.transactionDate)}</td>
+                          <td className="py-3 pr-4 font-semibold text-foreground">{row.vendorName ?? "-"}</td>
+                          <td className="py-3 pr-4 font-bold tabular-nums">₩{row.totalAmount.toLocaleString()}</td>
+                          <td className="py-3 pr-4 text-muted-foreground">{row.category}</td>
+                          <td className="py-3 pr-0">
+                            <div className={`flex items-center gap-1 transition-opacity ${hoveredRow === i ? "opacity-100" : "opacity-0"}`}>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startEditReceipt(row);
+                                }}
+                                className="p-1 rounded text-muted-foreground hover:text-[#246BFD] hover:bg-[#246BFD]/10"
+                                title="수정"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleDeleteReceipt(row);
+                                }}
+                                disabled={rowActionLoading}
+                                className="p-1 rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                title="삭제"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </>
+                      )}
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
+
+          {historyTotalPages > 1 && (
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
+              <span className="text-xs text-muted-foreground">
+                {historyPage + 1} / {historyTotalPages} 페이지
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => goToHistoryPage(historyPage - 1)}
+                  disabled={historyPage === 0 || historyLoading}
+                  className="p-1.5 rounded-lg border border-border text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="이전 페이지"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => goToHistoryPage(historyPage + 1)}
+                  disabled={historyPage >= historyTotalPages - 1 || historyLoading}
+                  className="p-1.5 rounded-lg border border-border text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="다음 페이지"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* AI 가계부 리포트 — 오른쪽 2/3 (기간 선택 가능, HTML 리포트) */}
@@ -630,6 +925,70 @@ export function LedgerPage() {
         </div>
         </div>
       </div>
+
+      {historyReceiptId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label="최근 업로드 상세 수정">
+          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-card border border-border shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-5 py-4">
+              <div>
+                <h3 className="font-bold">업로드 영수증 상세</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">인식된 정보와 품목을 확인하고 수정할 수 있습니다.</p>
+              </div>
+              <button aria-label="닫기" onClick={() => setHistoryReceiptId(null)} className="p-2 rounded-lg hover:bg-muted"><X className="w-4 h-4" /></button>
+            </div>
+
+            <div className="p-5">
+              {historyDetailLoading && <div className="py-16 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-[#246BFD]" /></div>}
+              {historyError && <p className="mb-4 rounded-xl bg-red-50 p-3 text-xs text-red-700">{historyError}</p>}
+              {historyForm && (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {([
+                      ["storeName", "상호명", "text"], ["transactionDate", "거래일", "date"],
+                      ["paymentMethod", "결제수단", "text"], ["category", "분류", "text"],
+                      ["businessNumber", "사업자번호", "text"], ["transactionTime", "거래시간", "time"],
+                    ] as const).map(([key, label, type]) => (
+                      <label key={key} className="text-xs font-semibold text-muted-foreground">
+                        {label}
+                        <input type={type} value={historyForm[key] as string}
+                          onChange={e => setHistoryForm(prev => prev ? { ...prev, [key]: e.target.value } : prev)}
+                          className="mt-1 w-full h-9 px-3 text-sm text-foreground bg-muted border border-border rounded-xl focus:outline-none focus:border-[#246BFD]" />
+                      </label>
+                    ))}
+                  </div>
+
+                  <div>
+                    <h4 className="font-bold text-sm mb-2">품목 ({historyForm.items.length}건)</h4>
+                    <ItemEditor items={historyForm.items} onChange={items => setHistoryForm(prev => prev ? { ...prev, items } : prev)} />
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {([
+                      ["supplyAmount", "공급가액"], ["vat", "부가세"],
+                      ["taxFreeAmount", "면세금액"], ["totalAmount", "합계"],
+                    ] as const).map(([key, label]) => (
+                      <label key={key} className="text-xs font-semibold text-muted-foreground">
+                        {label}
+                        <input type="number" min={0} value={(historyForm[key] as number | null) ?? 0}
+                          onChange={e => setHistoryForm(prev => prev ? { ...prev, [key]: Number(e.target.value) || 0 } : prev)}
+                          className="mt-1 w-full h-9 px-3 text-sm text-foreground bg-muted border border-border rounded-xl" />
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="flex justify-end gap-2 border-t border-border pt-4">
+                    <button onClick={() => setHistoryReceiptId(null)} className="h-10 px-4 text-sm font-semibold rounded-xl bg-muted hover:bg-muted/70">취소</button>
+                    <button onClick={() => void saveHistoryReceipt()} disabled={historySaving}
+                      className="h-10 px-4 flex items-center gap-1.5 text-sm font-semibold text-white rounded-xl bg-[#246BFD] hover:bg-[#1D4ED8] disabled:opacity-60">
+                      {historySaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} 수정 내용 저장
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

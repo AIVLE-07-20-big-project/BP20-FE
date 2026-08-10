@@ -18,7 +18,7 @@ import {
   Sparkles,
   Store as StoreIcon,
 } from "lucide-react";
-import { useAuth } from "../../app/providers/AuthProvider";
+import { useAuth } from "../../app/providers/useAuth";
 import type { StoreOwnerLayoutContext } from "../../app/layouts/StoreOwnerLayout";
 import type {
   Coupon,
@@ -769,7 +769,7 @@ function AiProductImageBanner() {
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-[#AFC7FF] backdrop-blur">
               <Sparkles className="h-3.5 w-3.5 text-[#7EA2FF]" />
-              BP20 Generative Studio
+              MarketPoke Generative Studio
             </span>
             <span className="rounded-full bg-[#7C5CFC]/20 px-2.5 py-1 text-[10px] font-bold text-[#CFC2FF]">
               AI 배경 합성

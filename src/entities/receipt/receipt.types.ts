@@ -29,6 +29,7 @@ export interface ReceiptParseResult {
 
 export interface OcrParseResponse {
   ocrText: string[];
+  processedImage: string;
   result: ReceiptParseResult;
 }
 
@@ -92,6 +93,15 @@ export interface BudgetOverageResponse {
   overPct: number | null;
 }
 
+export interface ReceiptPageResponse {
+  content: ReceiptResponse[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+}
+
 export type ReportType = "monthly" | "yearly" | "full";
 
 export interface LedgerReportOptions {
@@ -100,3 +110,6 @@ export interface LedgerReportOptions {
   year?: number;
   month?: number;
 }
+
+/** 업로드 내역 수정 요청 (POST 요청과 필드 구성은 같되 storeId/uploadedByUserId/rawImagePath/force는 뺐다) */
+export type ReceiptUpdateRequest = Omit<ReceiptCreateRequest, "storeId" | "uploadedByUserId" | "rawImagePath" | "force">;

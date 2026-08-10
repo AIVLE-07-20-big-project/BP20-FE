@@ -7,8 +7,10 @@ import {
   Calendar, Info, Loader2
 } from "lucide-react";
 import { PageShell } from "../../shared/components/PageShell";
+import { ReportSections } from "../../shared/components/ReportBox";
 import type { AIRecommendation } from "../../entities/recommendation/recommendation.types";
 import type { AiRecommendationDecision, AiRecommendationRun, AiStrategyAction } from "../../entities/ai-analysis/ai-analysis.types";
+import type { VerificationExecution } from "../../entities/effect-verification/effect-verification.types";
 import { createRecommendation, resumeRecommendation } from "../../features/ai-analysis/api/aiAnalysisApi";
 import { startRecommendationExecution } from "../../features/effect-verification/api/effectVerificationApi";
 
@@ -349,6 +351,32 @@ export function AiStrategyPage() {
   const [recommendationLoading, setRecommendationLoading] = useState(false);
   const [recommendationStage, setRecommendationStage] = useState(0);
   const [recommendationError, setRecommendationError] = useState("");
+  const [verificationExecution, setVerificationExecution] = useState<VerificationExecution | null>(null);
+  const [verificationRetryThreadId, setVerificationRetryThreadId] = useState<string | null>(null);
+
+  const startSalesEffectMeasurement = async (threadId: string) => {
+    try {
+      const execution = await startRecommendationExecution({
+        thread_id: threadId,
+        recommendation_type: "SALES",
+        execution_started_at: `${executionStartedAt}T00:00:00`,
+        execution_ended_at: `${executionEndedAt}T00:00:00`,
+      });
+      setVerificationExecution(execution);
+      setVerificationRetryThreadId(null);
+      setRecommendationError("");
+      return true;
+    } catch (error) {
+      setVerificationExecution(null);
+      setVerificationRetryThreadId(threadId);
+      setRecommendationError(
+        error instanceof Error
+          ? `전략 실행은 완료됐지만 효과 측정을 시작하지 못했습니다. ${error.message}`
+          : "전략 실행은 완료됐지만 효과 측정을 시작하지 못했습니다.",
+      );
+      return false;
+    }
+  };
   const [executionStartedAt, setExecutionStartedAt] = useState(() => new Date().toISOString().slice(0, 10));
   const [executionEndedAt, setExecutionEndedAt] = useState(() => {
     const date = new Date();
@@ -368,6 +396,8 @@ export function AiStrategyPage() {
     setRecommendationLoading(true);
     setRecommendationStage(1);
     setRecommendationError("");
+    setVerificationExecution(null);
+    setVerificationRetryThreadId(null);
     try {
       const result = await createRecommendation(analysisId.trim());
       setRecommendationRun(result);
@@ -402,18 +432,24 @@ export function AiStrategyPage() {
       );
       setRecommendationRun(result);
       if (decision === "approve" && result.approval_status === "approved") {
-        await startRecommendationExecution({
-          thread_id: result.thread_id,
-          recommendation_type: "SALES",
-          execution_started_at: `${executionStartedAt}T00:00:00`,
-          execution_ended_at: `${executionEndedAt}T00:00:00`,
-        });
+        await startSalesEffectMeasurement(result.thread_id);
       }
     } catch (error) {
       setRecommendationError(error instanceof Error ? error.message : "추천 처리에 실패했습니다.");
     } finally {
       setRecommendationLoading(false);
       setRecommendationStage(0);
+    }
+  };
+
+  const retrySalesEffectMeasurement = async () => {
+    if (!verificationRetryThreadId) return;
+    setRecommendationLoading(true);
+    setRecommendationError("");
+    try {
+      await startSalesEffectMeasurement(verificationRetryThreadId);
+    } finally {
+      setRecommendationLoading(false);
     }
   };
 
@@ -486,7 +522,7 @@ export function AiStrategyPage() {
         <div className="bg-card border border-[#246BFD]/30 rounded-2xl p-5 mb-5">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div>
-              <div className="text-xs font-semibold text-[#246BFD] mb-1">실제 AI 추천 결과</div>
+              <div className="text-xs font-semibold text-[#246BFD] mb-1">AI 추천 결과</div>
               <h3 className="text-xl font-black">
                 {recommendedActions.length === 1
                   ? recommendedActions[0].방안
@@ -530,7 +566,7 @@ export function AiStrategyPage() {
 
           {recommendationRun.대기중_승인 && (
             <div className="flex gap-2 mt-4">
-              <button type="button" disabled={recommendationLoading} onClick={() => decideRecommendation("approve")} className="px-4 py-2 bg-[#0E9F6E] text-white text-xs font-bold rounded-xl disabled:opacity-60">추천 승인 및 리포트 생성</button>
+              <button type="button" disabled={recommendationLoading} onClick={() => decideRecommendation("approve")} className="px-4 py-2 bg-[#0E9F6E] text-white text-xs font-bold rounded-xl disabled:opacity-60">전략 실행 및 효과 측정 시작</button>
               <button type="button" disabled={recommendationLoading} onClick={() => decideRecommendation("reject")} className="px-4 py-2 border border-border text-xs font-bold rounded-xl disabled:opacity-60">추천 반려</button>
             </div>
           )}
@@ -549,6 +585,46 @@ export function AiStrategyPage() {
           </div>
 
           <FinalReportSection report={recommendationRun.final_report} />
+
+          {verificationExecution && (
+            <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+                    <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                    측정 중
+                  </div>
+                  <p className="mt-1 text-xs text-emerald-700">
+                    전략 실행 시점부터 효과 측정이 자동으로 시작되었습니다. 측정 완료 예정일은 {dateInputValue(verificationExecution.verification_due_at)}입니다.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/store/strategy-verifications/${encodeURIComponent(verificationExecution.recommendation_id)}`)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
+                >
+                  전략 검증에서 확인
+                  <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {verificationRetryThreadId && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3">
+              <span className="text-xs text-red-700">
+                전략은 실행됐지만 효과 측정 연결에 실패했습니다.
+              </span>
+              <button
+                type="button"
+                disabled={recommendationLoading}
+                onClick={retrySalesEffectMeasurement}
+                className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-700 disabled:opacity-60"
+              >
+                연결 다시 시도
+              </button>
+            </div>
+          )}
 
           <div className="text-xs text-muted-foreground mt-3">적용 기간: <span className="font-semibold text-foreground">{executionPeriodLabel(recommendationRun)}</span></div>
 
@@ -644,7 +720,11 @@ function CandidateChips({ actions, selected, candidateStatus, selectable, onSele
 function EffectSummaryCard({ scm }: { scm?: Record<string, unknown> | null }) {
   const measured = scm?.["실측효과"] as Record<string, unknown> | undefined;
   const verdict = measured?.["판정"] as string | undefined;
-  const avg = formatPct(measured?.["효과율_평균"]);
+  const rawAvg = measured?.["효과율_평균"];
+  const avg = formatPct(rawAvg);
+  const isPositive = typeof rawAvg === "number" && rawAvg >= 0;
+  // 막대 길이는 ±30%p를 기준으로 시각화한다 — 그 이상은 막대를 가득 채운다.
+  const barWidthPct = typeof rawAvg === "number" ? Math.min(100, (Math.abs(rawAvg) / 0.3) * 100) : 0;
   return (
     <div className="bg-muted rounded-xl p-3">
       <div className="flex items-center justify-between mb-1.5">
@@ -652,7 +732,15 @@ function EffectSummaryCard({ scm }: { scm?: Record<string, unknown> | null }) {
         <VerdictBadge verdict={verdict} />
       </div>
       {avg ? (
-        <div className="text-lg font-black text-[#0E9F6E]">{avg}</div>
+        <>
+          <div className={`text-lg font-black ${isPositive ? "text-[#0E9F6E]" : "text-red-500"}`}>{avg}</div>
+          <div className="mt-1.5 h-1.5 w-full rounded-full bg-border/70">
+            <div
+              className={`h-1.5 rounded-full ${isPositive ? "bg-[#0E9F6E]" : "bg-red-500"}`}
+              style={{ width: `${barWidthPct}%` }}
+            />
+          </div>
+        </>
       ) : (
         <p className="text-xs text-muted-foreground">
           {(measured?.["사유"] as string) ?? "실측 데이터가 아직 충분하지 않아 참고용 수치가 없습니다."}
@@ -712,23 +800,15 @@ function FinalReportSection({ report }: { report?: Record<string, unknown> | nul
   if (!report) return null;
   const error = report["error"] as string | undefined;
   const text = String(report["report"] ?? "");
-  const verified = Boolean(report["verified"]);
   return (
     <div className="mt-4">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-bold text-muted-foreground">최종 리포트</span>
-        {!error && (
-          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${verified ? "text-[#0E9F6E] bg-[#0E9F6E]/10" : "text-amber-600 bg-amber-50"}`}>
-            {verified ? "수치 검증됨" : "수치 재확인 필요"}
-          </span>
-        )}
       </div>
       {error ? (
         <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl p-3">{error}</p>
       ) : (
-        <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap bg-muted rounded-xl p-4">
-          {text || "리포트 내용이 비어 있습니다."}
-        </p>
+        <ReportSections text={text || "리포트 내용이 비어 있습니다."} />
       )}
     </div>
   );

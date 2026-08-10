@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import type { User, UserRole } from "../../entities/user/user.types";
 import * as authApi from "../../features/auth/api/authApi";
 import type { SignupPayload } from "../../features/auth/api/authApi";
@@ -13,27 +14,9 @@ import {
   ApiError,
   AUTH_EXPIRED_EVENT,
 } from "../../shared/api/apiClient";
+import { AuthContext } from "./AuthContext";
 
-interface AuthContextType {
-  user: User | null;
-  isInitializing: boolean;
-  isDemo: boolean;
-  login: (
-    email: string,
-    password: string,
-    role: UserRole,
-    remember: boolean,
-  ) => Promise<{ ok: boolean; error?: string }>;
-  signup: (
-    payload: SignupPayload,
-  ) => Promise<{ ok: boolean; user?: User; error?: string }>;
-  logout: () => Promise<void>;
-  switchDemo: (userId: string) => void;
-}
-
-const AuthContext = createContext<AuthContextType | null>(null);
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const demoUser = getSessionUser();
   const [user, setUser] = useState<User | null>(demoUser);
   const [isInitializing, setIsInitializing] = useState(!demoUser);
@@ -82,9 +65,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string,
     role: UserRole,
     remember: boolean,
-  ): Promise<{ ok: boolean; error?: string }> => {
+    captchaToken: string | null,
+  ): Promise<{ ok: boolean; error?: string; errorCode?: string }> => {
     try {
-      const result = await authApi.login(email.trim(), password, remember);
+      const result = await authApi.login(email.trim(), password, remember, captchaToken);
       const roleMatches = result.user.role === role
         || (result.user.role === "SUPER_ADMIN" && role === "ADMIN");
 
@@ -108,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         error: error instanceof ApiError
           ? error.message
           : "로그인에 실패했습니다.",
+        errorCode: error instanceof ApiError ? error.code : undefined,
       };
     }
   };
@@ -167,12 +152,4 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
-  return context;
 }
