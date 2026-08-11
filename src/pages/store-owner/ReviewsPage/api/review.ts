@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { getAccessToken } from '../../../../features/auth/model/authSession';
+import { API_BASE_URL } from '../../../../shared/config/runtimeEnv';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
+const BASE_URL = API_BASE_URL;
 
 export interface Review { id: number; rating: number; content: string; reviewedDate?: string; isAnalyzed?: boolean; }
 export interface AspectStat { aspect: string; positive: number; neutral: number; negative: number; }
