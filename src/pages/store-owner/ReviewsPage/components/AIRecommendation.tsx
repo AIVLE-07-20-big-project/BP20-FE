@@ -11,6 +11,10 @@ export default function AIRecommendation({ storeId }: { storeId: number | null }
     const [data, setData] = useState<Recommendations | null>(null);
 
     useEffect(() => {
+        if (!storeId) {
+            setLoading(false);
+            return;
+        }
         getRecommendations(storeId)
         .then((res) => {
             setData(res);
