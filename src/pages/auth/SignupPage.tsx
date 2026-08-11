@@ -10,6 +10,7 @@ import {
   executeRecaptcha,
   initializeRecaptcha,
 } from "../../features/auth/lib/recaptchaV3";
+import { RecaptchaNotice } from "../../shared/components/RecaptchaNotice";
 import { RECAPTCHA_SITE_KEY } from "../../shared/config/runtimeEnv";
 
 const PRIVACY_POLICY_VERSION = "2026-08-03";
@@ -248,17 +249,7 @@ export function SignupPage() {
         )}
 
         {RECAPTCHA_SITE_KEY && (
-          <p className="text-center text-[10px] leading-4 text-muted-foreground">
-            이 사이트는 reCAPTCHA로 보호되며 Google의{" "}
-            <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer" className="font-semibold hover:underline">
-              개인정보처리방침
-            </a>
-            과{" "}
-            <a href="https://policies.google.com/terms" target="_blank" rel="noreferrer" className="font-semibold hover:underline">
-              서비스 약관
-            </a>
-            이 적용됩니다.
-          </p>
+          <RecaptchaNotice />
         )}
 
         <button
