@@ -254,7 +254,9 @@ export function SalesPage() {
 
       const result = await getAnalysis(finishedJob.analysis_id);
       setAnalysis(result);
-      sessionStorage.setItem(AI_ANALYSIS_ID_KEY, result.analysis_id);
+      // getAnalysis 응답에는 analysis_id 필드가 없으므로, 이미 검증된
+      // finishedJob.analysis_id를 그대로 써야 한다 (result.analysis_id는 항상 undefined).
+      sessionStorage.setItem(AI_ANALYSIS_ID_KEY, finishedJob.analysis_id);
       const target = (result.diagnosis?.["대상"] ?? {}) as Record<string, unknown>;
       // 상권·업종·기준분기(공공데이터 분기)가 같은 분석이 여러 개 있어도(예: 전략
       // 적용 전/후 비교) 구분할 수 있도록, 공공데이터 분기 코드 대신 실제 POS 업로드
@@ -271,7 +273,7 @@ export function SalesPage() {
       }
       sessionStorage.setItem(
         AI_ANALYSIS_OPTIONS_KEY,
-        JSON.stringify([{ id: result.analysis_id, label }, ...previous.filter((item) => item.id !== result.analysis_id)].slice(0, 10)),
+        JSON.stringify([{ id: finishedJob.analysis_id, label }, ...previous.filter((item) => item.id !== finishedJob.analysis_id)].slice(0, 10)),
       );
     } catch (error) {
       if (error instanceof ApiError && error.status === 404 && !trdarCd && !svcIndutyCd) {
