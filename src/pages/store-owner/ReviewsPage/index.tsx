@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
+import { useOutletContext } from "react-router-dom";
 import { Star, TrendingUp, AlertCircle, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
 import { PageShell } from "../../../shared/components/PageShell";
 import ReviewList from "./components/ReviewList";
-import { analyzeRequest, AspectStat, getAspectStat, getStoreReviews } from "./api/review";
+import { analyzeRequest, AspectStat, generateMonthlyReport, getAspectStat, getMonthlyReportStatus, getStoreReviews } from "./api/review";
 import AspectBarChart from "./components/AspectBarChart";
 import ReviewKeyword from "./components/ReviewKeyword";
 import AIRecommendation from "./components/AIRecommendation";
+import type { StoreOwnerLayoutContext } from "../../../app/layouts/StoreOwnerLayout";
 
 const ASPECT_DATA = [
   { aspect: "맛", score: 4.7, prev: 4.6 },
@@ -47,6 +49,8 @@ export function ReviewsPage() {
   const [showEvidence, setShowEvidence] = useState(false);
   const [onlyUnanalyzed, setOnlyUnanalyzed] = useState<boolean>(false);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [isGeneratingMonthlyReport, setIsGeneratingMonthlyReport] = useState<boolean>(false);
+  const [monthlyReportGenerated, setMonthlyReportGenerated] = useState<boolean>(false);
 
   const [reviewList, setReviewList] = useState<Review[]>([]);
   const [reviewLoading, setReviewLoading] = useState<boolean>(true);
@@ -56,9 +60,23 @@ export function ReviewsPage() {
   const [statLoading, setStatLoading] = useState<boolean>(true);
   const [statError, setStatError] = useState<string | null>(null);
 
-  const storeId = 1;
+  const { currentStoreId: storeId } = useOutletContext<StoreOwnerLayoutContext>();
+  const previousMonth = (() => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - 1);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  })();
 
   useEffect(() => {
+    if (!storeId) return;
+    getMonthlyReportStatus(storeId, previousMonth)
+      .then((status) => setMonthlyReportGenerated(status.generated))
+      .catch(() => setMonthlyReportGenerated(false));
+  }, [storeId, previousMonth]);
+  
+  useEffect(() => {
+    if (!storeId) return;
+
     getAspectStat(storeId)
       .then((data) => {
         setAspectStats(data);
@@ -73,6 +91,8 @@ export function ReviewsPage() {
   }, [storeId]);
 
   useEffect(() => {
+    if(!storeId) return;
+
     getStoreReviews(storeId)
       .then((data) => {
         setReviewList(data);
@@ -84,10 +104,10 @@ export function ReviewsPage() {
       .finally(() => {
         setReviewLoading(false);
       });
-  }, []);
+  }, [storeId]);
 
   const handleAnalyzeReview = async () => {
-    if (isAnalyzing) return;
+    if (isAnalyzing || !storeId) return;
 
     setIsAnalyzing(true);
     try {
@@ -100,6 +120,22 @@ export function ReviewsPage() {
       alert('분석 요청 중 오류가 발생했습니다.');
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const handleGenerateMonthlyReport = async () => {
+    if (isGeneratingMonthlyReport || monthlyReportGenerated || !storeId) return;
+
+    setIsGeneratingMonthlyReport(true);
+    try {
+      await generateMonthlyReport(storeId, previousMonth);
+      setMonthlyReportGenerated(true);
+      alert(`${previousMonth} 월간 개선 리포트가 생성되었습니다.`);
+    } catch (error) {
+      console.error(error);
+      alert("월간 개선 리포트 생성 중 오류가 발생했습니다.");
+    } finally {
+      setIsGeneratingMonthlyReport(false);
     }
   };
 
@@ -117,6 +153,10 @@ export function ReviewsPage() {
 
   const positiveRate = totalSum > 0 ? ((totalPositive / totalSum) * 100).toFixed(1) : "0.0";
   const negativeRate = totalSum > 0 ? ((totalNegative / totalSum) * 100).toFixed(1) : "0.0";
+
+  if (!storeId) return (
+    <div>매장 정보를 불러오는 중입니다...</div>
+  );
 
   return (
     <PageShell 
@@ -180,7 +220,7 @@ export function ReviewsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         {/* Radar chart */}
-        <div className="bg-card bg-gray-200 border border-border rounded-2xl p-5">
+        <div className="bg-card border border-border rounded-2xl p-5">
           <h3 className="font-bold mb-4">속성별 평점</h3>
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
@@ -200,7 +240,7 @@ export function ReviewsPage() {
         </div>
 
         {/* Trend chart */}
-        <div className="bg-gray-200 bg-card border border-border rounded-2xl p-5">
+        <div className="bg-card border border-border rounded-2xl p-5">
           <h3 className="font-bold mb-1">리뷰 추이</h3>
           <p className="text-xs text-muted-foreground mb-4">최근 5주</p>
           <div className="h-52">
@@ -237,17 +277,17 @@ export function ReviewsPage() {
       </div>
 
       {/* Rising alert */}
-      <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-4 flex items-start gap-3">
+      {/* <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-4 flex items-start gap-3">
         <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
         <div>
           <p className="text-sm font-semibold text-red-800">'대기시간이 길다' 관련 언급이 최근 2주 동안 3배 증가했습니다.</p>
           <p className="text-xs text-red-600 mt-0.5">해당 이슈가 지속될 경우 평균 평점 0.3~0.5 하락이 예상됩니다. 매출 기반 전략 추천에서 개선 전략을 확인하세요.</p>
         </div>
-      </div>
+      </div> */}
 
       {/* Topic clusters */}
       <div className="bg-card border border-border rounded-2xl p-5 mb-4">
-        <ReviewKeyword />
+        <ReviewKeyword storeId={storeId} />
       </div>
 
       {/* Recent reviews */}
@@ -285,11 +325,23 @@ export function ReviewsPage() {
       </div>
 
       <div className="bg-card border border-border rounded-2xl p-5">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-4 justify-between">
           <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
           <h3 className="font-bold">AI 개선 우선순위</h3>
+                  <button
+            type="button"
+            onClick={handleGenerateMonthlyReport}
+            disabled={isGeneratingMonthlyReport || monthlyReportGenerated}
+            className="ml-auto shrink-0 px-3.5 py-1.5 text-xs font-bold text-white inline-flex items-center bg-violet-600 hover:bg-violet-700 disabled:bg-violet-300 rounded-lg shadow-sm transition-all"
+          >
+            {monthlyReportGenerated
+              ? `${previousMonth} 리포트 생성 완료`
+              : isGeneratingMonthlyReport
+                ? "월간 리포트 생성 중..."
+                : `${previousMonth} 월간 리포트 생성`}
+          </button>
         </div>
-        <AIRecommendation />
+        <AIRecommendation storeId={storeId} />
         <p className="text-[11px] text-muted-foreground/60 mt-3">※ AI 추정치이며 실제 효과는 다를 수 있습니다.</p>
       </div>
     </PageShell>
