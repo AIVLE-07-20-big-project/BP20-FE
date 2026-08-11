@@ -1,16 +1,21 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, KeyRound, Store, UserPlus, UserRoundCheck, UserX } from "lucide-react";
+import { CheckCircle2, Eye, EyeOff, KeyRound, ShieldCheck, Store, UserPlus, UserRoundCheck, UserX } from "lucide-react";
 import type { UserStatus } from "../../entities/user/user.types";
 import {
   changeStoreOwnerStatus,
   getStoreOwnerAccounts,
+  revealStoreOwnerPersonalData,
   type StoreOwnerAccount,
+  type StoreOwnerPersonalData,
 } from "../../features/iam/api/accountApi";
+import { useTemporaryPersonalData } from "../../features/iam/model/useTemporaryPersonalData";
 import { ApiError } from "../../shared/api/apiClient";
 import { Badge } from "../../shared/components/Badge";
 import { PageShell } from "../../shared/components/PageShell";
+import { formatPhoneNumber } from "../../shared/lib/phoneNumber";
 import { AccountStatusDialog } from "./components/AccountStatusDialog";
 import { InvitationListSection } from "./components/InvitationListSection";
+import { PersonalDataRevealDialog } from "./components/PersonalDataRevealDialog";
 import { StoreOwnerInvitationDialog } from "./components/StoreOwnerInvitationDialog";
 
 const INVITATION_STEPS = [
@@ -39,6 +44,13 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function formatBusinessNumber(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+  return digits.length === 10
+    ? `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`
+    : value;
+}
+
 export function StoreOwnerAccountsPage() {
   const [accounts, setAccounts] = useState<StoreOwnerAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,6 +63,10 @@ export function StoreOwnerAccountsPage() {
   } | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusError, setStatusError] = useState("");
+  const [revealTarget, setRevealTarget] = useState<StoreOwnerAccount | null>(null);
+  const [revealLoading, setRevealLoading] = useState(false);
+  const [revealError, setRevealError] = useState("");
+  const personalData = useTemporaryPersonalData<StoreOwnerPersonalData>();
 
   const loadAccounts = async () => {
     setLoading(true);
@@ -95,6 +111,24 @@ export function StoreOwnerAccountsPage() {
       );
     } finally {
       setStatusLoading(false);
+    }
+  };
+
+  const handlePersonalDataReveal = async (password: string) => {
+    if (!revealTarget) return;
+    setRevealLoading(true);
+    setRevealError("");
+    try {
+      personalData.reveal(await revealStoreOwnerPersonalData(revealTarget.id, password));
+      setRevealTarget(null);
+    } catch (error) {
+      setRevealError(
+        error instanceof ApiError
+          ? error.message
+          : "점주 개인정보 원문을 조회하지 못했습니다.",
+      );
+    } finally {
+      setRevealLoading(false);
     }
   };
 
@@ -183,17 +217,25 @@ export function StoreOwnerAccountsPage() {
                   {accounts.map((account) => (
                     <tr key={account.id} className="border-b border-border last:border-0 hover:bg-muted/20">
                       <td className="px-4 py-3">
-                        <div className="font-semibold">{account.name}</div>
-                        <div className="text-xs text-muted-foreground">{account.email}</div>
+                        <div className="font-semibold">{personalData.getFor(account.id)?.name ?? account.name}</div>
+                        <div className="text-xs text-muted-foreground">{personalData.getFor(account.id)?.email ?? account.email}</div>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{account.phoneNumber ?? "-"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {personalData.getFor(account.id)?.phoneNumber
+                          ? formatPhoneNumber(personalData.getFor(account.id)?.phoneNumber)
+                          : account.phoneNumber ?? "-"}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           <Store className="h-3.5 w-3.5 text-muted-foreground" />
                           <span>{account.storeName ?? "미등록"}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{account.businessNumber ?? "-"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {personalData.getFor(account.id)?.businessNumber
+                          ? formatBusinessNumber(personalData.getFor(account.id)!.businessNumber!)
+                          : account.businessNumber ?? "-"}
+                      </td>
                       <td className="px-4 py-3">
                         <Badge variant={account.status === "ACTIVE" ? "positive" : "muted"}>
                           {account.status === "ACTIVE" ? "활성" : "비활성"}
@@ -201,26 +243,45 @@ export function StoreOwnerAccountsPage() {
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">{formatDate(account.createdAt)}</td>
                       <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setStatusTarget({
-                              account,
-                              nextStatus: account.status === "ACTIVE" ? "INACTIVE" : "ACTIVE",
-                            });
-                            setStatusError("");
-                          }}
-                          className={`inline-flex items-center gap-1 text-xs font-semibold ${
-                            account.status === "ACTIVE"
-                              ? "text-muted-foreground hover:text-red-600"
-                              : "text-[#0E9F6E] hover:text-[#087F65]"
-                          }`}
-                        >
-                          {account.status === "ACTIVE"
-                            ? <UserX className="h-3.5 w-3.5" />
-                            : <CheckCircle2 className="h-3.5 w-3.5" />}
-                          {account.status === "ACTIVE" ? "비활성화" : "활성화"}
-                        </button>
+                        <div className="flex items-center gap-3 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (personalData.getFor(account.id)) {
+                                personalData.hide();
+                                return;
+                              }
+                              setRevealTarget(account);
+                              setRevealError("");
+                            }}
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-[#246BFD] hover:text-[#1D4ED8]"
+                          >
+                            {personalData.getFor(account.id)
+                              ? <EyeOff className="h-3.5 w-3.5" />
+                              : <Eye className="h-3.5 w-3.5" />}
+                            {personalData.getFor(account.id) ? "즉시 숨기기" : "원문 확인"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStatusTarget({
+                                account,
+                                nextStatus: account.status === "ACTIVE" ? "INACTIVE" : "ACTIVE",
+                              });
+                              setStatusError("");
+                            }}
+                            className={`inline-flex items-center gap-1 text-xs font-semibold ${
+                              account.status === "ACTIVE"
+                                ? "text-muted-foreground hover:text-red-600"
+                                : "text-[#0E9F6E] hover:text-[#087F65]"
+                            }`}
+                          >
+                            {account.status === "ACTIVE"
+                              ? <UserX className="h-3.5 w-3.5" />
+                              : <CheckCircle2 className="h-3.5 w-3.5" />}
+                            {account.status === "ACTIVE" ? "비활성화" : "활성화"}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -228,6 +289,10 @@ export function StoreOwnerAccountsPage() {
               </table>
             </div>
           )}
+        </div>
+        <div className="mt-3 flex items-start gap-2 rounded-xl border border-[#BFD4FF] bg-[#F3F7FF] px-3 py-2.5 text-xs text-[#315A9D]">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>개인정보는 기본 마스킹되며, 원문 확인 시 비밀번호 재인증과 IAM 조회 기록이 필요합니다. 원문은 60초 후 자동으로 숨겨집니다.</span>
         </div>
       </section>
 
@@ -251,6 +316,19 @@ export function StoreOwnerAccountsPage() {
           error={statusError}
           onClose={() => setStatusTarget(null)}
           onConfirm={handleStatusChange}
+        />
+      )}
+
+      {revealTarget && (
+        <PersonalDataRevealDialog
+          accountName={revealTarget.name}
+          loading={revealLoading}
+          error={revealError}
+          onClose={() => {
+            setRevealTarget(null);
+            setRevealError("");
+          }}
+          onConfirm={handlePersonalDataReveal}
         />
       )}
     </PageShell>

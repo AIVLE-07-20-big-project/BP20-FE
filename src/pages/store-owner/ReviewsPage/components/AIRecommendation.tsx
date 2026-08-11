@@ -3,23 +3,30 @@ import { getRecommendations, patchCompleteActionItem, Recommendations } from "..
 import { Loader2, TrendingUp } from "lucide-react";
 import ActionItemCard from "./ActionItemCard";
 
-export default function AIRecommendation() {
+export default function AIRecommendation({ storeId }: { storeId: number | null }) {
     
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
     const [data, setData] = useState<Recommendations | null>(null);
 
-    const storeId = 1;
-
     useEffect(() => {
+        if (!storeId) {
+            setLoading(false);
+            return;
+        }
         getRecommendations(storeId)
         .then((res) => {
             setData(res);
         })
         .catch((err) => {
-            console.error("AI 개선사항을 불러오는데 실패했습니다:", err);
-            setError("AI 개선사항을 불러오지 못했습니다.");
+            const serverMessage = err.response?.data?.message;
+            if (err.response?.status === 400 || serverMessage?.includes("추천 내용이 없습니다")) {
+                setData(null);
+            } else {
+                console.error("AI 개선사항을 불러오는데 실패했습니다:", err);
+                setError("AI 개선사항을 불러오지 못했습니다.");
+            }
         })
         .finally(() => {
             setLoading(false);
@@ -52,6 +59,9 @@ export default function AIRecommendation() {
             alert("완료 처리에 실패했습니다.");
         }
     };
+    if (!storeId) return (
+        <div>매장 정보를 불러오는 중입니다...</div>
+    );
 
     if (loading) {
         return (

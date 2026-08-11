@@ -48,12 +48,14 @@ type StoreIdentity = {
 
 export type StoreOwnerLayoutContext = {
   updateStoreIdentity: (store: StoreIdentity | null) => void;
+  currentStoreId: number | null;
 };
 
 export function StoreOwnerLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [storeIdentity, setStoreIdentity] = useState<StoreIdentity | null>(null);
+  const [currentStoreId, setCurrentStoreId] = useState<number | null>(null);
   const { user, isDemo, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -61,11 +63,19 @@ export function StoreOwnerLayout() {
   useEffect(() => {
     if (isDemo) {
       setStoreIdentity(null);
+      setCurrentStoreId(1);
       return;
     }
 
     commerceApi.getStore()
-      .then(({ name, category }) => setStoreIdentity({ name, category }))
+      .then(({ name, category, id }) => {
+        setStoreIdentity({ name, category });
+        
+        if (id) {
+          setCurrentStoreId(id);
+        }
+      }
+    )
       .catch((error: unknown) => {
         if (!(error instanceof ApiError && error.status === 404)) {
           console.error("매장 정보를 불러오지 못했습니다.", error);
@@ -290,7 +300,7 @@ export function StoreOwnerLayout() {
         {/* Content */}
         <main className="min-h-0 flex-1 overflow-y-auto print:overflow-visible print:h-auto">
           <div className="min-h-full">
-            <Outlet context={{ updateStoreIdentity: setStoreIdentity } satisfies StoreOwnerLayoutContext} />
+            <Outlet context={{ updateStoreIdentity: setStoreIdentity, currentStoreId } satisfies StoreOwnerLayoutContext} />
           </div>
           <div className="border-t border-border bg-card/90 px-4 py-3 print:hidden">
             <PolicyFooter />

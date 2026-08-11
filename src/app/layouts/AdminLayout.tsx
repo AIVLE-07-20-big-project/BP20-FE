@@ -22,6 +22,7 @@ import { clsx } from "clsx";
 import { LiveDateTime } from "../../shared/components/LiveDateTime";
 import { PolicyFooter } from "../../shared/components/PolicyFooter";
 import { useAuth } from "../providers/useAuth";
+import { LEGAL_CONFIG } from "../../pages/legal/legalConfig";
 
 const DASHBOARD_NAV = [
   { to: "/admin", icon: LayoutDashboard, label: "통합 대시보드" },
@@ -77,7 +78,7 @@ export function AdminLayout() {
           </div>
           {(!collapsed || mobile) && (
             <div>
-              <div className="text-xs font-black tracking-wider text-white">MarketPoke</div>
+              <div className="text-xs font-black tracking-wider text-white">{LEGAL_CONFIG.serviceName}</div>
               <div className="text-[10px] text-white/40">파트너 콘솔</div>
             </div>
           )}

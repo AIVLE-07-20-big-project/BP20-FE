@@ -15,6 +15,7 @@ import {
   updateSalesTargetPipelineStatus,
 } from "../../features/sales-target/api/salesTargetApi";
 import type { PipelineStatus, SalesTargetBatchRun, SalesTargetBusiness } from "../../entities/sales-target/sales-target.types";
+import { LEGAL_CONFIG } from "../legal/legalConfig";
 
 const PIPELINE_STATUS_STYLE: Record<PipelineStatus, { bg: string; text: string }> = {
   "후보": { bg: "bg-gray-100", text: "text-gray-500" },
@@ -819,7 +820,9 @@ export function SalesTargetsPage() {
 
                   <div className="bg-muted rounded-xl p-3 text-xs">
                     <div className="font-semibold mb-1">인근 경쟁 현황</div>
-                    <div className="text-muted-foreground">반경 500m 내 동업종 2개, MarketPoke 가맹점 없음</div>
+                    <div className="text-muted-foreground">
+                      반경 500m 내 동업종 2개, {LEGAL_CONFIG.serviceName} 가맹점 없음
+                    </div>
                   </div>
                 </div>
 

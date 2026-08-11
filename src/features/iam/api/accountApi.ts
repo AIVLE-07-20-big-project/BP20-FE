@@ -25,6 +25,18 @@ export interface StoreOwnerAccount {
   updatedAt: string;
 }
 
+export interface AdminPersonalData {
+  id: number;
+  email: string;
+  name: string;
+  phoneNumber: string | null;
+  visibleUntil: string;
+}
+
+export interface StoreOwnerPersonalData extends AdminPersonalData {
+  businessNumber: string | null;
+}
+
 export function getAdminAccounts() {
   return apiRequest<AdminAccount[]>("/api/iam/admin");
 }
@@ -37,6 +49,13 @@ export function changeAdminStatus(
   const action = nextStatus === "ACTIVE" ? "activate" : "deactivate";
   return apiRequest<AdminAccount>(`/api/iam/admin/${adminId}/${action}`, {
     method: "PATCH",
+    body: JSON.stringify({ currentPassword }),
+  });
+}
+
+export function revealAdminPersonalData(adminId: number, currentPassword: string) {
+  return apiRequest<AdminPersonalData>(`/api/iam/admin/${adminId}/personal-data/reveal`, {
+    method: "POST",
     body: JSON.stringify({ currentPassword }),
   });
 }
@@ -55,6 +74,16 @@ export function changeStoreOwnerStatus(
     `/api/admin/accounts/store-owners/${storeOwnerId}/${action}`,
     {
       method: "PATCH",
+      body: JSON.stringify({ currentPassword }),
+    },
+  );
+}
+
+export function revealStoreOwnerPersonalData(storeOwnerId: number, currentPassword: string) {
+  return apiRequest<StoreOwnerPersonalData>(
+    `/api/admin/accounts/store-owners/${storeOwnerId}/personal-data/reveal`,
+    {
+      method: "POST",
       body: JSON.stringify({ currentPassword }),
     },
   );
