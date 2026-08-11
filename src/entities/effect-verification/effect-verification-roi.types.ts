@@ -14,6 +14,7 @@ export interface EffectVerificationTypeSummary {
 
 export interface EffectVerificationRecentResult {
   recommendation_id: string;
+  action_name?: string;
   store_id: number;
   recommendation_type: RecommendationType;
   effect_score: number;
@@ -22,6 +23,11 @@ export interface EffectVerificationRecentResult {
 }
 
 export interface EffectVerificationRoiSummary {
+  total_stores: number;
+  ai_active_stores: number;
+  recommendation_runs: number;
+  executed_recommendations: number;
+  execution_rate: number;
   total_verified: number;
   average_effect_score: number;
   effective_count: number;

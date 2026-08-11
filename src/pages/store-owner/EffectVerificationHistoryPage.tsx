@@ -20,6 +20,7 @@ import {
   EffectVerificationApiError,
   getVerificationHistory,
 } from "../../features/effect-verification/api/effectVerificationApi";
+import { commerceApi } from "../../features/commerce/api/commerceApi";
 import { PageShell } from "../../shared/components/PageShell";
 
 const STATUS_OPTIONS: Array<{ value: VerificationStatus | ""; label: string }> = [
@@ -142,7 +143,6 @@ export function EffectVerificationHistoryPage({
   recommendationType: RecommendationType;
 }) {
   const navigate = useNavigate();
-  const storeId = 1;
   const [status, setStatus] = useState<VerificationStatus | "">("");
   const [history, setHistory] = useState<VerificationExecution[]>([]);
   const [loading, setLoading] = useState(true);
@@ -154,7 +154,8 @@ export function EffectVerificationHistoryPage({
     setLoading(true);
     setError(null);
 
-    getVerificationHistory(storeId)
+    commerceApi.getStore()
+      .then((store) => getVerificationHistory(store.id))
       .then((items) => {
         if (active) setHistory(items);
       })
@@ -174,7 +175,7 @@ export function EffectVerificationHistoryPage({
     return () => {
       active = false;
     };
-  }, [storeId, reloadKey]);
+  }, [reloadKey]);
 
   const displayedHistory = useMemo(
     () => history

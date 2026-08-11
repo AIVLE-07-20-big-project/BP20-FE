@@ -1,17 +1,17 @@
-import { useEffect, useMemo, useState, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Zap, Package, Star, TrendingDown, AlertCircle, ArrowRight,
   CloudRain, Clock, BarChart3,
-  ChevronRight, Sparkles, Bot, X, Send, Flame
+  ChevronRight, Sparkles, Flame
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, PieChart, Pie, Cell
 } from "recharts";
 import { MetricCard } from "../../shared/components/MetricCard";
-import { useAuth } from "../../app/providers/AuthProvider";
-import { AI_RECOMMENDATIONS, WEEKLY_SALES } from "../../mocks";
+import { useAuth } from "../../app/providers/useAuth";
+import { AI_RECOMMENDATIONS } from "../../mocks";
 import type { InventoryItem } from "../../entities/inventory/inventory.types";
 import { getUploadedInventories } from "../../features/inventory/api/inventoryApi";
 import { getStoreLocation } from "../../features/location/api/locationApi";
@@ -60,13 +60,6 @@ function monthToDate(rows: DetailedDailySales[]) {
     transactionsChange: prevTransactions > 0 ? ((transactions - prevTransactions) / prevTransactions) * 100 : undefined,
   };
 }
-
-const dayOverDayChange = (rows: DetailedDailySales[], key: "revenue" | "transactionCount") => {
-  if (rows.length < 2) return undefined;
-  const latest = rows[rows.length - 1][key];
-  const previous = rows[rows.length - 2][key];
-  return previous > 0 ? ((latest - previous) / previous) * 100 : undefined;
-};
 
 const BRIEFING_ACTIONS = [
   {
@@ -144,13 +137,6 @@ const KPI_CARDS = [
   { label: "예상 순이익", value: "8,420,000원", change: -1.8, period: "이번 달 예상", sparkKey: "profit" as const, positive: false },
 ];
 
-const CHAT_SUGGESTIONS = [
-  "오늘 매출이 지난주보다 낮은 이유는?",
-  "어떤 매출 기반 전략 추천을 먼저 실행할까요?",
-  "이번 주 재고 주문이 필요한 항목은?",
-  "오늘 쿠폰 발송을 추천하는 이유는?",
-];
-
 interface DonutTooltipProps {
   active?: boolean;
   payload?: { name: string; value: number; payload: { name: string; value: number; color: string } }[];
@@ -171,18 +157,11 @@ function DonutTooltipContent({ active, payload }: DonutTooltipProps) {
 export function DashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [actionStates, setActionStates] = useState<Record<string, string>>({});
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatMsg, setChatMsg] = useState("");
-  const [chatLog, setChatLog] = useState<{ role: "user" | "ai"; text: string }[]>([]);
   const [inventories, setInventories] = useState<InventoryItem[]>([]);
   const [weather, setWeather] = useState<CurrentWeather | null>(null);
-  const chatRef = useRef<HTMLDivElement>(null);
   const [analysis, setAnalysis] = useState<AiAnalysisResult | null>(null);
   const [recommendationRuns, setRecommendationRuns] = useState<AiRecommendationRun[]>([]);
-
-  const isDashboard = location.pathname === "/store" || location.pathname === "/store/";
 
   useEffect(() => {
     let cancelled = false;
@@ -228,6 +207,25 @@ export function DashboardPage() {
   })();
 
   const briefingActions = BRIEFING_ACTIONS.map((action) => {
+    if (action.category === "매출" && analysis) {
+      const change = analysis.detailed_analysis?.rootCauseAnalysis?.change;
+      const rate = typeof change?.ratePct === "number" ? Math.abs(change.ratePct).toFixed(1) : null;
+      const direction = change?.direction === "up" ? "증가" : change?.direction === "down" ? "감소" : "변동";
+      return {
+        ...action,
+        title: analysis.detailed_analysis?.rootCauseAnalysis?.headline ?? "최근 매출 분석 결과 확인",
+        detail: rate ? `분석 기간 매출 ${rate}% ${direction}` : "저장된 매출분석 결과 기반",
+        badge: "매출분석 기반",
+      };
+    }
+    if (action.category === "매출" && !analysis) {
+      return {
+        ...action,
+        title: "저장된 매출분석 자료 없음",
+        detail: "매출분석을 완료하면 운영 브리핑에 반영됩니다.",
+        badge: "분석 대기",
+      };
+    }
     if (action.category === "재고") {
       if (!lowestLowStockItem) {
         return { ...action, title: "부족 상태의 재고가 없습니다", detail: "현재 등록된 재고 기준" };
@@ -257,6 +255,7 @@ export function DashboardPage() {
 
   const briefingDetailPath = (category: string) => {
     if (category === "재고") return "/store/inventory";
+    if (category === "매출") return "/store/sales";
     if (category === "매출 예측") return "/store/sales";
     return "/store/actions";
   };
@@ -302,7 +301,6 @@ export function DashboardPage() {
     : AI_RECOMMENDATIONS.length - executed - running;
 
   const allDailySales = analysis?.detailed_analysis?.dailySales ?? [];
-  const latestDay = allDailySales.length ? allDailySales[allDailySales.length - 1] : null;
   const monthly = analysis ? monthToDate(allDailySales) : null;
   const rootCause = analysis?.detailed_analysis?.rootCauseAnalysis;
   const quarterlyInsight = analysis?.report?.["분석결과 해설"];
@@ -310,17 +308,7 @@ export function DashboardPage() {
   const formatWon = (value: number) => `${Math.round(value).toLocaleString()}원`;
   const salesSpark = allDailySales.slice(-6).map((row) => ({ v: row.revenue }));
   const ordersSpark = allDailySales.slice(-6).map((row) => ({ v: row.transactionCount }));
-  const kpiCards = latestDay && monthly && salesSpark.length >= 2 ? [
-    {
-      label: "오늘 매출", value: formatWon(latestDay.revenue),
-      change: dayOverDayChange(allDailySales, "revenue"), period: "전일 대비",
-      sparkData: salesSpark, positive: (dayOverDayChange(allDailySales, "revenue") ?? 0) >= 0,
-    },
-    {
-      label: "오늘 거래 건수", value: `${latestDay.transactionCount.toLocaleString()}건`,
-      change: dayOverDayChange(allDailySales, "transactionCount"), period: "전일 대비",
-      sparkData: ordersSpark, positive: (dayOverDayChange(allDailySales, "transactionCount") ?? 0) >= 0,
-    },
+  const kpiCards = monthly ? [
     {
       label: "이번 달 매출", value: formatWon(monthly.revenue),
       change: monthly.revenueChange, period: "지난달 대비",
@@ -332,16 +320,6 @@ export function DashboardPage() {
       sparkData: ordersSpark, positive: (monthly.transactionsChange ?? 0) >= 0,
     },
   ] : KPI_CARDS.map((card) => ({ ...card, sparkData: SPARKLINE_DATA[card.sparkKey] as { v: number }[] }));
-
-  const sendChat = () => {
-    const msg = chatMsg.trim();
-    if (!msg) return;
-    setChatLog(l => [...l, { role: "user", text: msg }]);
-    setChatMsg("");
-    setTimeout(() => {
-      setChatLog(l => [...l, { role: "ai", text: "AI 분석 중입니다. 잠시 후 인사이트를 제공해 드릴게요." }]);
-    }, 800);
-  };
 
   return (
     <div className="h-full overflow-y-auto">
@@ -481,32 +459,19 @@ export function DashboardPage() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="font-bold">매출 추이</h3>
-                <p className="text-xs text-muted-foreground">{allDailySales.length ? "업로드 POS 최근 7일" : "최근 7일"}</p>
+                <p className="text-xs text-muted-foreground">{allDailySales.length ? "매출분석 자료 최근 7일" : "매출분석 자료 없음"}</p>
               </div>
-              {!allDailySales.length && (
-                <div className="flex gap-3 text-xs">
-                  {[{ label: "온라인", color: "#8B5CF6" }, { label: "오프라인", color: "#246BFD" }].map((t) => (
-                    <div key={t.label} className="flex items-center gap-1 text-muted-foreground">
-                      <span className="w-2 h-2 rounded-full" style={{ background: t.color }} />
-                      {t.label}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
-            <div className="h-44">
+            <div className="h-44">{allDailySales.length ? (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={allDailySales.length
-                  ? allDailySales.slice(-7).map((row) => ({ date: row.date.slice(5).replace("-", "."), offline: row.revenue }))
-                  : WEEKLY_SALES}>
+                  <AreaChart data={allDailySales.slice(-7).map((row) => ({
+                    date: row.date.slice(5).replace("-", "."),
+                    offline: row.revenue,
+                  }))}>
                   <defs>
                     <linearGradient id="dashOfflineGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#246BFD" stopOpacity={0.3} />
                       <stop offset="100%" stopColor="#246BFD" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="dashOnlineGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#8B5CF6" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#DDE3EC" vertical={false} />
@@ -514,17 +479,14 @@ export function DashboardPage() {
                   <YAxis tick={{ fontSize: 11, fill: "#667085" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v/10000).toFixed(0)}만`} />
                   <Tooltip formatter={(v: number, name: string) => [`₩${v.toLocaleString()}`, name === "offline" ? (allDailySales.length ? "매출" : "오프라인") : "온라인"]} />
                   <Area key="dash-area-offline" type="monotone" dataKey="offline" stroke="#246BFD" fill="url(#dashOfflineGrad)" strokeWidth={2} />
-                  {!allDailySales.length && (
-                    <Area key="dash-area-online" type="monotone" dataKey="online" stroke="#8B5CF6" fill="url(#dashOnlineGrad)" strokeWidth={2} />
-                  )}
                 </AreaChart>
               </ResponsiveContainer>
-            </div>
+            ) : <div className="h-full flex items-center justify-center rounded-xl bg-muted/50 text-sm text-muted-foreground">저장된 매출분석을 선택하면 매출 추이가 표시됩니다.</div>}</div>
             <div className="mt-3 bg-[#246BFD]/8 rounded-xl px-3 py-2 text-xs text-[#246BFD] font-medium">
               <Sparkles className="w-3 h-3 inline mr-1" />
               {allDailySales.length
-                ? "실제 업로드된 POS 데이터를 반영한 최근 매출 추이입니다."
-                : "AI 분석: 비 예보로 오프라인 방문 감소 예상. 배달·온라인 채널 강화를 권장합니다."}
+                ? "저장된 매출분석 자료의 POS 일별 매출을 반영한 추이입니다."
+                : "매출분석을 완료하면 분석 자료 기반의 매출 추이가 표시됩니다."}
             </div>
           </div>
 
@@ -634,75 +596,6 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* Floating AI chatbot — dashboard only */}
-      {isDashboard && (
-        <>
-          {/* Drawer */}
-          {chatOpen && (
-            <div className="fixed bottom-20 right-4 lg:right-6 w-80 bg-card border border-border rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden" style={{ maxHeight: "70vh" }}>
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-gradient-to-r from-[#246BFD]/10 to-[#8B5CF6]/10">
-                <Bot className="w-4 h-4 text-[#246BFD]" />
-                <span className="text-sm font-bold flex-1">AI 도우미</span>
-                <button onClick={() => setChatOpen(false)} className="p-1 text-muted-foreground hover:text-foreground rounded-lg">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-3 space-y-2" ref={chatRef}>
-                {chatLog.length === 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground text-center pt-2 pb-1">궁금한 점을 물어보세요</p>
-                    {CHAT_SUGGESTIONS.map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => { setChatMsg(s); }}
-                        className="w-full text-left text-xs bg-muted hover:bg-muted-foreground/10 rounded-xl px-3 py-2 transition-colors"
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {chatLog.map((m, i) => (
-                  <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[85%] text-xs px-3 py-2 rounded-xl ${m.role === "user" ? "bg-[#246BFD] text-white" : "bg-muted text-foreground"}`}>
-                      {m.text}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="p-3 border-t border-border">
-                <div className="flex gap-2">
-                  <input
-                    value={chatMsg}
-                    onChange={e => setChatMsg(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && sendChat()}
-                    placeholder="메시지 입력..."
-                    className="flex-1 text-xs h-8 px-3 bg-muted rounded-xl focus:outline-none focus:ring-2 focus:ring-[#246BFD]/40"
-                  />
-                  <button onClick={sendChat} className="w-8 h-8 flex items-center justify-center bg-[#246BFD] text-white rounded-xl hover:bg-[#1D4ED8] transition-colors">
-                    <Send className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-          {/* Launcher button */}
-          <div className="fixed bottom-6 right-4 lg:right-6 z-50 group">
-            <button
-              onClick={() => setChatOpen(o => !o)}
-              className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#246BFD] to-[#8B5CF6] flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 transition-all focus:outline-none focus:ring-2 focus:ring-[#246BFD]/50"
-              aria-label="AI 도우미 열기"
-            >
-              {chatOpen ? <X className="w-5 h-5 text-white" /> : <Bot className="w-5 h-5 text-white" />}
-            </button>
-            {!chatOpen && (
-              <div className="absolute bottom-full right-0 mb-2 bg-[#111A2E] text-white text-[11px] px-2.5 py-1.5 rounded-xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                AI 도우미 열기
-              </div>
-            )}
-          </div>
-        </>
-      )}
     </div>
   );
 }

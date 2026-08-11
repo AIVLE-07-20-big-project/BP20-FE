@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { TrendingUp, Users, Zap } from "lucide-react";
+import { PolicyFooter } from "../../../shared/components/PolicyFooter";
+import { LEGAL_CONFIG } from "../../legal/legalConfig";
 
 interface AuthLayoutProps {
   children: ReactNode;
@@ -28,7 +30,7 @@ export function AuthLayout({ children, contentWidth = "sm" }: AuthLayoutProps) {
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#246BFD] to-[#5B6CFF]">
             <Zap className="h-5 w-5 text-white" />
           </div>
-          <span className="text-xl font-black tracking-wide text-white">BP20</span>
+          <span className="text-xl font-black tracking-wide text-white">{LEGAL_CONFIG.serviceName}</span>
         </div>
 
         <div className="relative z-10">
@@ -54,19 +56,22 @@ export function AuthLayout({ children, contentWidth = "sm" }: AuthLayoutProps) {
           </div>
         </div>
 
-        <p className="relative z-10 text-xs text-white/20">© 2026 BP20. All rights reserved.</p>
+        <div className="relative z-10"><PolicyFooter dark /></div>
       </aside>
 
-      <main className="flex min-h-screen flex-1 items-center justify-center overflow-y-auto px-6 py-10 sm:px-8 lg:px-12">
+      <main className="flex min-h-screen flex-1 flex-col overflow-y-auto px-6 py-8 sm:px-8 lg:px-12">
+        <div className="flex flex-1 items-center justify-center py-2">
         <div className={contentWidth === "md" ? "w-full max-w-lg" : "w-full max-w-sm"}>
           <div className="mb-8 flex items-center gap-2 lg:hidden">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[#246BFD] to-[#5B6CFF]">
               <Zap className="h-4 w-4 text-white" />
             </div>
-            <span className="text-lg font-black tracking-wide">BP20</span>
+            <span className="text-lg font-black tracking-wide">{LEGAL_CONFIG.serviceName}</span>
           </div>
           {children}
         </div>
+        </div>
+        <div className="mx-auto mt-6 w-full max-w-lg lg:hidden"><PolicyFooter /></div>
       </main>
     </div>
   );

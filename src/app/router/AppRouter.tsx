@@ -2,9 +2,12 @@ import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { AdminLayout } from "../layouts/AdminLayout";
 import { StoreOwnerLayout } from "../layouts/StoreOwnerLayout";
-import { useAuth } from "../providers/AuthProvider";
+import { useAuth } from "../providers/useAuth";
 import { LoginPage } from "../../pages/auth/LoginPage";
 import { SignupPage } from "../../pages/auth/SignupPage";
+import { PrivacyPolicyPage } from "../../pages/legal/PrivacyPolicyPage";
+import { TermsPage } from "../../pages/legal/TermsPage";
+import { OpenSourceLicensesPage } from "../../pages/legal/OpenSourceLicensesPage";
 import { NotFoundPage } from "../../pages/error/NotFoundPage";
 import { GuestRoute } from "./GuestRoute";
 import { ProtectedRoute } from "./ProtectedRoute";
@@ -28,7 +31,6 @@ const PlaceholderPage = lazy(() => import("../../pages/store-owner/PlaceholderPa
 const ProductImagePage = lazy(() => import("../../pages/store-owner/ProductImagePage").then(({ ProductImagePage }) => ({ default: ProductImagePage })));
 
 const PortfolioDashboard = lazy(() => import("../../pages/admin/PortfolioDashboard").then(({ PortfolioDashboard }) => ({ default: PortfolioDashboard })));
-const MerchantsPage = lazy(() => import("../../pages/admin/MerchantsPage").then(({ MerchantsPage }) => ({ default: MerchantsPage })));
 const MerchantDetailPage = lazy(() => import("../../pages/admin/MerchantDetailPage").then(({ MerchantDetailPage }) => ({ default: MerchantDetailPage })));
 const RisksPage = lazy(() => import("../../pages/admin/RisksPage").then(({ RisksPage }) => ({ default: RisksPage })));
 const ROIPage = lazy(() => import("../../pages/admin/ROIPage").then(({ ROIPage }) => ({ default: ROIPage })));
@@ -72,6 +74,9 @@ export function AppRouter() {
       <Routes>
         <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
         <Route path="/signup" element={<GuestRoute><SignupPage /></GuestRoute>} />
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/open-source-licenses" element={<OpenSourceLicensesPage />} />
         <Route
           path="/"
           element={
@@ -131,7 +136,6 @@ export function AppRouter() {
           }
         >
           <Route index element={<PortfolioDashboard />} />
-          <Route path="merchants" element={<MerchantsPage />} />
           <Route path="merchants/:id" element={<MerchantDetailPage />} />
           <Route path="store-owner-invitations" element={<Navigate to="/admin/accounts/store-owners" replace />} />
           <Route path="risks" element={<RisksPage />} />

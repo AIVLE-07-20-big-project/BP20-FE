@@ -6,6 +6,9 @@ import {
   type NoticeApi,
 } from "../api/noticesApi";
 import { apiUrl } from "../../../shared/config/runtimeEnv";
+import { LEGAL_CONFIG } from "../../../pages/legal/legalConfig";
+
+const NOTICE_AUTHOR = `${LEGAL_CONFIG.serviceName} 운영팀`;
 
 const DEMO_NOTICES: NoticeApi[] = [
   {
@@ -16,7 +19,7 @@ const DEMO_NOTICES: NoticeApi[] = [
     audience: "전체 가맹점",
     status: "PUBLISHED",
     urgent: false,
-    author: "BP20 운영팀",
+    author: NOTICE_AUTHOR,
     createdAt: "2026-07-28T09:00:00",
     updatedAt: "2026-07-28T09:00:00",
   },
@@ -28,7 +31,7 @@ const DEMO_NOTICES: NoticeApi[] = [
     audience: "전체 가맹점",
     status: "PUBLISHED",
     urgent: true,
-    author: "BP20 운영팀",
+    author: NOTICE_AUTHOR,
     createdAt: "2026-07-27T15:30:00",
     updatedAt: "2026-07-27T15:30:00",
   },
@@ -101,7 +104,7 @@ export function StoreNoticePopover({ isDemo }: { isDemo: boolean }) {
           <div className="flex items-center justify-between border-b border-border bg-gradient-to-r from-[#F4F8FF] to-white px-4 py-3.5">
             <div>
               <h2 className="text-sm font-bold">공지 알림</h2>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">BP20 운영팀에서 전달한 최신 안내입니다.</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">{NOTICE_AUTHOR}에서 전달한 최신 안내입니다.</p>
             </div>
             <button
               type="button"
