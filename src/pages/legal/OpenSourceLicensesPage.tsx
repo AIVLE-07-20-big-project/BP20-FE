@@ -25,10 +25,6 @@ export function OpenSourceLicensesPage() {
       icon={<Library className="h-6 w-6" />}
       meta={`고지 기준일 ${LEGAL_CONFIG.effectiveDate} · 고지 버전 ${LEGAL_CONFIG.openSourceNoticeVersion}`}
     >
-      <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-950">
-        아래 목록은 주요 직접 의존성입니다. 실제 배포 전 프론트엔드·백엔드·AI 이미지에 포함된 전이 의존성까지 SBOM과
-        THIRD-PARTY NOTICES를 자동 생성하여 배포 산출물과 함께 보관해야 합니다.
-      </div>
       <LegalSection title="주요 오픈소스 소프트웨어">
         <div className="overflow-hidden rounded-xl border border-border">
           <div className="grid grid-cols-[1fr_auto_auto] gap-3 border-b border-border bg-muted/70 px-4 py-3 text-xs font-bold text-foreground">

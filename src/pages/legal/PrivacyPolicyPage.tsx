@@ -10,17 +10,12 @@ export function PrivacyPolicyPage() {
   return (
     <LegalDocumentLayout
       title="개인정보 처리방침"
-      description={`${LEGAL_CONFIG.operatorName}은 정보주체의 개인정보를 중요하게 여기며 관련 법령에 따라 안전하게 처리합니다.`}
+      description={`${LEGAL_CONFIG.operatorName}는 정보주체의 개인정보를 중요하게 여기며 관련 법령에 따라 안전하게 처리합니다.`}
       icon={<ShieldCheck className="h-6 w-6" />}
       meta={`시행일 ${LEGAL_CONFIG.effectiveDate} · 버전 ${LEGAL_CONFIG.privacyPolicyVersion}`}
     >
-      <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-950">
-        본 방침은 {LEGAL_CONFIG.serviceName}의 현재 구현을 기준으로 작성되었습니다. 운영 배포 전 아래 보호책임자·연락처·사업장
-        정보와 클라우드 위탁 현황을 실제 계약 내용으로 확정해야 합니다.
-      </div>
-
       <LegalSection title="1. 개인정보의 처리 목적">
-        <p>{LEGAL_CONFIG.serviceName}은 다음 목적에 필요한 범위에서만 개인정보를 처리하며, 목적이 변경되는 경우 관계 법령에 따른 조치를 이행합니다.</p>
+        <p>{LEGAL_CONFIG.serviceName}는 다음 목적에 필요한 범위에서만 개인정보를 처리하며, 목적이 변경되는 경우 관계 법령에 따른 조치를 이행합니다.</p>
         <ul className="list-disc space-y-1 pl-5">
           <li>초대 대상 확인, 회원가입, 로그인, 본인 식별 및 역할별 권한 관리</li>
           <li>점주 매장 등록·관리, 고객 관리, 할인 및 쿠폰 운영</li>
@@ -58,7 +53,7 @@ export function PrivacyPolicyPage() {
           <table className={tableClassName}>
             <thead><tr><th className={headClassName}>수탁자</th><th className={headClassName}>위탁 업무</th><th className={headClassName}>처리 정보·기간</th></tr></thead>
             <tbody>
-              <tr><td className={cellClassName}>Google LLC (reCAPTCHA 활성화 시)</td><td className={cellClassName}>로그인 자동화 공격, 부정 이용 및 악성 트래픽 탐지</td><td className={cellClassName}>CAPTCHA 토큰, 접속 IP, 브라우저·기기 신호. 로그인 시 암호화 통신으로 전송되며 Google Cloud 계약과 데이터 처리 부속서에 따라 처리</td></tr>
+              <tr><td className={cellClassName}>Google LLC (reCAPTCHA)</td><td className={cellClassName}>로그인 자동화 공격, 부정 이용 및 악성 트래픽 탐지</td><td className={cellClassName}>CAPTCHA 토큰, 접속 IP, 브라우저·기기 신호. 로그인 시 암호화 통신으로 전송되며 Google Cloud 계약과 데이터 처리 부속서에 따라 처리</td></tr>
               <tr><td className={cellClassName}>클라우드 인프라 사업자</td><td className={cellClassName}>서버, 데이터베이스, 캐시·큐, 파일 저장 및 모니터링</td><td className={cellClassName}>운영 배포 사업자·리전·계약을 확정한 뒤 본 표에 상호, 처리 위치와 보유기간을 반영해야 함</td></tr>
             </tbody>
           </table>

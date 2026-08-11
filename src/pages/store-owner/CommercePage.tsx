@@ -47,6 +47,7 @@ import { ApiError } from "../../shared/api/apiClient";
 import aiProductImageBanner from "../../shared/assets/images/ai-product-image-banner-natural.png";
 import { Badge } from "../../shared/components/Badge";
 import { PageShell } from "../../shared/components/PageShell";
+import { LEGAL_CONFIG } from "../legal/legalConfig";
 import {
   formatPhoneNumber,
   isValidPhoneNumber,
@@ -769,7 +770,7 @@ function AiProductImageBanner() {
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-[#AFC7FF] backdrop-blur">
               <Sparkles className="h-3.5 w-3.5 text-[#7EA2FF]" />
-              MarketPoke Generative Studio
+              {LEGAL_CONFIG.serviceName} Generative Studio
             </span>
             <span className="rounded-full bg-[#7C5CFC]/20 px-2.5 py-1 text-[10px] font-bold text-[#CFC2FF]">
               AI 배경 합성
