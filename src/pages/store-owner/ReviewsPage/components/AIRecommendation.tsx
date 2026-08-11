@@ -10,10 +10,6 @@ export default function AIRecommendation({ storeId }: { storeId: number | null }
 
     const [data, setData] = useState<Recommendations | null>(null);
 
-      if (!storeId) return (
-        <div>매장 정보를 불러오는 중입니다...</div>
-      );
-
     useEffect(() => {
         getRecommendations(storeId)
         .then((res) => {
@@ -59,6 +55,9 @@ export default function AIRecommendation({ storeId }: { storeId: number | null }
             alert("완료 처리에 실패했습니다.");
         }
     };
+    if (!storeId) return (
+        <div>매장 정보를 불러오는 중입니다...</div>
+    );
 
     if (loading) {
         return (

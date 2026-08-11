@@ -2,10 +2,6 @@ import { useEffect, useState } from "react";
 import { getReviewKeywords, ReviewKeywords } from "../api/review";
 import { AlertCircle, Loader2 } from "lucide-react";
 
-interface Review {
-    
-}
-
 export default function ReviewKeyword({ storeId }: { storeId: number | null }) {
 
     const [reviewKeywords, setReviewKeywords] = useState<ReviewKeywords[]>([]);
@@ -13,12 +9,12 @@ export default function ReviewKeyword({ storeId }: { storeId: number | null }) {
     const [reviewKeywordView, setReviewKeywordView] = useState<string | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<boolean>(false);
-    
-    if (!storeId) return (
-    <div>매장 정보를 불러오는 중입니다...</div>
-    );
 
     useEffect(() => {
+        if (!storeId) {
+            setLoading(false);
+            return;
+        }
         const fetchKeywords = async () => {
             try {
                 setLoading(true);
@@ -43,6 +39,10 @@ export default function ReviewKeyword({ storeId }: { storeId: number | null }) {
             </div>
         );
     }
+
+    if (!storeId) return (
+        <div>매장 정보를 불러오는 중입니다...</div>
+    );
 
     if (error) {
         return (
@@ -105,13 +105,6 @@ export default function ReviewKeyword({ storeId }: { storeId: number | null }) {
                                     </div>
                                     )}
                                 </div>
-                                {/* <div
-                                    className={`text-xs font-semibold ${
-                                        isNegative ? "text-red-500" : "text-blue-500"
-                                    }`}
-                                >
-                                    {t.sentiment}
-                                </div> */}
                             </div>
                         </div>
                     );
