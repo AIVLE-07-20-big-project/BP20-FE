@@ -106,6 +106,17 @@ const RATE_METRICS = new Set([
   "target_aspect_negative_rate",
 ]);
 
+const VERDICT_VIEW: Record<EffectVerificationResult["verdict"], {
+  label: string;
+  className: string;
+}> = {
+  EFFECTIVE: { label: "효과 있음", className: "text-emerald-600" },
+  PARTIALLY_EFFECTIVE: { label: "부분 효과", className: "text-amber-600" },
+  NOT_EFFECTIVE: { label: "효과 미흡", className: "text-red-600" },
+  INCONCLUSIVE: { label: "판단 보류", className: "text-amber-600" },
+  INEFFECTIVE: { label: "효과 미흡", className: "text-red-600" },
+};
+
 function formatDate(value?: string | null) {
   if (!value) return "—";
   return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium" }).format(new Date(value));
@@ -158,28 +169,42 @@ function ResultSection({ result, actionName }: { result: EffectVerificationResul
     ?? metrics.find((metric) => metric.metric_name === "sales");
   const headlineUp = headline?.change_value != null && headline.change_value >= 0;
   const narrative = result.recommendation_type === "SALES" ? buildNarrative(actionName, metrics) : null;
+  const verdict = VERDICT_VIEW[result.verdict];
+  const effectScore = result.effect_score;
+  const hasScore = effectScore != null && Number.isFinite(effectScore);
 
   return (
     <section className="rounded-2xl border border-border bg-card p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-bold">매출 변화</p>
+          <p className="text-sm font-bold">효과 검증 결과</p>
           <p className="mt-1 text-xs text-muted-foreground">{formatDate(result.verified_date)} 기준</p>
         </div>
-        {headline && (
-          <div className="text-right">
-            <p className={`text-3xl font-black tabular-nums ${headlineUp ? "text-emerald-600" : "text-red-600"}`}>
-              {headline.change_value != null
-                ? `${headline.change_value >= 0 ? "+" : ""}${Math.round(headline.change_value).toLocaleString("ko-KR")}원`
-                : "—"}
-            </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+        <div className={`text-right ${verdict.className}`}>
+          <p className="text-3xl font-black tabular-nums">
+            {hasScore ? effectScore.toLocaleString("ko-KR", { maximumFractionDigits: 2 }) : "—"}
+            {hasScore && <span className="ml-0.5 text-sm">점</span>}
+          </p>
+          <p className="mt-0.5 text-xs font-bold">{verdict.label}</p>
+        </div>
+      </div>
+
+      {headline && (
+        <div className="mt-4 flex flex-wrap items-end justify-between gap-3 rounded-xl bg-muted/40 p-3">
+          <div>
+            <p className="text-xs font-bold text-foreground">매출 변화</p>
+            <p className="mt-1 text-xs text-muted-foreground">
               {formatMetricValue(headline, headline.before_value)} → {formatMetricValue(headline, headline.after_value)}
               {headline.change_rate != null && ` (${headline.change_rate >= 0 ? "+" : ""}${headline.change_rate}%)`}
             </p>
           </div>
-        )}
-      </div>
+          <p className={`text-2xl font-black tabular-nums ${headlineUp ? "text-emerald-600" : "text-red-600"}`}>
+            {headline.change_value != null
+              ? `${headline.change_value >= 0 ? "+" : ""}${Math.round(headline.change_value).toLocaleString("ko-KR")}원`
+              : "—"}
+          </p>
+        </div>
+      )}
 
       {result.strategy_report ? (
         <div className="mt-4">
