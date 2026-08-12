@@ -161,7 +161,7 @@ export function ReviewsPage() {
   return (
     <PageShell 
       title="리뷰 분석" 
-      freshness="오늘 09:42 기준"
+      liveFreshness
       actions={
         <div className="flex flex-col items-end gap-1">
           <button
