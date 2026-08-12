@@ -17,6 +17,12 @@ import { startRecommendationExecution } from "../../features/effect-verification
 const AI_ANALYSIS_ID_KEY = "bp20:ai-analysis-id";
 const AI_ANALYSIS_OPTIONS_KEY = "bp20:ai-analysis-options";
 
+// sessionStorage.setItem이 undefined/null을 문자열 "undefined"/"null"로 강제 변환해
+// 저장하는 경우를 걸러낸다.
+function isValidAnalysisId(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && value !== "undefined" && value !== "null";
+}
+
 const RECOMMENDATION_PROGRESS_STEPS = ["요청 접수", "AI 전략 분석", "추천 결과 생성"];
 type AnalysisOption = { id: string; label: string };
 
@@ -336,16 +342,17 @@ export function AiStrategyPage() {
       // 오래된 세션 값은 아래 fallback으로 처리한다.
     }
     const legacyId = sessionStorage.getItem(AI_ANALYSIS_ID_KEY);
-    return legacyId ? [{ id: legacyId, label: "최근 매출 분석" }] : [];
+    return isValidAnalysisId(legacyId) ? [{ id: legacyId, label: "최근 매출 분석" }] : [];
   });
   const [analysisId, setAnalysisId] = useState(() => {
     try {
       const saved = JSON.parse(sessionStorage.getItem(AI_ANALYSIS_OPTIONS_KEY) ?? "[]");
-      if (Array.isArray(saved) && saved[0]?.id) return saved[0].id;
+      if (Array.isArray(saved) && isValidAnalysisId(saved[0]?.id)) return saved[0].id;
     } catch {
       // fallback
     }
-    return sessionStorage.getItem(AI_ANALYSIS_ID_KEY) ?? "";
+    const legacyId = sessionStorage.getItem(AI_ANALYSIS_ID_KEY);
+    return isValidAnalysisId(legacyId) ? legacyId : "";
   });
   const [recommendationRun, setRecommendationRun] = useState<AiRecommendationRun | null>(null);
   const [recommendationLoading, setRecommendationLoading] = useState(false);
@@ -388,7 +395,7 @@ export function AiStrategyPage() {
     : (recommendationRun?.candidate_actions ?? []).slice(0, 2);
   const requestRecommendation = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!analysisId) {
+    if (!isValidAnalysisId(analysisId)) {
       setRecommendationError("먼저 매출 분석을 완료하고 분석 대상을 선택해 주세요.");
       return;
     }

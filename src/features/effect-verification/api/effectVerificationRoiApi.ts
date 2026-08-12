@@ -1,9 +1,6 @@
 import type { EffectVerificationRoiSummary } from "../../../entities/effect-verification/effect-verification-roi.types";
 import { getAccessToken } from "../../../shared/api/apiClient";
-
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080"
-).replace(/\/$/, "");
+import { API_BASE_URL } from "../../../shared/config/runtimeEnv";
 
 export async function getEffectVerificationRoiSummary(storeId?: number) {
   const query = storeId == null ? "" : `?store_id=${encodeURIComponent(storeId)}`;

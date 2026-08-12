@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Zap, Package, Star, TrendingDown, AlertCircle, ArrowRight,
+  Zap, Package, Star, AlertCircle, ArrowRight,
   CloudRain, Clock, BarChart3,
-  ChevronRight, Sparkles, Flame
+  Sparkles, Flame
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, PieChart, Pie, Cell
 } from "recharts";
 import { MetricCard } from "../../shared/components/MetricCard";
+import { LiveDateTime } from "../../shared/components/LiveDateTime";
 import { useAuth } from "../../app/providers/useAuth";
 import { AI_RECOMMENDATIONS } from "../../mocks";
 import type { InventoryItem } from "../../entities/inventory/inventory.types";
@@ -104,13 +105,6 @@ const BRIEFING_ACTIONS = [
     detailColor: "text-sky-600",
     badge: "날씨 보정",
   },
-];
-
-const RISK_ITEMS = [
-  { icon: Package, color: "text-amber-500", bg: "bg-amber-50", label: "식재료 부족", detail: "원두 2.4kg — 내일 품절 예상", urgent: true },
-  { icon: AlertCircle, color: "text-red-500", bg: "bg-red-50", label: "식빵 재고 품절", detail: "공급사 오늘 오전 주문 마감", urgent: true },
-  { icon: TrendingDown, color: "text-amber-500", bg: "bg-amber-50", label: "식재료비 이상 감지", detail: "4주 평균 대비 +14% 상승", urgent: false },
-  { icon: Star, color: "text-red-500", bg: "bg-red-50", label: "대기시간 리뷰 증가", detail: "최근 2주 3배 증가", urgent: false },
 ];
 
 const REVIEW_ASPECTS = [
@@ -333,10 +327,7 @@ export function DashboardPage() {
               <span className="flex items-center gap-1"><CloudRain className="w-3.5 h-3.5 text-[#38BDF8]" /> {currentWeatherLabel}</span>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-card border border-border rounded-xl px-3 py-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#0E9F6E] animate-pulse" />
-            오늘 09:42 기준
-          </div>
+          <LiveDateTime className="flex bg-card border border-border rounded-xl px-3 py-1.5" />
         </div>
 
         {/* AI 경영 인사이트 Hero (purple) */}
@@ -414,9 +405,10 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* KPI Row with sparklines */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-          {kpiCards.map((k, i) => {
+        {/* KPI cards and sales trend */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5 items-stretch">
+          <div className="grid grid-cols-2 gap-3">
+            {kpiCards.map((k, i) => {
             const sparkColor = k.positive ? "#0E9F6E" : "#D92D20";
             const sparkId = `spark-${i}`;
             return (
@@ -448,14 +440,12 @@ export function DashboardPage() {
                   </div>
                 </div>
               </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
 
-        {/* Main bento grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Sales trend - 2 cols */}
-          <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-5">
+          {/* Sales trend */}
+          <div className="bg-card border border-border rounded-2xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="font-bold">매출 추이</h3>
@@ -489,35 +479,10 @@ export function DashboardPage() {
                 : "매출분석을 완료하면 분석 자료 기반의 매출 추이가 표시됩니다."}
             </div>
           </div>
+        </div>
 
-          {/* Risk card */}
-          <div className="bg-card border border-border rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold">지금 확인할 위험</h3>
-              <span className="text-xs bg-red-50 text-red-600 border border-red-100 px-2 py-0.5 rounded-full font-semibold">4건</span>
-            </div>
-            <div className="space-y-2.5">
-              {RISK_ITEMS.map((item, i) => {
-                const Icon = item.icon;
-                return (
-                  <div key={i} className="flex items-start gap-3">
-                    <div className={`w-7 h-7 rounded-lg ${item.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
-                      <Icon className={`w-3.5 h-3.5 ${item.color}`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-semibold text-foreground">{item.label}</span>
-                        {item.urgent && <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded font-bold">긴급</span>}
-                      </div>
-                      <span className="text-xs text-muted-foreground">{item.detail}</span>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
+        {/* Main bento grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Review pulse with donut */}
           <div className="bg-card border border-border rounded-2xl p-5">
             <div className="flex items-center justify-between mb-4">
