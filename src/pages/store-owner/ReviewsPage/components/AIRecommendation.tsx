@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getRecommendations, patchCompleteActionItem, Recommendations } from "../api/review";
-import { Loader2, TrendingUp } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import ActionItemCard from "./ActionItemCard";
 
 export default function AIRecommendation({ storeId }: { storeId: number | null }) {
@@ -89,6 +89,11 @@ export default function AIRecommendation({ storeId }: { storeId: number | null }
 
     return (
         <div className="space-y-3">
+            {data.executiveSummary && (
+                <p className="text-sm leading-6 text-slate-700">
+                    {data.executiveSummary}
+                </p>
+            )}
             {data.actionItems.map((item, idx) => (
             <ActionItemCard 
                 key={idx} 
