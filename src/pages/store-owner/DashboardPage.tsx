@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import {
   Zap, Package, Star, AlertCircle, ArrowRight,
   CloudRain, Clock, BarChart3,
@@ -19,6 +19,8 @@ import { getStoreLocation } from "../../features/location/api/locationApi";
 import { getCurrentWeather, type CurrentWeather } from "../../features/weather/api/weatherApi";
 import { getAnalysis, getRecommendations } from "../../features/ai-analysis/api/aiAnalysisApi";
 import type { AiAnalysisResult, AiRecommendationRun, DetailedDailySales } from "../../entities/ai-analysis/ai-analysis.types";
+import type { StoreOwnerLayoutContext } from "../../app/layouts/StoreOwnerLayout";
+import { useReviewStats } from "./ReviewsPage/hooks/useReviewStats";
 
 // SalesPage/AiStrategyPage와 동일한 세션 키 — 그 화면에서 완료한 매출 분석을 그대로 이어받는다.
 const AI_ANALYSIS_ID_KEY = "bp20:ai-analysis-id";
@@ -151,6 +153,8 @@ function DonutTooltipContent({ active, payload }: DonutTooltipProps) {
 export function DashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { currentStoreId: storeId } = useOutletContext<StoreOwnerLayoutContext>();
+  const { averageRating } = useReviewStats(storeId);
   const [actionStates, setActionStates] = useState<Record<string, string>>({});
   const [inventories, setInventories] = useState<InventoryItem[]>([]);
   const [weather, setWeather] = useState<CurrentWeather | null>(null);
@@ -482,14 +486,14 @@ export function DashboardPage() {
         </div>
 
         {/* Main bento grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Review pulse with donut */}
           <div className="bg-card border border-border rounded-2xl p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold">리뷰 현황</h3>
               <div className="flex items-center gap-1">
                 <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-                <span className="text-sm font-bold">4.2</span>
+                <span className="text-sm font-bold">{averageRating.toFixed(1)}</span>
                 <span className="text-xs text-muted-foreground">/5</span>
               </div>
             </div>
@@ -528,10 +532,6 @@ export function DashboardPage() {
                 ))}
               </div>
             </div>
-            <div className="mt-4 bg-red-50 border border-red-100 rounded-xl p-2.5 text-xs text-red-700">
-              <AlertCircle className="w-3.5 h-3.5 inline mr-1" />
-              '대기시간' 관련 언급이 2주간 3배 증가
-            </div>
           </div>
 
           {/* AI action stats */}
@@ -554,7 +554,7 @@ export function DashboardPage() {
                 </div>
               ))}
             </div>
-            <button onClick={() => navigate("/store/actions")} className="w-full text-xs text-center text-[#246BFD] font-semibold py-2 bg-[#246BFD]/5 hover:bg-[#246BFD]/10 rounded-xl transition-colors">
+            <button onClick={() => navigate("/store/reviews")} className="w-full text-xs text-center text-[#246BFD] font-semibold py-2 bg-[#246BFD]/5 hover:bg-[#246BFD]/10 rounded-xl transition-colors">
               추천 실행하기
             </button>
           </div>
