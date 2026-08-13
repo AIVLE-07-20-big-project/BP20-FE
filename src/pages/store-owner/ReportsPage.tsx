@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { FileText, Download, Share2, CheckCircle2, Sparkles, ChevronRight } from "lucide-react";
 import { PageShell } from "../../shared/components/PageShell";
+import { LiveDateTime } from "../../shared/components/LiveDateTime";
 
 const REPORTS = [
   { id: "r1", title: "2025년 7월 3주차 주간 리포트", period: "2025.07.14 ~ 2025.07.20", type: "주간", unread: false, date: "07.20" },
@@ -51,7 +52,7 @@ export function ReportsPage() {
   const [selectedReport, setSelectedReport] = useState(REPORTS[0]);
 
   return (
-    <PageShell title="경영 리포트" freshness="오늘 09:42 기준">
+    <PageShell title="경영 리포트" liveFreshness>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Report list */}
         <div className="space-y-2">
@@ -109,7 +110,7 @@ export function ReportsPage() {
               </div>
               <div className="flex items-center gap-1.5 mt-3 text-xs text-muted-foreground">
                 <Sparkles className="w-3 h-3 text-[#246BFD]" />
-                AI 생성 리포트 · 데이터 기준: 2025.07.20 09:42
+                AI 생성 리포트 · 데이터 기준: <LiveDateTime className="inline-flex" />
               </div>
             </div>
 
