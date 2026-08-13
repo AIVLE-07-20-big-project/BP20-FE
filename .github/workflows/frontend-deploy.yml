@@ -1,0 +1,52 @@
+name: Frontend Deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: frontend-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy to S3
+    runs-on: ubuntu-latest
+    environment: prod
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run build
+        env:
+          VITE_API_BASE_URL: ""
+          VITE_SERVICE_NAME: ${{ vars.VITE_SERVICE_NAME }}
+          VITE_PRIVACY_OFFICER: ${{ vars.VITE_PRIVACY_OFFICER }}
+          VITE_PRIVACY_CONTACT_EMAIL: ${{ vars.VITE_PRIVACY_CONTACT_EMAIL }}
+          VITE_PRIVACY_CONTACT_PHONE: ${{ vars.VITE_PRIVACY_CONTACT_PHONE }}
+          VITE_LEGAL_BUSINESS_ADDRESS: ${{ vars.VITE_LEGAL_BUSINESS_ADDRESS }}
+          VITE_RECAPTCHA_SITE_KEY: ${{ vars.VITE_RECAPTCHA_SITE_KEY }}
+
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-northeast-2
+
+      - name: Sync to S3
+        run: aws s3 sync dist/ s3://${{ vars.FRONTEND_BUCKET }} --delete
+
+      - name: Invalidate CloudFront
+        run: aws cloudfront create-invalidation --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"
