@@ -403,7 +403,7 @@ export function SalesPage() {
   return (
     <PageShell
       title="매출 분석"
-      freshness="오늘 09:42 기준"
+      liveFreshness
       actions={
         <button
           type="button"

@@ -13,8 +13,19 @@ export function useLiveDateTime() {
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
-    const intervalId = window.setInterval(() => setNow(new Date()), 30_000);
-    return () => window.clearInterval(intervalId);
+    const updateNow = () => setNow(new Date());
+    const millisecondsUntilNextMinute = 60_000 - (Date.now() % 60_000);
+    let intervalId: number | undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      updateNow();
+      intervalId = window.setInterval(updateNow, 60_000);
+    }, millisecondsUntilNextMinute);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (intervalId !== undefined) window.clearInterval(intervalId);
+    };
   }, []);
 
   return useMemo(

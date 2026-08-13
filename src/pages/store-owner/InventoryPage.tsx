@@ -287,7 +287,7 @@ export function InventoryPage() {
   }, []);
 
   return (
-    <PageShell title="재고·발주" freshness="오늘 09:42 기준">
+    <PageShell title="재고·발주" liveFreshness>
       <section className="bg-card border border-border rounded-2xl p-4 mb-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
