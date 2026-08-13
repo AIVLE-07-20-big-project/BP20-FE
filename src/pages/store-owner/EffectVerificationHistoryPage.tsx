@@ -268,7 +268,7 @@ export function EffectVerificationHistoryPage({
             <HistoryCard
               key={execution.recommendation_id}
               execution={execution}
-              onOpen={() => navigate(`/store/strategy-verifications/${execution.recommendation_id}`)}
+              onOpen={() => navigate(`/store/verify/${execution.recommendation_id}`)}
             />
           ))}
         </div>

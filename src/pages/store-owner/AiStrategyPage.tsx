@@ -607,7 +607,7 @@ export function AiStrategyPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => navigate(`/store/strategy-verifications/${encodeURIComponent(verificationExecution.recommendation_id)}`)}
+                  onClick={() => navigate(`/store/verify/${encodeURIComponent(verificationExecution.recommendation_id)}`)}
                   className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
                 >
                   전략 검증에서 확인

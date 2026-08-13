@@ -163,7 +163,7 @@ export function EffectVerificationPerformanceSection() {
               <div key={item.store_id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
                 <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-xs font-bold text-muted-foreground">{index + 1}</span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold">매장 {item.store_id}</p>
+                  <p className="truncate text-sm font-semibold">{item.store_name || `매장 ${item.store_id}`}</p>
                   <p className="text-xs text-muted-foreground">검증 완료 {item.verified_count}건</p>
                 </div>
                 <p className="font-bold tabular-nums">{formatScore(item.average_effect_score)}</p>
@@ -200,7 +200,7 @@ export function EffectVerificationPerformanceSection() {
                     <td className="max-w-80 px-5 py-3.5">
                       <p className="truncate font-semibold" title={actionName}>{actionName}</p>
                     </td>
-                    <td className="px-4 py-3.5">매장 {result.store_id}</td>
+                    <td className="px-4 py-3.5">{result.store_name || `매장 ${result.store_id}`}</td>
                     <td className="px-4 py-3.5">{recommendationTypeLabel(result.recommendation_type)}</td>
                     <td className="px-4 py-3.5 font-bold tabular-nums">{formatScore(result.effect_score)}</td>
                     <td className="px-4 py-3.5">

@@ -2,6 +2,7 @@ import type { RecommendationType } from "./effect-verification.types";
 
 export interface EffectVerificationStoreSummary {
   store_id: number;
+  store_name?: string;
   verified_count: number;
   average_effect_score: number;
 }
@@ -16,6 +17,7 @@ export interface EffectVerificationRecentResult {
   recommendation_id: string;
   action_name?: string;
   store_id: number;
+  store_name?: string;
   recommendation_type: RecommendationType;
   effect_score: number;
   verdict: string;

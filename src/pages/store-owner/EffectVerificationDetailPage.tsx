@@ -362,8 +362,8 @@ export function EffectVerificationDetailPage() {
           type="button"
           onClick={() => navigate(
             execution?.recommendation_type === "REVIEW"
-              ? "/store/strategy-verifications/review"
-              : "/store/strategy-verifications/sales"
+              ? "/store/verify/reviews"
+              : "/store/verify/sales"
           )}
           className="flex items-center gap-1 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
         >
