@@ -114,7 +114,7 @@ export function PortfolioDashboard() {
                 <h3 className="font-bold">추천 유형별 검증 현황</h3>
                 <p className="text-xs text-muted-foreground">저장된 효과 검증 결과 기준</p>
               </div>
-              <button onClick={() => navigate("/admin/roi")} className="text-xs text-[#087F65] font-semibold hover:underline flex items-center gap-0.5">
+              <button onClick={() => navigate("/admin/verify")} className="text-xs text-[#087F65] font-semibold hover:underline flex items-center gap-0.5">
                 자세히 보기 <ChevronRight className="w-3 h-3" />
               </button>
             </div>
@@ -142,7 +142,7 @@ export function PortfolioDashboard() {
               <h3 className="font-bold">최근 추천 효과 검증</h3>
               <p className="text-xs text-muted-foreground">실제 실행 후 저장된 검증 결과</p>
             </div>
-            <button onClick={() => navigate("/admin/roi")} className="text-xs text-[#087F65] font-semibold hover:underline flex items-center gap-0.5">
+            <button onClick={() => navigate("/admin/verify")} className="text-xs text-[#087F65] font-semibold hover:underline flex items-center gap-0.5">
               전체 보기 <ChevronRight className="w-3 h-3" />
             </button>
           </div>
