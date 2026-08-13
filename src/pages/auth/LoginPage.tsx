@@ -69,7 +69,7 @@ export function LoginPage() {
   };
 
   return (
-    <AuthLayout>
+    <AuthLayout scrollExperience>
       <h1 className="mb-1 text-2xl font-bold">로그인</h1>
       <p className="mb-6 text-sm text-muted-foreground">
         초대받아 가입을 완료한 관리자와 점주만 로그인할 수 있습니다.
