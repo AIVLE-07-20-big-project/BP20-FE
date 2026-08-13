@@ -26,7 +26,7 @@ const STORE_NAV = [
 
 const AI_NAV = [
   { to: "/store/actions", icon: Zap, label: "매출 기반 전략 추천" },
-  { to: "/store/strategy-verifications", icon: ClipboardCheck, label: "전략 검증" },
+  { to: "/store/verify", icon: ClipboardCheck, label: "전략 검증" },
   { to: "/store/ledger", icon: BookOpen, label: "AI 가계부" },
 ];
 
@@ -154,17 +154,17 @@ export function StoreOwnerLayout() {
               </div>
             )}
             {items.map(({ to, icon: Icon, label }) => {
-              if (to === "/store/strategy-verifications") {
+              if (to === "/store/verify") {
                 return (
                   <div key={to} className="group relative">
                     <NavLink
-                      to="/store/strategy-verifications/sales"
+                      to="/store/verify/sales"
                       onClick={() => setMobileOpen(false)}
                       aria-label={label}
                       title={collapsed && !mobile ? label : undefined}
                       className={() => clsx(
                         "mb-0.5 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                        location.pathname.startsWith("/store/strategy-verifications")
+                        location.pathname.startsWith("/store/verify")
                           ? "bg-[#246BFD]/20 text-[#93BBFD]"
                           : "text-white/60 hover:bg-white/5 hover:text-white"
                       )}
@@ -178,7 +178,7 @@ export function StoreOwnerLayout() {
                       <div className="max-h-0 overflow-hidden pl-7 opacity-0 transition-all duration-200 group-hover:max-h-24 group-hover:opacity-100 group-focus-within:max-h-24 group-focus-within:opacity-100">
                         <div className="border-l border-white/10 py-1 pl-2">
                           <NavLink
-                            to="/store/strategy-verifications/sales"
+                            to="/store/verify/sales"
                             onClick={() => setMobileOpen(false)}
                             className={({ isActive }) => clsx(
                               "block rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
@@ -188,7 +188,7 @@ export function StoreOwnerLayout() {
                             매출형 전략 검증
                           </NavLink>
                           <NavLink
-                            to="/store/strategy-verifications/review"
+                            to="/store/verify/reviews"
                             onClick={() => setMobileOpen(false)}
                             className={({ isActive }) => clsx(
                               "block rounded-lg px-3 py-2 text-xs font-semibold transition-colors",

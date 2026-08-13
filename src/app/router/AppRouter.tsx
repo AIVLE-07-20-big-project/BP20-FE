@@ -59,8 +59,8 @@ function LegacyEffectVerificationDetailRedirect() {
   return (
     <Navigate
       to={recommendationId
-        ? `/store/strategy-verifications/${encodeURIComponent(recommendationId)}`
-        : "/store/strategy-verifications"}
+        ? `/store/verify/${encodeURIComponent(recommendationId)}`
+        : "/store/verify"}
       replace
     />
   );
@@ -102,11 +102,15 @@ export function AppRouter() {
           <Route path="sales" element={<SalesPage />} />
           <Route path="actions" element={<AiStrategyPage />} />
           <Route path="recommendations/history" element={<RecommendationHistoryPage />} />
-          <Route path="strategy-verifications" element={<Navigate to="/store/strategy-verifications/sales" replace />} />
-          <Route path="strategy-verifications/sales" element={<EffectVerificationHistoryPage recommendationType="SALES" />} />
-          <Route path="strategy-verifications/review" element={<EffectVerificationHistoryPage recommendationType="REVIEW" />} />
-          <Route path="strategy-verifications/:recommendationId" element={<EffectVerificationDetailPage />} />
-          <Route path="actions/history" element={<Navigate to="/store/strategy-verifications" replace />} />
+          <Route path="verify" element={<Navigate to="/store/verify/sales" replace />} />
+          <Route path="verify/sales" element={<EffectVerificationHistoryPage recommendationType="SALES" />} />
+          <Route path="verify/reviews" element={<EffectVerificationHistoryPage recommendationType="REVIEW" />} />
+          <Route path="verify/:recommendationId" element={<EffectVerificationDetailPage />} />
+          <Route path="strategy-verifications" element={<Navigate to="/store/verify/sales" replace />} />
+          <Route path="strategy-verifications/sales" element={<Navigate to="/store/verify/sales" replace />} />
+          <Route path="strategy-verifications/review" element={<Navigate to="/store/verify/reviews" replace />} />
+          <Route path="strategy-verifications/:recommendationId" element={<LegacyEffectVerificationDetailRedirect />} />
+          <Route path="actions/history" element={<Navigate to="/store/verify" replace />} />
           <Route
             path="actions/verifications/:recommendationId"
             element={<LegacyEffectVerificationDetailRedirect />}
@@ -140,7 +144,8 @@ export function AppRouter() {
           <Route path="store-owner-invitations" element={<Navigate to="/admin/accounts/store-owners" replace />} />
           <Route path="risks" element={<RisksPage />} />
           <Route path="market-intelligence" element={<PlaceholderPage title="소비·상권 분석" />} />
-          <Route path="roi" element={<ROIPage />} />
+          <Route path="verify" element={<ROIPage />} />
+          <Route path="roi" element={<Navigate to="/admin/verify" replace />} />
           <Route path="sales-targets" element={<SalesTargetsPage />} />
           <Route path="subscriptions" element={<PlaceholderPage title="구독·계약 현황" />} />
           <Route path="notices" element={<NoticesPage />} />
