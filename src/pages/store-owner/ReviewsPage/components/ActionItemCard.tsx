@@ -68,9 +68,10 @@ export default function ActionItemCard({ item, onComplete }: ActionItemCardProps
       {isOpen && (
         <div className="pt-2 border-t border-border/50 text-xs space-y-1.5 text-muted-foreground animate-in fade-in-50 duration-200">
           <p>
-            {/* <span className="text-[10px] bg-muted px-2 py-0.5 rounded text-muted-foreground font-medium">
+            <span className="text-[10px] bg-muted px-2 py-0.5 rounded text-muted-foreground font-medium">
                 {ASPECT_MAP[item.aspect] || item.aspect}
-            </span> */}
+            </span>
+            {item.trendSummary}
           </p>
           <p>
             <strong className="text-foreground">원인:</strong> {item.problemCause}

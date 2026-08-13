@@ -464,7 +464,7 @@ export function AiStrategyPage() {
     <PageShell
       title="매출 기반 전략 추천"
       subtitle="매출, 재고, 원가, 리뷰 데이터를 분석한 전략을 검토하고 실행 효과를 관리합니다."
-      freshness="오늘 09:42 기준"
+      liveFreshness
       actions={null}
     >
       <form onSubmit={requestRecommendation} className="bg-card border border-border rounded-2xl p-5 mb-5">

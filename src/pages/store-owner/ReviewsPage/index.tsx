@@ -1,49 +1,16 @@
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Star, TrendingUp, AlertCircle, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
-import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
+import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { PageShell } from "../../../shared/components/PageShell";
 import ReviewList from "./components/ReviewList";
-import { analyzeRequest, AspectStat, generateMonthlyReport, getAspectStat, getMonthlyReportStatus, getStoreReviews } from "./api/review";
+import { analyzeRequest, AspectStat, generateMonthlyReport, getAspectStat, getMonthlyReportStatus, getReviewTrend, ReviewTrend } from "./api/review";
 import AspectBarChart from "./components/AspectBarChart";
 import ReviewKeyword from "./components/ReviewKeyword";
 import AIRecommendation from "./components/AIRecommendation";
 import type { StoreOwnerLayoutContext } from "../../../app/layouts/StoreOwnerLayout";
-
-const ASPECT_DATA = [
-  { aspect: "맛", score: 4.7, prev: 4.6 },
-  { aspect: "서비스", score: 4.5, prev: 4.4 },
-  { aspect: "편의성", score: 4.4, prev: 4.3 },
-  { aspect: "가격", score: 3.9, prev: 4.0 },
-  { aspect: "분위기", score: 4.2, prev: 4.1 },
-];
-
-const TREND_DATA = [
-  { week: "6/23", avg: 4.4, negative: 8 },
-  { week: "6/30", avg: 4.3, negative: 10 },
-  { week: "7/7", avg: 4.2, negative: 14 },
-  { week: "7/14", avg: 4.2, negative: 22 },
-  { week: "7/20", avg: 4.1, negative: 28 },
-];
-
-const TOPIC_CLUSTERS = [
-  { name: "대기시간이 길다", count: 34, change: 300, urgent: true },
-  { name: "커피 맛이 좋다", count: 128, change: 8, urgent: false },
-  { name: "직원이 친절하다", count: 89, change: 3, urgent: false },
-  { name: "가격이 비싸다", count: 42, change: 25, urgent: false },
-  { name: "자리가 협소하다", count: 18, change: 12, urgent: false },
-];
-
-const RADAR_DATA = ASPECT_DATA.map(a => ({ subject: a.aspect, A: a.score * 20, B: a.prev * 20, fullMark: 100 }));
-
-interface Review {
-  id: number;
-  rating: number;
-  content: string;
-  reviewedDate?: string;
-  source?: string;
-  isAnalyzed?: boolean;
-}
+import AspectRadarChart from "./components/AspectRadarChart";
+import ReviewTrendChart from "./components/ReviewTrendChart";
+import { useReviewStats } from "./hooks/useReviewStats";
 
 export function ReviewsPage() {
   const [showEvidence, setShowEvidence] = useState(false);
@@ -52,15 +19,21 @@ export function ReviewsPage() {
   const [isGeneratingMonthlyReport, setIsGeneratingMonthlyReport] = useState<boolean>(false);
   const [monthlyReportGenerated, setMonthlyReportGenerated] = useState<boolean>(false);
 
-  const [reviewList, setReviewList] = useState<Review[]>([]);
-  const [reviewLoading, setReviewLoading] = useState<boolean>(true);
-  const [reviewError, setReviewError] = useState<string | null>(null);
-
   const [aspectStats, setAspectStats] = useState<AspectStat[]>([]);
   const [statLoading, setStatLoading] = useState<boolean>(true);
   const [statError, setStatError] = useState<string | null>(null);
 
+  const [trendData, setTrendData] = useState<ReviewTrend[]>([]);
+  const [trendLoading, setTrendLoading] = useState(true);
+
   const { currentStoreId: storeId } = useOutletContext<StoreOwnerLayoutContext>();
+  const {
+    averageRating,
+    reviews: reviewList,
+    loading: reviewLoading,
+    error: reviewError,
+    refetch: refetchReviews,
+  } = useReviewStats(storeId);
   const previousMonth = (() => {
     const date = new Date();
     date.setMonth(date.getMonth() - 1);
@@ -91,18 +64,16 @@ export function ReviewsPage() {
   }, [storeId]);
 
   useEffect(() => {
-    if(!storeId) return;
+    if (!storeId) return;
 
-    getStoreReviews(storeId)
-      .then((data) => {
-        setReviewList(data);
-      })
+    getReviewTrend(storeId)
+      .then(setTrendData)
       .catch((err) => {
-        console.error("리뷰 데이터를 불러오는데 실패했습니다:", err);
-        setReviewError("리뷰를 불러오지 못했습니다.");
+        console.error("리뷰 추이를 불러오지 못했습니다:", err);
+        setTrendData([]);
       })
       .finally(() => {
-        setReviewLoading(false);
+        setTrendLoading(false);
       });
   }, [storeId]);
 
@@ -114,7 +85,7 @@ export function ReviewsPage() {
       await analyzeRequest(storeId);
       alert('리뷰 분석이 완료되었습니다.');
 
-      getStoreReviews(storeId);
+      await refetchReviews();
     } catch (error) {
       console.error(error);
       alert('분석 요청 중 오류가 발생했습니다.');
@@ -161,7 +132,7 @@ export function ReviewsPage() {
   return (
     <PageShell 
       title="리뷰 분석" 
-      freshness="오늘 09:42 기준"
+      liveFreshness
       actions={
         <div className="flex flex-col items-end gap-1">
           <button
@@ -202,13 +173,12 @@ export function ReviewsPage() {
       }
     >
       {/* Summary metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         {[
-          { label: "평균 평점", value: "4.2", sub: "/ 5.0" },
+          { label: "평균 평점", value: averageRating.toFixed(1), sub: "/ 5.0" },
           { label: "리뷰 수", value: `${reviewList.length}개`, sub: "최근 3개월" },
           { label: "긍정 비율", value: `${positiveRate}`, sub: "▲ 5%p" },
           { label: "부정 비율", value: `${negativeRate}`, sub: "▲ 8%p" },
-          { label: "답변 비율", value: "62%", sub: "" },
         ].map((m) => (
           <div key={m.label} className="bg-card border border-border rounded-2xl p-4">
             <div className="text-xs text-muted-foreground mb-1">{m.label}</div>
@@ -219,51 +189,11 @@ export function ReviewsPage() {
       
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-        {/* Radar chart */}
-        <div className="bg-card border border-border rounded-2xl p-5">
-          <h3 className="font-bold mb-4">속성별 평점</h3>
-          <div className="h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={RADAR_DATA}>
-                <PolarGrid stroke="#DDE3EC" />
-                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: "#667085" }} />
-                <Radar key="radar-current" name="이번 달" dataKey="A" stroke="#246BFD" fill="#246BFD" fillOpacity={0.2} strokeWidth={2} />
-                <Radar key="radar-prev" name="지난 달" dataKey="B" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.1} strokeWidth={1.5} strokeDasharray="4 2" />
-                <Tooltip formatter={(v: number) => [(v / 20).toFixed(1)]} />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex gap-4 justify-center mt-2">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="w-3 h-0.5 bg-[#246BFD] rounded" />이번 달</div>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="w-3 h-0.5 bg-[#8B5CF6] rounded" />지난 달</div>
-          </div>
-        </div>
-
-        {/* Trend chart */}
-        <div className="bg-card border border-border rounded-2xl p-5">
-          <h3 className="font-bold mb-1">리뷰 추이</h3>
-          <p className="text-xs text-muted-foreground mb-4">최근 5주</p>
-          <div className="h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={TREND_DATA}>
-                <defs>
-                  <linearGradient id="reviewAvgGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#246BFD" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#246BFD" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#DDE3EC" vertical={false} />
-                <XAxis dataKey="week" tick={{ fontSize: 11, fill: "#667085" }} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="left" domain={[3.5, 5]} tick={{ fontSize: 11, fill: "#667085" }} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: "#667085" }} axisLine={false} tickLine={false} />
-                <Tooltip />
-                <Area key="area-avg" yAxisId="left" type="monotone" dataKey="avg" stroke="#246BFD" fill="url(#reviewAvgGrad)" strokeWidth={2} name="평균 평점" />
-                <Area key="area-negative" yAxisId="right" type="monotone" dataKey="negative" stroke="#D92D20" fill="none" strokeWidth={1.5} strokeDasharray="4 2" name="부정 리뷰 수" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-        <div className="p-6 bg-white lg:col-span-1 rounded-xl shadow-sm border border-gray-100">
+        <AspectRadarChart 
+          aspectStats={aspectStats}
+        />
+        <ReviewTrendChart data={trendData} isLoading={trendLoading} />
+        <div className="h-full p-6 bg-white lg:col-span-1 rounded-xl shadow-sm border border-gray-100">
           <h3 className="text-lg font-bold text-gray-800 mb-2">리뷰 속성 통계</h3>
           <p className="text-xs text-muted-foreground mb-4">
             손님들의 리뷰에서 언급된 5가지 속성 분포입니다.
@@ -275,15 +205,6 @@ export function ReviewsPage() {
           />
         </div>
       </div>
-
-      {/* Rising alert */}
-      {/* <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-4 flex items-start gap-3">
-        <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-        <div>
-          <p className="text-sm font-semibold text-red-800">'대기시간이 길다' 관련 언급이 최근 2주 동안 3배 증가했습니다.</p>
-          <p className="text-xs text-red-600 mt-0.5">해당 이슈가 지속될 경우 평균 평점 0.3~0.5 하락이 예상됩니다. 매출 기반 전략 추천에서 개선 전략을 확인하세요.</p>
-        </div>
-      </div> */}
 
       {/* Topic clusters */}
       <div className="bg-card border border-border rounded-2xl p-5 mb-4">
@@ -321,6 +242,8 @@ export function ReviewsPage() {
           reviewList={reviewList}
           isLoading={reviewLoading}
           error={reviewError}
+          storeId={storeId}
+          onReviewCreated={refetchReviews}
         />
       </div>
 

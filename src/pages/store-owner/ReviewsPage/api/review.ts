@@ -10,6 +10,8 @@ export interface ReviewKeywords { reviewKeywordId: number; aspect: string; senti
 export interface ActionItem { priority: 'HIGH' | 'MEDIUM' | 'LOW'; aspect: string; keyword: string; trendSummary: string; problemCause: string; actionPlan: string; expectedOutcome: string; executedAt: string | null; }
 export interface Recommendations { recommendationId: number; storeId: number; executiveSummary: string; actionItems: ActionItem[]; createdAt: string; }
 export interface MonthlyReportStatus { targetMonth: string; generated: boolean; }
+export interface ReviewTrend { week: string; averageRating: number; negativeReviewCount: number; }
+export interface TestReviewCreateRequest { rating: number; content: string; reviewedDate: string; }
 
 function authHeaders() {
   const token = getAccessToken();
@@ -18,6 +20,20 @@ function authHeaders() {
 
 export const getStoreReviews = async (storeId: number) =>
   (await axios.get<Review[]>(`${BASE_URL}/api/v3/stores/${storeId}/reviews`, { headers: authHeaders() })).data;
+
+export const createTestReview = async (storeId: number, request: TestReviewCreateRequest) =>
+  (await axios.post<Review>(
+    `${BASE_URL}/api/v3/stores/${storeId}/reviews/test`,
+    request,
+    { headers: authHeaders() },
+  )).data;
+
+export const createTestReviews = async (storeId: number, reviews: TestReviewCreateRequest[]) =>
+  (await axios.post<Review[]>(
+    `${BASE_URL}/api/v3/stores/${storeId}/reviews/test/batch`,
+    { reviews },
+    { headers: authHeaders() },
+  )).data;
 
 export const analyzeRequest = async (storeId: number) => {
   await axios.post(`${BASE_URL}/api/v3/stores/${storeId}/reviews/analysis`, {}, { headers: authHeaders() });
@@ -50,3 +66,9 @@ export const patchCompleteActionItem = async (recommendationId: number, keyword:
     { params: { keyword }, headers: authHeaders() },
   );
 };
+
+export const getReviewTrend = async (storeId: number) =>
+  (await axios.get<ReviewTrend[]>(
+    `${BASE_URL}/api/v3/stores/${storeId}/reviews/trend`,
+    { headers: authHeaders() },
+  )).data;
