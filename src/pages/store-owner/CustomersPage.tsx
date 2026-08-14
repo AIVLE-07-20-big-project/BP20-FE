@@ -57,6 +57,8 @@ const EMPTY_COUPON: IssueCouponPayload = {
   discountType: "FIXED_AMOUNT",
   discountValue: 3_000,
   expiresAt: futureDate(30),
+  usageChannel: "OFFLINE_ONLY",
+  sourceOnlinePurchaseId: null,
 };
 
 const DEMO_CUSTOMERS: Customer[] = [
@@ -99,6 +101,8 @@ const DEMO_COUPONS: Coupon[] = [
     customerId: 3,
     customerEmail: "guest@example.com",
     customerName: "박신규",
+    usageChannel: "OFFLINE_ONLY",
+    sourceOnlinePurchaseId: null,
     issuedAt: "2026-07-27T12:15:00",
     expiresAt: "2026-08-27T23:59:59",
     usedAt: null,
@@ -113,6 +117,8 @@ const DEMO_COUPONS: Coupon[] = [
     customerId: 2,
     customerEmail: "coffee-lover@example.com",
     customerName: "이단골",
+    usageChannel: "ONLINE_ONLY",
+    sourceOnlinePurchaseId: null,
     issuedAt: "2026-07-10T10:00:00",
     expiresAt: "2026-08-10T23:59:59",
     usedAt: "2026-07-19T14:20:00",
@@ -553,7 +559,11 @@ function CouponModal({
   onClose: () => void;
   onSubmit: (event: React.FormEvent) => void;
 }) {
-  const invalid = !form.customerId || !form.name.trim() || form.discountValue <= 0 || !form.expiresAt;
+  const invalid = !form.customerId
+    || !form.name.trim()
+    || form.discountValue <= 0
+    || !form.expiresAt
+    || !form.usageChannel;
   return (
     <OperationModal
       open={open}
@@ -577,6 +587,18 @@ function CouponModal({
         <SelectField label="할인 유형" required value={form.discountType} onChange={(discountType) => setForm({ ...form, discountType: discountType as DiscountType })}>
           <option value="FIXED_AMOUNT">정액 할인(원)</option>
           <option value="RATE">정률 할인(%)</option>
+        </SelectField>
+        <SelectField
+          label="사용 채널"
+          required
+          value={form.usageChannel}
+          onChange={(usageChannel) => setForm({
+            ...form,
+            usageChannel: usageChannel as IssueCouponPayload["usageChannel"],
+          })}
+        >
+          <option value="OFFLINE_ONLY">오프라인 전용</option>
+          <option value="ONLINE_ONLY">온라인 전용</option>
         </SelectField>
         <FormField
           label={form.discountType === "RATE" ? "할인율" : "할인 금액"}

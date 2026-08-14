@@ -4,6 +4,7 @@ export type ProductOnlineSalesStatus = "NOT_REGISTERED" | "ON_SALE";
 export type DiscountType = "RATE" | "FIXED_AMOUNT";
 export type DiscountStatus = "DRAFT" | "SCHEDULED" | "ACTIVE" | "PAUSED" | "ENDED";
 export type CouponStatus = "ISSUED" | "USED" | "EXPIRED" | "REVOKED";
+export type CouponUsageChannel = "ONLINE_ONLY" | "OFFLINE_ONLY";
 export type CustomerStatus = "ACTIVE" | "INACTIVE";
 
 export interface Store {
@@ -73,6 +74,8 @@ export interface Coupon {
   customerId: number;
   customerEmail: string;
   customerName: string;
+  usageChannel: CouponUsageChannel;
+  sourceOnlinePurchaseId: number | null;
   issuedAt: string;
   expiresAt: string;
   usedAt: string | null;
@@ -129,4 +132,6 @@ export interface IssueCouponPayload {
   discountType: DiscountType;
   discountValue: number;
   expiresAt: string;
+  usageChannel: CouponUsageChannel;
+  sourceOnlinePurchaseId: number | null;
 }

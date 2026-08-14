@@ -101,6 +101,8 @@ function emptyCoupon(customerId = 0): IssueCouponPayload {
     discountType: "FIXED_AMOUNT",
     discountValue: 3_000,
     expiresAt: localDateTime(30, 23),
+    usageChannel: "OFFLINE_ONLY",
+    sourceOnlinePurchaseId: null,
   };
 }
 
@@ -217,6 +219,8 @@ const DEMO_COUPONS: Coupon[] = [
     customerId: 1,
     customerEmail: "customer@bp20.com",
     customerName: "김고객",
+    usageChannel: "OFFLINE_ONLY",
+    sourceOnlinePurchaseId: null,
     issuedAt: "2026-07-28T10:00:00",
     expiresAt: "2026-08-28T23:00:00",
     usedAt: null,
@@ -1517,7 +1521,8 @@ function CouponModal({
     || !form.name.trim()
     || form.discountValue <= 0
     || (form.discountType === "RATE" && form.discountValue > 100)
-    || !form.expiresAt;
+    || !form.expiresAt
+    || !form.usageChannel;
 
   return (
     <OperationModal
@@ -1563,6 +1568,18 @@ function CouponModal({
         >
           <option value="FIXED_AMOUNT">정액 할인(원)</option>
           <option value="RATE">정률 할인(%)</option>
+        </SelectField>
+        <SelectField
+          label="사용 채널"
+          required
+          value={form.usageChannel}
+          onChange={(usageChannel) => setForm({
+            ...form,
+            usageChannel: usageChannel as IssueCouponPayload["usageChannel"],
+          })}
+        >
+          <option value="OFFLINE_ONLY">오프라인 전용</option>
+          <option value="ONLINE_ONLY">온라인 전용</option>
         </SelectField>
         {form.discountType === "RATE" ? (
           <FormField
