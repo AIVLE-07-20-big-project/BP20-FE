@@ -90,7 +90,7 @@ export default function AIRecommendation({ storeId }: { storeId: number | null }
     return (
         <div className="space-y-3">
             {data.executiveSummary && (
-                <p className="text-sm leading-6 text-slate-700">
+                <p className="text-sm text-gray-500 leading-6 text-slate-500">
                     {data.executiveSummary}
                 </p>
             )}
