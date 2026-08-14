@@ -120,6 +120,9 @@ interface SalesTargetFlaggedCandidateRawDto {
 interface SalesTargetBatchResponseDto {
   thread_id?: string;
   "상태"?: string;
+  // AI가 그래프 실행을 백그라운드로 넘긴 직후(app/sales_target/router.py)에만 true로 내려온다.
+  // 완료된 응답(_to_response가 만드는 정상 상태)에는 이 키 자체가 없다.
+  "진행중"?: boolean;
   "대기중_승인"?: {
     "후보_리스트"?: SalesTargetBatchCandidateRawDto[];
     "후보_수"?: number;
@@ -163,6 +166,7 @@ function toBatchDomain(dto: SalesTargetBatchResponseDto): SalesTargetBatchRun {
   return {
     threadId: dto.thread_id ?? "",
     status: dto["상태"] ?? "",
+    isProcessing: dto["진행중"] === true,
     pendingApproval: pending
       ? {
           candidates: (pending["후보_리스트"] ?? []).map(toCandidatePreview),
