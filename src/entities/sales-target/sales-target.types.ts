@@ -52,6 +52,11 @@ export interface SalesTargetBatchPendingApproval {
 export interface SalesTargetBatchRun {
   threadId: string;
   status: string;
+  // AI가 파이프라인을 백그라운드로 넘기고 thread_id만 먼저 반환한 상태(아직 스코어링 중이라
+  // 승인 대기 목록도 없음). true인 동안 FE는 이 threadId로 폴링해서 완료를 기다려야 한다 —
+  // 배치 실행 자체가 몇 분씩 걸릴 수 있어(공공데이터 수집 등), 하나의 HTTP 요청으로 끝까지
+  // 기다리면 CloudFront/ALB 타임아웃에 걸려 조기에 에러가 뜨는 문제가 있었다.
+  isProcessing: boolean;
   pendingApproval: SalesTargetBatchPendingApproval | null;
   pushResult: { created: number; updated: number } | null;
   // 4단계(운영 정리 정책) — 관리자가 staleDays일 이상 방치한 배치를 BE가 대신 반려했을 때 true.

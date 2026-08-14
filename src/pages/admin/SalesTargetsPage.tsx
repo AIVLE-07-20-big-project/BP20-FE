@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Target, Info, Loader2, AlertTriangle, PlayCircle, History, Sparkles, Bot, Flag, X, Trash2 } from "lucide-react";
 import { PageShell } from "../../shared/components/PageShell";
 import { ApiError } from "../../shared/api/apiClient";
@@ -142,7 +142,9 @@ export function SalesTargetsPage() {
   async function resolvePendingBatches(
     batches: SalesTargetBatchRun[]
   ): Promise<{ batches: SalesTargetBatchRun[]; active: SalesTargetBatchRun | null }> {
-    const pending = batches.filter((b) => b.pendingApproval);
+    // isProcessing도 같이 재확인한다 — 새로고침 시점에 BE 캐시가 "아직 처리 중"이던 순간
+    // 그대로 남아있을 수 있어서(그 사이 완료됐을 수도 있음), 실제 최신 상태를 다시 물어봐야 한다.
+    const pending = batches.filter((b) => b.pendingApproval || b.isProcessing);
     if (pending.length === 0) {
       return { batches, active: batches[0] ?? null };
     }
@@ -151,9 +153,41 @@ export function SalesTargetsPage() {
     );
     const resolvedByThreadId = new Map(resolved.map((r) => [r.threadId, r]));
     const patched = batches.map((b) => resolvedByThreadId.get(b.threadId) ?? b);
-    const stillPending = patched.find((b) => b.pendingApproval);
+    const stillPending = patched.find((b) => b.pendingApproval || b.isProcessing);
     return { batches: patched, active: stillPending ?? patched[0] ?? null };
   }
+
+  // 활성 폴링 타이머(setInterval id)를 들고 있는다. 배치가 처리 중(isProcessing)인 동안
+  // getSalesTargetBatch를 주기적으로 불러 완료 여부를 확인한다 — 배치 실행 자체가 몇 분씩
+  // 걸릴 수 있어(공공데이터 수집 등), 시작 요청 하나로 끝까지 기다리면 CloudFront/ALB
+  // 타임아웃에 걸려 FE에 "요청 처리 중 오류가 발생했습니다"가 먼저 뜨는 문제가 있었다.
+  const pollIntervalRef = useRef<number | null>(null);
+
+  function stopPolling() {
+    if (pollIntervalRef.current !== null) {
+      window.clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  }
+
+  function startPolling(threadId: string) {
+    stopPolling();
+    pollIntervalRef.current = window.setInterval(async () => {
+      try {
+        const run = await getSalesTargetBatch(threadId);
+        setActiveBatch(run);
+        if (!run.isProcessing) {
+          stopPolling();
+          await refreshHistoryListOnly();
+        }
+      } catch {
+        // 아주 짧은 순간(백그라운드 실행 시작 직후) 일시적으로 조회가 실패할 수 있어, 폴링
+        // 자체를 바로 끊지는 않는다 — 다음 주기에 다시 시도한다.
+      }
+    }, 5000);
+  }
+
+  useEffect(() => stopPolling, []);
 
   // 배치 이력을 다시 불러오면서, 승인 대기 중인 배치가 있으면 activeBatch 배너에 다시 띄운다.
   // 페이지를 처음 열었을 때(또는 새 배치를 막 시작했을 때)처럼 "지금 뭐가 승인 대기 중인지
@@ -164,6 +198,11 @@ export function SalesTargetsPage() {
       const { batches: patched, active } = await resolvePendingBatches(batches);
       setBatchHistory(patched);
       setActiveBatch(active);
+      if (active?.isProcessing) {
+        startPolling(active.threadId);
+      } else {
+        stopPolling();
+      }
     } catch {
       // 배치 이력 조회 실패는 후보 목록 화면 자체를 막을 정도는 아니라서 조용히 무시한다.
     }
@@ -196,6 +235,9 @@ export function SalesTargetsPage() {
         if (cancelled) return;
         setBatchHistory(patched);
         setActiveBatch(active);
+        if (active?.isProcessing) {
+          startPolling(active.threadId);
+        }
       })
       .catch(() => {
         // 배치 이력 조회 실패는 후보 목록 화면 자체를 막을 정도는 아니라서 조용히 무시한다.
@@ -213,7 +255,14 @@ export function SalesTargetsPage() {
     try {
       const run = await startSalesTargetBatch();
       setActiveBatch(run);
-      await refreshBatchHistory();
+      if (run.isProcessing) {
+        // AI가 thread_id만 먼저 반환하고 실제 실행은 백그라운드로 넘긴 상태 — 배치 이력에는
+        // 아직 반영할 게 없으니(진행 중이라 캐시할 결과가 없음) refreshBatchHistory 대신
+        // 폴링만 시작한다. 완료되면 startPolling 안에서 refreshHistoryListOnly를 호출한다.
+        startPolling(run.threadId);
+      } else {
+        await refreshBatchHistory();
+      }
     } catch (err) {
       setBatchError(err instanceof ApiError ? err.message : "배치 실행을 시작하지 못했습니다.");
     } finally {
@@ -370,7 +419,17 @@ export function SalesTargetsPage() {
 
       {/* 배치 실행 / 승인 대기 */}
       <div className="bg-card border border-border rounded-2xl p-4 mb-5">
-        {activeBatch?.pendingApproval ? (
+        {activeBatch?.isProcessing ? (
+          <div className="flex items-center gap-3">
+            <Loader2 className="w-5 h-5 text-[#246BFD] animate-spin flex-shrink-0" />
+            <div>
+              <p className="text-sm font-bold">배치 생성 중...</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                공공데이터 수집 및 스코어링에 몇 분 정도 걸릴 수 있습니다. 완료되면 자동으로 승인 대기 화면으로 바뀝니다.
+              </p>
+            </div>
+          </div>
+        ) : activeBatch?.pendingApproval ? (
           <div>
             <div className="flex items-start gap-2 mb-3">
               <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
