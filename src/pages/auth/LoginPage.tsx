@@ -8,7 +8,7 @@ import {
   executeRecaptcha,
   initializeRecaptcha,
 } from "../../features/auth/lib/recaptchaV3";
-import { DEMO_USERS } from "../../mocks";
+import { DEMO_LOGIN_PASSWORDS, DEMO_USERS } from "../../mocks";
 import { RecaptchaNotice } from "../../shared/components/RecaptchaNotice";
 import { RECAPTCHA_SITE_KEY } from "../../shared/config/runtimeEnv";
 import { AuthLayout } from "./components/AuthLayout";
@@ -21,7 +21,7 @@ export function LoginPage() {
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const { login, switchDemo } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -60,12 +60,35 @@ export function LoginPage() {
     setError(result.error ?? "로그인에 실패했습니다.");
   };
 
-  const demoLogin = (userId: string) => {
-    switchDemo(userId);
+  const demoLogin = async (userId: string) => {
+    if (loading) return;
+
     const demoUser = DEMO_USERS.find((user) => user.id === userId);
-    if (demoUser) {
-      navigate(demoUser.role === "STORE_OWNER" ? "/store" : "/admin");
+    const demoPassword = DEMO_LOGIN_PASSWORDS[userId];
+    if (!demoUser || !demoPassword) return;
+
+    setLoading(true);
+    setError("");
+
+    let captchaToken: string | null;
+    try {
+      captchaToken = await executeRecaptcha("login");
+    } catch {
+      setLoading(false);
+      setError("자동입력 방지 확인을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      return;
     }
+
+    const loginRole = demoUser.role === "STORE_OWNER" ? "STORE_OWNER" : "ADMIN";
+    const result = await login(demoUser.email, demoPassword, loginRole, false, captchaToken);
+    setLoading(false);
+
+    if (result.ok) {
+      navigate(loginRole === "STORE_OWNER" ? "/store" : "/admin", { replace: true });
+      return;
+    }
+
+    setError(result.error ?? "데모 계정 로그인에 실패했습니다.");
   };
 
   return (
@@ -178,8 +201,9 @@ export function LoginPage() {
             <button
               key={demoUser.id}
               type="button"
-              onClick={() => demoLogin(demoUser.id)}
-              className="flex w-full items-center gap-3 rounded-xl bg-muted px-3 py-2.5 text-left transition-colors hover:bg-muted-foreground/10"
+              onClick={() => void demoLogin(demoUser.id)}
+              disabled={loading}
+              className="flex w-full items-center gap-3 rounded-xl bg-muted px-3 py-2.5 text-left transition-colors hover:bg-muted-foreground/10 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-[#246BFD]/30 to-[#5B6CFF]/30 text-xs font-bold text-foreground">
                 {demoUser.name[0]}
