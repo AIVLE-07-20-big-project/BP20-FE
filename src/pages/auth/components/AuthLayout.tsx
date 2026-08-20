@@ -1,15 +1,20 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  ArrowRight,
   BarChart3,
+  BookOpenCheck,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  MapPinned,
+  MessageSquareText,
+  ShoppingBag,
   Sparkles,
+  Store,
   Target,
   TrendingUp,
-  Users,
-  Zap,
 } from "lucide-react";
 import aiProductImageBanner from "../../../shared/assets/images/image02.png";
+import marketPokeLogo from "../../../shared/assets/images/market-poke-logo.png";
 import { PolicyFooter } from "../../../shared/components/PolicyFooter";
 import { LEGAL_CONFIG } from "../../legal/legalConfig";
 
@@ -20,10 +25,32 @@ interface AuthLayoutProps {
 }
 
 const FEATURES = [
-  { icon: TrendingUp, label: "매출 분석", description: "시간·요일·날씨 보정" },
-  { icon: Zap, label: "AI 전략 추천", description: "근거와 예상 효과 제공" },
-  { icon: Users, label: "고객 관리", description: "세그먼트 기반 전략" },
+  { icon: Store, label: "매장 맞춤 전략", description: "매출 진단·대응 전략 추천" },
+  { icon: BookOpenCheck, label: "가계부·발주 관리", description: "영수증 OCR·날씨 기반 발주" },
+  { icon: MessageSquareText, label: "리뷰 분석", description: "속성·감성 분석과 개선 제안" },
+  { icon: ShoppingBag, label: "O2O 매장·커머스", description: "온라인 판매·오프라인 재방문" },
+  { icon: MapPinned, label: "영업 타겟 추천", description: "상권 데이터 기반 후보 발굴" },
 ];
+
+const INTRODUCTION_PANEL_COUNT = 4;
+const INTRODUCTION_AUTOPLAY_DELAY_MS = 7_000;
+
+function BrandIdentity({ dark = false }: { dark?: boolean }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-white p-1.5 shadow-lg shadow-black/10 ring-1 ring-slate-200/70">
+        <img
+          src={marketPokeLogo}
+          alt={`${LEGAL_CONFIG.serviceName} 로고`}
+          className="h-full w-full object-contain"
+        />
+      </div>
+      <span className={`text-xl font-black tracking-wide ${dark ? "text-white" : "text-[#0B1220]"}`}>
+        {LEGAL_CONFIG.serviceName}
+      </span>
+    </div>
+  );
+}
 
 export function AuthLayout({
   children,
@@ -32,6 +59,20 @@ export function AuthLayout({
 }: AuthLayoutProps) {
   const layoutRef = useRef<HTMLDivElement>(null);
   const asideRef = useRef<HTMLElement>(null);
+  const [currentIntroductionPanel, setCurrentIntroductionPanel] = useState(0);
+
+  const showIntroductionPanel = useCallback((panelIndex: number) => {
+    if (!scrollExperience || window.innerWidth < 1024) return;
+
+    const normalizedPanelIndex =
+      (panelIndex + INTRODUCTION_PANEL_COUNT) % INTRODUCTION_PANEL_COUNT;
+
+    setCurrentIntroductionPanel(normalizedPanelIndex);
+    window.scrollTo({
+      top: normalizedPanelIndex * window.innerHeight,
+      behavior: "smooth",
+    });
+  }, [scrollExperience]);
 
   useEffect(() => {
     if (!scrollExperience) return;
@@ -44,7 +85,13 @@ export function AuthLayout({
       if (window.innerWidth < 1024) return;
 
       const stage = Math.max(0, window.scrollY / window.innerHeight);
+      const activePanel = Math.min(
+        INTRODUCTION_PANEL_COUNT - 1,
+        Math.max(0, Math.round(stage)),
+      );
       const panels = layoutRef.current?.querySelectorAll<HTMLElement>("[data-horizontal-panel]");
+
+      setCurrentIntroductionPanel(activePanel);
 
       panels?.forEach((panel) => {
         const panelIndex = Number(panel.dataset.horizontalPanel ?? 0);
@@ -65,17 +112,20 @@ export function AuthLayout({
       if (event.clientX > window.innerWidth * 0.52) return;
       if (wheelLocked || Math.abs(event.deltaY) < 8) return;
 
-      const currentStage = Math.round(window.scrollY / window.innerHeight);
+      const currentStage = Math.min(
+        INTRODUCTION_PANEL_COUNT - 1,
+        Math.max(0, Math.round(window.scrollY / window.innerHeight)),
+      );
       const direction = event.deltaY > 0 ? 1 : -1;
-      const nextStage = Math.min(3, Math.max(0, currentStage + direction));
+      const nextStage = Math.min(
+        INTRODUCTION_PANEL_COUNT - 1,
+        Math.max(0, currentStage + direction),
+      );
 
       if (nextStage === currentStage) return;
 
       wheelLocked = true;
-      window.scrollTo({
-        top: nextStage * window.innerHeight,
-        behavior: "smooth",
-      });
+      showIntroductionPanel(nextStage);
       wheelUnlockTimer = window.setTimeout(() => {
         wheelLocked = false;
       }, 750);
@@ -93,13 +143,28 @@ export function AuthLayout({
       window.removeEventListener("resize", handleScroll);
       window.removeEventListener("wheel", handleWheel);
     };
-  }, [scrollExperience]);
+  }, [scrollExperience, showIntroductionPanel]);
+
+  useEffect(() => {
+    if (!scrollExperience || window.innerWidth < 1024) return;
+
+    const autoplayTimer = window.setTimeout(() => {
+      const visiblePanel = Math.round(window.scrollY / window.innerHeight);
+      showIntroductionPanel(visiblePanel + 1);
+    }, INTRODUCTION_AUTOPLAY_DELAY_MS);
+
+    return () => window.clearTimeout(autoplayTimer);
+  }, [currentIntroductionPanel, scrollExperience, showIntroductionPanel]);
 
   const authContent = (
     <div className={contentWidth === "md" ? "w-full max-w-lg" : "w-full max-w-sm"}>
       <div className="mb-8 flex items-center gap-2 lg:hidden">
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[#246BFD] to-[#5B6CFF]">
-          <Zap className="h-4 w-4 text-white" />
+        <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200">
+          <img
+            src={marketPokeLogo}
+            alt={`${LEGAL_CONFIG.serviceName} 로고`}
+            className="h-full w-full object-contain"
+          />
         </div>
         <span className="text-lg font-black tracking-wide">{LEGAL_CONFIG.serviceName}</span>
       </div>
@@ -108,7 +173,10 @@ export function AuthLayout({
   );
 
   const firstIntroduction = (
-    <section className="flex min-h-screen items-center bg-white px-6 py-20 sm:px-10 lg:px-16">
+    <section className="relative flex min-h-screen items-center bg-white px-6 py-20 sm:px-10 lg:px-20">
+      <div className="absolute left-6 top-10 sm:left-10 lg:left-20">
+        <BrandIdentity />
+      </div>
       <div className="mx-auto grid w-full max-w-3xl items-center gap-8">
         <div>
           <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-[#246BFD]/10 px-4 py-2 text-sm font-bold text-[#246BFD]">
@@ -152,7 +220,7 @@ export function AuthLayout({
       <aside
         ref={asideRef}
         data-horizontal-panel={scrollExperience ? "0" : undefined}
-        className={`relative hidden min-h-screen w-[52%] overflow-hidden bg-[#0B1220] p-12 lg:flex lg:flex-col ${
+        className={`relative hidden min-h-screen w-[52%] overflow-hidden bg-[#0B1220] px-20 py-12 lg:flex lg:flex-col ${
           scrollExperience ? "lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:h-screen lg:will-change-transform" : ""
         }`}
       >
@@ -165,28 +233,25 @@ export function AuthLayout({
           <div className="absolute bottom-1/3 left-1/4 h-px w-32 bg-gradient-to-r from-transparent via-[#5B6CFF]/30 to-transparent" />
         </div>
 
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#246BFD] to-[#5B6CFF]">
-            <Zap className="h-5 w-5 text-white" />
-          </div>
-          <span className="text-xl font-black tracking-wide text-white">{LEGAL_CONFIG.serviceName}</span>
+        <div className="relative z-10">
+          <BrandIdentity dark />
         </div>
 
         <div className="relative z-10 my-auto">
           <h1 className="mb-6 text-4xl font-black leading-tight text-white">
-            매장의 신호를 읽고,
+            매장의 모든 순간을 데이터로,
             <br />
             <span className="bg-gradient-to-r from-[#246BFD] to-[#5B6CFF] bg-clip-text text-transparent">
-              다음 행동을 제안합니다.
+              온·오프라인의 기회를 매출로.
             </span>
           </h1>
           <p className="mb-10 max-w-md text-base leading-relaxed text-white/50">
-            POS·결제 데이터를 기반으로 운영 문제를 발견하고, 실행 가능한 조치를 제안하며,
-            그 효과까지 검증하는 AI 운영 플랫폼.
+            POS·매출·고객·리뷰 데이터를 AI가 읽고, 매장 운영 개선부터 온라인 판매와
+            오프라인 재방문까지 지금 필요한 전략을 제안합니다.
           </p>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
             {FEATURES.map(({ icon: Icon, label, description }) => (
-              <div key={label} className="rounded-2xl border border-white/8 bg-white/5 p-4">
+              <div key={label} className="rounded-2xl border border-white/8 bg-white/5 p-3.5">
                 <Icon className="mb-2 h-5 w-5 text-[#8B5CF6]" />
                 <div className="text-sm font-semibold text-white">{label}</div>
                 <div className="mt-0.5 text-xs text-white/40">{description}</div>
@@ -218,9 +283,40 @@ export function AuthLayout({
 
       {scrollExperience && (
         <>
+          <nav
+            aria-label="서비스 소개 배너 이동"
+            className="pointer-events-none fixed left-0 top-1/2 z-[70] hidden w-[52%] -translate-y-1/2 items-center justify-between px-4 lg:flex"
+          >
+            <button
+              type="button"
+              onClick={() => {
+                const visiblePanel = Math.round(window.scrollY / window.innerHeight);
+                showIntroductionPanel(visiblePanel - 1);
+              }}
+              className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border border-white/40 bg-slate-950/45 text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-slate-950/70 focus:outline-none focus:ring-2 focus:ring-[#8EAFFF] focus:ring-offset-2 focus:ring-offset-transparent"
+              aria-label="이전 소개 배너"
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const visiblePanel = Math.round(window.scrollY / window.innerHeight);
+                showIntroductionPanel(visiblePanel + 1);
+              }}
+              className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border border-white/40 bg-slate-950/45 text-white shadow-lg backdrop-blur transition hover:scale-105 hover:bg-slate-950/70 focus:outline-none focus:ring-2 focus:ring-[#8EAFFF] focus:ring-offset-2 focus:ring-offset-transparent"
+              aria-label="다음 소개 배너"
+            >
+              <ChevronRight className="h-6 w-6" />
+            </button>
+          </nav>
+
           <div className="lg:hidden">{firstIntroduction}</div>
 
-          <section data-horizontal-panel="2" className="flex min-h-screen items-center bg-[#F5F7FF] px-6 py-20 sm:px-10 lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:w-[52%] lg:px-12 lg:py-10 lg:will-change-transform">
+          <section data-horizontal-panel="2" className="relative flex min-h-screen items-center bg-[#F5F7FF] px-6 py-20 sm:px-10 lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:w-[52%] lg:px-20 lg:py-10 lg:will-change-transform">
+            <div className="absolute left-6 top-10 sm:left-10 lg:left-20">
+              <BrandIdentity />
+            </div>
             <div className="mx-auto grid w-full max-w-3xl items-center gap-8">
               <div className="relative order-2 lg:order-1">
                 <div className="absolute -inset-5 rounded-[2.5rem] bg-gradient-to-br from-[#8B5CF6]/20 to-[#246BFD]/10 blur-2xl" />
@@ -272,7 +368,10 @@ export function AuthLayout({
             </div>
           </section>
 
-          <section data-horizontal-panel="3" className="flex min-h-screen items-center bg-[#0B1220] px-6 py-20 text-white sm:px-10 lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:w-[52%] lg:px-12 lg:py-10 lg:will-change-transform">
+          <section data-horizontal-panel="3" className="relative flex min-h-screen items-center bg-[#0B1220] px-6 py-20 text-white sm:px-10 lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:w-[52%] lg:px-20 lg:py-10 lg:will-change-transform">
+            <div className="absolute left-6 top-10 sm:left-10 lg:left-20">
+              <BrandIdentity dark />
+            </div>
             <div className="mx-auto grid w-full max-w-3xl items-center gap-8">
               <div>
                 <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-bold text-[#8EAFFF]">

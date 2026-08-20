@@ -8,6 +8,7 @@ import type {
   Discount,
   DiscountStatus,
   IssueCouponPayload,
+  OnlinePurchase,
   OnlineSalesStatus,
   Product,
   ProductStatus,
@@ -87,6 +88,8 @@ export const commerceApi = {
       body: JSON.stringify(withNormalizedPhone(payload)),
     }),
   getCoupons: () => apiRequest<Coupon[]>(`${STORE_OWNER_BASE}/coupons`),
+  getOnlinePurchases: () =>
+    apiRequest<OnlinePurchase[]>(`${STORE_OWNER_BASE}/online-purchases`),
   issueCoupon: (payload: IssueCouponPayload) =>
     apiRequest<Coupon>(`${STORE_OWNER_BASE}/coupons`, {
       method: "POST",

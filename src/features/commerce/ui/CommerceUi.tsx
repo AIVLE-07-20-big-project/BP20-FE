@@ -127,12 +127,14 @@ export function SelectField({
   onChange,
   children,
   required,
+  disabled,
 }: {
   label: string;
   value: string | number;
   onChange: (value: string) => void;
   children: React.ReactNode;
   required?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <label className="block">
@@ -141,8 +143,9 @@ export function SelectField({
       </span>
       <select
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="h-10 w-full rounded-xl border border-border bg-card px-3 text-sm outline-none transition focus:border-[#246BFD] focus:ring-3 focus:ring-[#246BFD]/10"
+        className="h-10 w-full rounded-xl border border-border bg-card px-3 text-sm outline-none transition focus:border-[#246BFD] focus:ring-3 focus:ring-[#246BFD]/10 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
       >
         {children}
       </select>

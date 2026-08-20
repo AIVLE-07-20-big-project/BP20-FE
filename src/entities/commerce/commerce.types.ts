@@ -82,6 +82,24 @@ export interface Coupon {
   revokedAt: string | null;
 }
 
+export interface OnlinePurchaseItem {
+  productId: number;
+  productName: string;
+  unitPrice: number;
+  quantity: number;
+  lineAmount: number;
+}
+
+export interface OnlinePurchase {
+  id: number;
+  customerId: number;
+  customerName: string;
+  customerEmail: string;
+  purchasedAt: string;
+  totalAmount: number;
+  items: OnlinePurchaseItem[];
+}
+
 export interface CreateStorePayload {
   name: string;
   businessNumber: string;
