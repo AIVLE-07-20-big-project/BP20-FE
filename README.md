@@ -6,8 +6,7 @@
 ## 실행 경로
 
 ```
-로컬주소 : http://localhost:8080
-배포주소 : https://dt555m45x3ua9.cloudfront.net/login
+배포주소 : https://dt555m45x3ua9.cloudfront.net
 ```
 
 ## 전체 기능
@@ -88,7 +87,7 @@ cd BP20-FE
 npm install
 ```
 
-'.env` 파일 생성
+'.env' 파일 생성
 
 ```bash
 cp .env.example .env
