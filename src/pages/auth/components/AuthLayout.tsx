@@ -25,6 +25,17 @@ const FEATURES = [
   { icon: Users, label: "고객 관리", description: "세그먼트 기반 전략" },
 ];
 
+function ScrollHint() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute right-7 top-1/2 z-40 hidden -translate-y-1/2 text-current opacity-25 lg:block"
+    >
+      <ArrowRight className="h-7 w-7 animate-pulse" />
+    </div>
+  );
+}
+
 export function AuthLayout({
   children,
   contentWidth = "sm",
@@ -39,6 +50,69 @@ export function AuthLayout({
     let animationFrame = 0;
     let wheelLocked = false;
     let wheelUnlockTimer = 0;
+    let autoAdvanceTimer = 0;
+    let isWrapping = false;
+    let activeStage = Math.min(3, Math.max(0, Math.round(window.scrollY / window.innerHeight)));
+
+    const goToStage = (stage: number) => {
+      activeStage = stage;
+      window.scrollTo({
+        top: stage * window.innerHeight,
+        behavior: "smooth",
+      });
+    };
+
+    const wrapToFirstStage = () => {
+      if (isWrapping) return;
+      const panels = layoutRef.current?.querySelectorAll<HTMLElement>("[data-horizontal-panel]");
+      const firstPanel = layoutRef.current?.querySelector<HTMLElement>('[data-horizontal-panel="0"]');
+      const lastPanel = layoutRef.current?.querySelector<HTMLElement>('[data-horizontal-panel="3"]');
+      if (!panels || !firstPanel || !lastPanel) return;
+
+      isWrapping = true;
+      activeStage = 0;
+      firstPanel.style.transition = "none";
+      lastPanel.style.transition = "none";
+      firstPanel.style.transform = "translate3d(100%, 0, 0)";
+      lastPanel.style.transform = "translate3d(0, 0, 0)";
+
+      requestAnimationFrame(() => {
+        firstPanel.style.transition = "transform 650ms cubic-bezier(0.22, 1, 0.36, 1)";
+        lastPanel.style.transition = "transform 650ms cubic-bezier(0.22, 1, 0.36, 1)";
+        firstPanel.style.transform = "translate3d(0, 0, 0)";
+        lastPanel.style.transform = "translate3d(-100%, 0, 0)";
+      });
+
+      window.setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: "auto" });
+        panels.forEach((panel) => {
+          panel.style.transition = "none";
+        });
+        updateScrollAppearance();
+        requestAnimationFrame(() => {
+          panels.forEach((panel) => {
+            panel.style.removeProperty("transition");
+          });
+          isWrapping = false;
+          scheduleAutoAdvance();
+        });
+      }, 660);
+    };
+
+    const scheduleAutoAdvance = () => {
+      window.clearTimeout(autoAdvanceTimer);
+      if (window.innerWidth < 1024 || isWrapping) return;
+
+      autoAdvanceTimer = window.setTimeout(() => {
+        const currentStage = activeStage;
+        if (currentStage === 3) {
+          wrapToFirstStage();
+        } else {
+          goToStage(currentStage + 1);
+        }
+        scheduleAutoAdvance();
+      }, 5000);
+    };
 
     const updateScrollAppearance = () => {
       if (window.innerWidth < 1024) return;
@@ -65,23 +139,27 @@ export function AuthLayout({
       if (event.clientX > window.innerWidth * 0.52) return;
       if (wheelLocked || Math.abs(event.deltaY) < 8) return;
 
-      const currentStage = Math.round(window.scrollY / window.innerHeight);
       const direction = event.deltaY > 0 ? 1 : -1;
-      const nextStage = Math.min(3, Math.max(0, currentStage + direction));
+      const scrollStage = Math.round(window.scrollY / window.innerHeight);
+      const currentStage = Math.min(3, Math.max(0, scrollStage));
+      scheduleAutoAdvance();
 
-      if (nextStage === currentStage) return;
-
-      wheelLocked = true;
-      window.scrollTo({
-        top: nextStage * window.innerHeight,
-        behavior: "smooth",
-      });
+      if (direction > 0 && window.scrollY >= window.innerHeight * 2.5) {
+        wheelLocked = true;
+        wrapToFirstStage();
+      } else {
+        const nextStage = Math.min(3, Math.max(0, currentStage + direction));
+        if (nextStage === currentStage) return;
+        wheelLocked = true;
+        goToStage(nextStage);
+      }
       wheelUnlockTimer = window.setTimeout(() => {
         wheelLocked = false;
       }, 750);
     };
 
     updateScrollAppearance();
+    scheduleAutoAdvance();
     window.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("resize", handleScroll);
     window.addEventListener("wheel", handleWheel, { passive: false });
@@ -89,6 +167,7 @@ export function AuthLayout({
     return () => {
       cancelAnimationFrame(animationFrame);
       window.clearTimeout(wheelUnlockTimer);
+      window.clearTimeout(autoAdvanceTimer);
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", handleScroll);
       window.removeEventListener("wheel", handleWheel);
@@ -108,7 +187,7 @@ export function AuthLayout({
   );
 
   const firstIntroduction = (
-    <section className="flex min-h-screen items-center bg-white px-6 py-20 sm:px-10 lg:px-16">
+    <section className="relative flex min-h-screen items-center bg-white px-6 py-20 sm:px-10 lg:px-16">
       <div className="mx-auto grid w-full max-w-3xl items-center gap-8">
         <div>
           <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-[#246BFD]/10 px-4 py-2 text-sm font-bold text-[#246BFD]">
@@ -136,6 +215,7 @@ export function AuthLayout({
           />
         </div>
       </div>
+      <ScrollHint />
     </section>
   );
 
@@ -196,6 +276,7 @@ export function AuthLayout({
         </div>
 
         {!scrollExperience && <div className="relative z-10"><PolicyFooter dark /></div>}
+        {scrollExperience && <div className="text-white"><ScrollHint /></div>}
         </div>
       </aside>
 
@@ -270,6 +351,7 @@ export function AuthLayout({
                 </p>
               </div>
             </div>
+            <ScrollHint />
           </section>
 
           <section data-horizontal-panel="3" className="flex min-h-screen items-center bg-[#0B1220] px-6 py-20 text-white sm:px-10 lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:w-[52%] lg:px-12 lg:py-10 lg:will-change-transform">
@@ -322,6 +404,7 @@ export function AuthLayout({
                 </div>
               </div>
             </div>
+            <ScrollHint />
           </section>
 
           <div className="bg-white px-6 py-8 sm:px-8 lg:hidden lg:px-12">

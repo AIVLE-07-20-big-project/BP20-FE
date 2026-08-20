@@ -126,5 +126,24 @@ npm run preview
 
 로그인 화면
 
-메인 화면
+<img src="src/images/login_page.png">
 
+메인 대시보드 화면
+
+<img src="src/images/main_page.png">
+
+매장·커머스 화면
+
+<img src="src/images/commerce_page.png">
+
+재고·발주 화면
+
+<img src="src/images/product_page.png">
+
+매장분석 화면
+
+<img src="src/images/analysis_page.png">
+
+리뷰 화면
+
+<img src="src/images/review_page.png">
