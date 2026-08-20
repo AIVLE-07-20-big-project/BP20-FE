@@ -1,9 +1,7 @@
 
-# Market Poke Frontend
+# BP20-Frontend
 
-Market Poke의 점주·관리자용 웹 프론트엔드입니다.
-
-점주는 매출·재고·리뷰 현황과 AI 기반 운영 전략을 확인할 수 있으며, 관리자는 입점 매장과 서비스 운영 현황을 관리할 수 있습니다.
+매장 분석 및 온오프라인 운영 관리 AI 플랫폼 프론트엔드입니다. 점주는 매출·재고·리뷰 현황과 AI 기반 운영 전략을 확인할 수 있으며, 관리자는 입점 매장과 서비스 운영 현황을 관리할 수 있습니다.
 
 ## 실행 경로
 
@@ -12,7 +10,7 @@ Market Poke의 점주·관리자용 웹 프론트엔드입니다.
 배포주소 : https://dt555m45x3ua9.cloudfront.net/login
 ```
 
-## 주요 기능
+## 전체 기능
 
 ### 점주
 
@@ -31,7 +29,6 @@ Market Poke의 점주·관리자용 웹 프론트엔드입니다.
 - 전체 매장 포트폴리오 조회
 - 매장별 상세 현황 확인
 - 위험 매장 모니터링
-- 전략 적용 효과 및 ROI 분석
 - 매출 목표 관리
 - 공지사항 관리
 - 서비스 상태 확인
@@ -126,5 +123,24 @@ npm run preview
 
 로그인 화면
 
-메인 화면
+<img src="src/images/login_page.png">
 
+메인 대시보드 화면
+
+<img src="src/images/main_page.png">
+
+매장·커머스 화면
+
+<img src="src/images/commerce_page.png">
+
+재고·발주 화면
+
+<img src="src/images/product_page.png">
+
+매장분석 화면
+
+<img src="src/images/analysis_page.png">
+
+리뷰 화면
+
+<img src="src/images/review_page.png">
