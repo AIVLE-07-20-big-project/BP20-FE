@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowRight,
   Ban,
+  CheckCircle2,
   Gift,
   Mail,
   Phone,
   Plus,
   Search,
+  ShoppingBag,
   ShieldCheck,
+  Store,
   TicketCheck,
   UserPlus,
   Users,
@@ -19,6 +23,7 @@ import type {
   Customer,
   DiscountType,
   IssueCouponPayload,
+  OnlinePurchase,
 } from "../../entities/commerce/commerce.types";
 import { commerceApi } from "../../features/commerce/api/commerceApi";
 import {
@@ -102,7 +107,7 @@ const DEMO_COUPONS: Coupon[] = [
     customerEmail: "guest@example.com",
     customerName: "박신규",
     usageChannel: "OFFLINE_ONLY",
-    sourceOnlinePurchaseId: null,
+    sourceOnlinePurchaseId: 5,
     issuedAt: "2026-07-27T12:15:00",
     expiresAt: "2026-08-27T23:59:59",
     usedAt: null,
@@ -124,6 +129,86 @@ const DEMO_COUPONS: Coupon[] = [
     usedAt: "2026-07-19T14:20:00",
     revokedAt: null,
   },
+  {
+    id: 3,
+    name: "재방문 10% 쿠폰",
+    status: "ISSUED",
+    discountType: "RATE",
+    discountValue: 10,
+    customerId: 2,
+    customerEmail: "coffee-lover@example.com",
+    customerName: "이단골",
+    usageChannel: "OFFLINE_ONLY",
+    sourceOnlinePurchaseId: 3,
+    issuedAt: "2026-08-05T12:40:00",
+    expiresAt: "2026-09-05T23:59:59",
+    usedAt: null,
+    revokedAt: null,
+  },
+  {
+    id: 4,
+    name: "매장 방문 감사 쿠폰",
+    status: "USED",
+    discountType: "FIXED_AMOUNT",
+    discountValue: 2_000,
+    customerId: 1,
+    customerEmail: "customer@bp20.com",
+    customerName: "김고객",
+    usageChannel: "OFFLINE_ONLY",
+    sourceOnlinePurchaseId: 1,
+    issuedAt: "2026-08-05T10:20:00",
+    expiresAt: "2026-09-05T23:59:59",
+    usedAt: "2026-08-08T14:10:00",
+    revokedAt: null,
+  },
+];
+
+const DEMO_ONLINE_PURCHASES: OnlinePurchase[] = [
+  {
+    id: 5,
+    customerId: 3,
+    customerName: "박신규",
+    customerEmail: "gue****@example.com",
+    purchasedAt: "2026-08-05T02:30:00",
+    totalAmount: 36_000,
+    items: [{ productId: 11, productName: "시그니처 블렌드 원두 500g", unitPrice: 18_000, quantity: 2, lineAmount: 36_000 }],
+  },
+  {
+    id: 4,
+    customerId: 1,
+    customerName: "김고객",
+    customerEmail: "cus****@bp20.com",
+    purchasedAt: "2026-08-05T02:30:00",
+    totalAmount: 5_500,
+    items: [{ productId: 12, productName: "플레인 베이글", unitPrice: 5_500, quantity: 1, lineAmount: 5_500 }],
+  },
+  {
+    id: 3,
+    customerId: 2,
+    customerName: "이단골",
+    customerEmail: "cof****@example.com",
+    purchasedAt: "2026-08-05T02:30:00",
+    totalAmount: 33_000,
+    items: [{ productId: 13, productName: "콜드브루 원액", unitPrice: 5_500, quantity: 6, lineAmount: 33_000 }],
+  },
+  {
+    id: 2,
+    customerId: 3,
+    customerName: "박신규",
+    customerEmail: "gue****@example.com",
+    purchasedAt: "2026-08-05T02:30:00",
+    totalAmount: 7_600,
+    items: [{ productId: 14, productName: "버터 크루아상", unitPrice: 3_800, quantity: 2, lineAmount: 7_600 }],
+  },
+  {
+    id: 1,
+    customerId: 1,
+    customerName: "김고객",
+    customerEmail: "cus****@bp20.com",
+    purchasedAt: "2026-08-05T02:30:00",
+    totalAmount: 5_600,
+    items: [{ productId: 15, productName: "초코칩 쿠키", unitPrice: 2_800, quantity: 2, lineAmount: 5_600 }],
+  },
 ];
 
 const COUPON_STATUS_LABEL: Record<CouponStatus, string> = {
@@ -139,6 +224,7 @@ export function CustomersPage() {
   const [modal, setModal] = useState<CustomerModal>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [onlinePurchases, setOnlinePurchases] = useState<OnlinePurchase[]>([]);
   const [customerForm, setCustomerForm] = useState<CreateCustomerPayload>(EMPTY_CUSTOMER);
   const [couponForm, setCouponForm] = useState<IssueCouponPayload>(EMPTY_COUPON);
   const [query, setQuery] = useState("");
@@ -147,6 +233,7 @@ export function CustomersPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [customerModalError, setCustomerModalError] = useState("");
+  const [couponModalError, setCouponModalError] = useState("");
   const [notice, setNotice] = useState("");
 
   const filteredCustomers = useMemo(() => {
@@ -175,16 +262,19 @@ export function CustomersPage() {
       if (isDemo) {
         setCustomers(DEMO_CUSTOMERS);
         setCoupons(DEMO_COUPONS);
+        setOnlinePurchases(DEMO_ONLINE_PURCHASES);
         setLoading(false);
         return;
       }
       try {
-        const [customerList, couponList] = await Promise.all([
+        const [customerList, couponList, purchaseList] = await Promise.all([
           commerceApi.getCustomers(),
           commerceApi.getCoupons(),
+          commerceApi.getOnlinePurchases(),
         ]);
         setCustomers(customerList);
         setCoupons(couponList);
+        setOnlinePurchases(purchaseList);
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : "고객·쿠폰 정보를 불러오지 못했습니다.");
       } finally {
@@ -214,10 +304,14 @@ export function CustomersPage() {
     }
   };
 
-  const openCouponModal = (customerId?: number) => {
+  const openCouponModal = (customerId?: number, sourceOnlinePurchaseId: number | null = null) => {
+    setCouponModalError("");
     setCouponForm({
       ...EMPTY_COUPON,
       customerId: customerId ?? customers[0]?.id ?? 0,
+      name: sourceOnlinePurchaseId ? "온라인 구매 고객 방문 쿠폰" : "",
+      usageChannel: "OFFLINE_ONLY",
+      sourceOnlinePurchaseId,
       expiresAt: futureDate(30),
     });
     setModal("coupon");
@@ -264,8 +358,11 @@ export function CustomersPage() {
           }
         : await commerceApi.issueCoupon(couponForm);
       setCoupons((current) => [issued, ...current]);
-    }, "고객에게 쿠폰을 발급했습니다.");
+    }, "고객에게 쿠폰을 발급했습니다.", (message) => {
+      setCouponModalError(toModalErrorMessage(message));
+    });
     if (succeeded) {
+      setCouponModalError("");
       setModal(null);
       setActiveTab("coupons");
     }
@@ -387,7 +484,14 @@ export function CustomersPage() {
           )}
         </section>
       ) : (
-        <section className="overflow-hidden rounded-3xl border border-border bg-card">
+        <div className="space-y-5">
+          <O2OConversionSection
+            purchases={onlinePurchases}
+            coupons={coupons}
+            saving={saving}
+            onIssueCoupon={(purchase) => openCouponModal(purchase.customerId, purchase.id)}
+          />
+          <section className="overflow-hidden rounded-3xl border border-border bg-card">
           <div className="flex flex-col gap-3 border-b border-border p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="font-bold">쿠폰 발급 내역</h2>
@@ -452,7 +556,8 @@ export function CustomersPage() {
               ))}
             </div>
           )}
-        </section>
+          </section>
+        </div>
       )}
 
       <CustomerModal
@@ -476,10 +581,142 @@ export function CustomersPage() {
         form={couponForm}
         setForm={setCouponForm}
         saving={saving}
-        onClose={() => setModal(null)}
+        error={couponModalError}
+        onClose={() => {
+          setCouponModalError("");
+          setModal(null);
+        }}
         onSubmit={saveCoupon}
       />
     </PageShell>
+  );
+}
+
+function O2OConversionSection({
+  purchases,
+  coupons,
+  saving,
+  onIssueCoupon,
+}: {
+  purchases: OnlinePurchase[];
+  coupons: Coupon[];
+  saving: boolean;
+  onIssueCoupon: (purchase: OnlinePurchase) => void;
+}) {
+  const convertedPurchaseIds = new Set(
+    coupons
+      .map((coupon) => coupon.sourceOnlinePurchaseId)
+      .filter((purchaseId): purchaseId is number => purchaseId !== null),
+  );
+  const customerCount = new Set(purchases.map((purchase) => purchase.customerId)).size;
+  const convertedCount = purchases.filter((purchase) => convertedPurchaseIds.has(purchase.id)).length;
+  const candidateCount = purchases.length - convertedCount;
+
+  return (
+    <section className="overflow-hidden rounded-3xl border border-[#D8E3FF] bg-gradient-to-br from-[#F7FAFF] via-white to-[#FBF8FF] shadow-sm">
+      <div className="flex flex-col gap-5 border-b border-[#E4EAF7] p-5 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-[#246BFD] px-2.5 py-1 text-[10px] font-black text-white shadow-sm">
+            <Store className="h-3 w-3" /> Online to Offline
+          </div>
+          <h2 className="mt-3 text-lg font-black tracking-tight">온라인 구매 고객을 오프라인 매장 방문으로 연결</h2>
+          <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+            온라인 구매 이력을 확인하고, 방문 가능성이 높은 고객에게 매장 전용 혜택을 발급합니다.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <ConversionMetric label="온라인 구매" value={`${purchases.length}건`} tone="blue" />
+          <ConversionMetric label="구매 고객" value={`${customerCount}명`} tone="slate" />
+          <ConversionMetric label="쿠폰 발급 완료" value={`${convertedCount}건`} tone="violet" />
+          <ConversionMetric label="미발급 전환 대상" value={`${candidateCount}건`} tone="amber" />
+        </div>
+      </div>
+
+      {purchases.length === 0 ? (
+        <EmptyState
+          icon={ShoppingBag}
+          title="온라인 구매 이력이 없습니다"
+          description="온라인 구매가 발생하면 고객별 구매 내역과 방문 쿠폰 발급 대상을 확인할 수 있습니다."
+        />
+      ) : (
+        <div className="grid gap-3 p-4 xl:grid-cols-2">
+          {purchases.map((purchase) => {
+            const converted = convertedPurchaseIds.has(purchase.id);
+            return (
+              <article
+                key={purchase.id}
+                className="rounded-2xl border border-[#E1E7F2] bg-white p-4 shadow-[0_8px_30px_rgba(36,107,253,0.04)] transition hover:-translate-y-0.5 hover:border-[#BFD4FF] hover:shadow-[0_12px_34px_rgba(36,107,253,0.09)]"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-black">온라인 구매 #{purchase.id}</span>
+                      <Badge variant={converted ? "positive" : "info"}>
+                        {converted ? "방문 쿠폰 발급 완료" : "방문 전환 후보"}
+                      </Badge>
+                    </div>
+                    <div className="mt-1 truncate text-[11px] text-muted-foreground">
+                      {purchase.customerName} · {purchase.customerEmail} · {formatDateTime(purchase.purchasedAt)}
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-sm font-black text-[#173B74]">₩{purchase.totalAmount.toLocaleString()}</span>
+                </div>
+
+                <div className="mt-3 space-y-1.5 rounded-xl bg-[#F7F9FC] px-3 py-2.5">
+                  {purchase.items.map((item) => (
+                    <div key={`${purchase.id}-${item.productId}`} className="flex items-center justify-between gap-3 text-xs">
+                      <span className="min-w-0 truncate font-semibold text-[#344054]">{item.productName} × {item.quantity}</span>
+                      <span className="shrink-0 text-muted-foreground">₩{item.lineAmount.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-[11px] text-muted-foreground">구매 상품과 연관된 오프라인 재방문 혜택 추천</p>
+                  <button
+                    type="button"
+                    onClick={() => onIssueCoupon(purchase)}
+                    disabled={converted || saving}
+                    className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-bold transition ${
+                      converted
+                        ? "cursor-default bg-[#F2F4F7] text-[#98A2B3]"
+                        : "bg-[#246BFD] text-white shadow-sm hover:bg-[#1D4ED8] disabled:opacity-50"
+                    }`}
+                  >
+                    {converted ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Gift className="h-3.5 w-3.5" />}
+                    {converted ? "발급 완료" : "매장 방문 쿠폰 발급"}
+                    {!converted && <ArrowRight className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ConversionMetric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "blue" | "slate" | "violet" | "amber";
+}) {
+  const toneClass = {
+    blue: "border-blue-100 bg-blue-50/80 text-blue-700",
+    slate: "border-slate-200 bg-white text-slate-700",
+    violet: "border-violet-100 bg-violet-50/80 text-violet-700",
+    amber: "border-amber-100 bg-amber-50/80 text-amber-700",
+  }[tone];
+  return (
+    <div className={`min-w-28 rounded-2xl border px-3 py-2.5 ${toneClass}`}>
+      <div className="text-[10px] font-semibold opacity-75">{label}</div>
+      <div className="mt-1 text-base font-black">{value}</div>
+    </div>
   );
 }
 
@@ -548,6 +785,7 @@ function CouponModal({
   form,
   setForm,
   saving,
+  error,
   onClose,
   onSubmit,
 }: {
@@ -556,6 +794,7 @@ function CouponModal({
   form: IssueCouponPayload;
   setForm: (form: IssueCouponPayload) => void;
   saving: boolean;
+  error: string;
   onClose: () => void;
   onSubmit: (event: React.FormEvent) => void;
 }) {
@@ -572,9 +811,25 @@ function CouponModal({
       onClose={onClose}
       footer={<ModalActions saving={saving} onClose={onClose} submitLabel="쿠폰 발급" disabled={invalid} formId="coupon-form" />}
     >
+      <FeedbackBanner error={error} notice="" />
       <form id="coupon-form" onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
+        {form.sourceOnlinePurchaseId !== null && (
+          <div className="sm:col-span-2 flex items-start gap-3 rounded-2xl border border-[#BFD4FF] bg-[#F4F8FF] px-4 py-3 text-xs text-[#1D4ED8]">
+            <ShoppingBag className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <div className="font-bold">온라인 구매 #{form.sourceOnlinePurchaseId} 연계 쿠폰</div>
+              <div className="mt-1 text-[11px] text-[#496A9F]">온라인 구매 고객의 매장 방문을 위한 오프라인 전용 쿠폰으로 발급됩니다.</div>
+            </div>
+          </div>
+        )}
         <div className="sm:col-span-2">
-          <SelectField label="수령 고객" required value={form.customerId} onChange={(customerId) => setForm({ ...form, customerId: Number(customerId) })}>
+          <SelectField
+            label="수령 고객"
+            required
+            disabled={form.sourceOnlinePurchaseId !== null}
+            value={form.customerId}
+            onChange={(customerId) => setForm({ ...form, customerId: Number(customerId) })}
+          >
             <option value={0}>고객을 선택하세요</option>
             {customers.filter((customer) => customer.status === "ACTIVE").map((customer) => (
               <option key={customer.id} value={customer.id}>{customer.name} · {customer.email}</option>
@@ -591,6 +846,7 @@ function CouponModal({
         <SelectField
           label="사용 채널"
           required
+          disabled={form.sourceOnlinePurchaseId !== null}
           value={form.usageChannel}
           onChange={(usageChannel) => setForm({
             ...form,
@@ -706,5 +962,15 @@ function formatDate(value: string) {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
   }).format(new Date(value));
 }
